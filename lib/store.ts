@@ -92,6 +92,16 @@ export interface Deliverable {
   createdAt: string;
 }
 
+export interface DriveFile {
+  id: string;
+  fileId: string;
+  webViewLink: string;
+  filename: string;
+  phase: string;
+  type: string;
+  savedAt: string;
+}
+
 // ─── WORKFLOW ─────────────────────────────────────────────────────────────────
 
 export type StepStatus = 'pending' | 'active' | 'done' | 'skipped';
@@ -257,6 +267,7 @@ export interface Project {
   transcripts: TranscriptAnalysis[];
   deepAnalysis: DeepAnalysis;
   deliverables: Deliverable[];
+  driveFiles: DriveFile[];
   intel: IntelItem[];
   createdAt: string;
 }
@@ -301,6 +312,7 @@ const DOBRASIL_SEED: Project = {
     proximosPassos: [],
   },
   deliverables: [],
+  driveFiles: [],
   intel: [
     {
       id: 'i1',

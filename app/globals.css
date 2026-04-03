@@ -1298,3 +1298,45 @@ textarea { resize: vertical; }
   margin: 8px 0 0 0;
   line-height: 1.6;
 }
+
+/* ── DRIVE SAVE BUTTON ───────────────────────────────────────────── */
+
+.drive-save-btn {
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  font-size: 11px;
+  font-weight: 600;
+  font-family: inherit;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.drive-save-btn:hover:not(:disabled) {
+  border-color: #5a9e6f;
+  color: #5a9e6f;
+  background: rgba(90,158,111,0.08);
+}
+.drive-save-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.drive-saved-link {
+  font-size: 11px;
+  font-weight: 600;
+  color: #5a9e6f;
+  text-decoration: none;
+  border: 1px solid rgba(90,158,111,0.3);
+  padding: 4px 10px;
+  border-radius: 4px;
+  background: rgba(90,158,111,0.08);
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+.drive-saved-link:hover {
+  background: rgba(90,158,111,0.15);
+}

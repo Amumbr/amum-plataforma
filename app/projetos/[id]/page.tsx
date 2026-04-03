@@ -18,11 +18,101 @@ import {
   TranscriptAnalysis,
   ClientDocument,
   DocumentSynthesis,
+  DriveFile,
   ResearchAgendaItem,
   ResearchResult,
   InterviewScript,
   PHASE_NAMES,
 } from '@/lib/store';
+
+// ─── DRIVE SAVE BUTTON ────────────────────────────────────────────────────────
+
+function SaveToDriveButton({
+  project,
+  phase,
+  type,
+  title,
+  content,
+  onSaved,
+}: {
+  project: Project;
+  phase: string;
+  type: string;
+  title: string;
+  content: string;
+  onSaved?: (file: DriveFile) => void;
+}) {
+  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  const [link, setLink] = useState('');
+
+  // Verifica se já foi salvo antes
+  const existing = project.driveFiles?.find(f => f.type === type && f.phase === phase);
+  React.useEffect(() => {
+    if (existing) { setStatus('saved'); setLink(existing.webViewLink); }
+  }, [existing]);
+
+  async function handleSave() {
+    if (!content?.trim()) return;
+    setStatus('saving');
+    try {
+      const res = await fetch('/api/drive', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'save',
+          projectName: project.nome,
+          phase,
+          type,
+          title,
+          content,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setStatus('saved');
+      setLink(data.webViewLink);
+      const driveFile: DriveFile = {
+        id: `df_${Date.now()}`,
+        fileId: data.fileId,
+        webViewLink: data.webViewLink,
+        filename: data.filename,
+        phase,
+        type,
+        savedAt: new Date().toISOString(),
+      };
+      if (onSaved) onSaved(driveFile);
+    } catch (err) {
+      console.error('Drive save error:', err);
+      setStatus('error');
+      setTimeout(() => setStatus('idle'), 4000);
+    }
+  }
+
+  if (status === 'saved') {
+    return (
+      <a
+        href={link}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="drive-saved-link"
+        title="Ver no Google Drive"
+      >
+        ✓ Drive
+      </a>
+    );
+  }
+
+  return (
+    <button
+      className="drive-save-btn"
+      onClick={handleSave}
+      disabled={status === 'saving' || !content?.trim()}
+      title="Salvar no Google Drive da AMUM"
+    >
+      {status === 'saving' ? '...' : status === 'error' ? '⚠ Erro' : '↑ Drive'}
+    </button>
+  );
+}
 
 // ─── HELPERS ──────────────────────────────────────────────────────────────────
 
@@ -41,6 +131,20 @@ function StepBadge({ status }: { status: WorkflowStep['status'] }) {
 
 function getStepNotes(step: WorkflowStep): string {
   return (step.data?.userNotes as string) || '';
+}
+
+function formatSynthesisMarkdown(s: DocumentSynthesis): string {
+  return [
+    `## Como a empresa se apresenta\n${s.apresentacao}`,
+    `## Linguagem\n${s.linguagem}`,
+    `## Arquétipos\n**Dominante:** ${s.arquetipo?.dominante}\n**Secundário:** ${s.arquetipo?.secundario}\n**Sombra:** ${s.arquetipo?.sombra}`,
+    `## Tensões estruturais\n${s.tensoes?.map(t => `- ${t}`).join('\n')}`,
+    `## Signos que funcionam\n${s.signos_fortes?.map(t => `- ${t}`).join('\n')}`,
+    `## Signos em conflito\n${s.signos_conflito?.map(t => `- ${t}`).join('\n')}`,
+    `## Potência latente\n${s.potencia_latente}`,
+    `## Hipóteses estratégicas\n${s.hipoteses_estrategicas?.map(t => `- ${t}`).join('\n')}`,
+    `## Perguntas para entrevistas\n${s.perguntas_para_entrevista?.map(t => `- ${t}`).join('\n')}`,
+  ].join('\n\n');
 }
 
 function getStepChatHistory(step: WorkflowStep): { role: 'user' | 'assistant'; content: string }[] {
@@ -1098,10 +1202,21 @@ function StepDocuments({
                   {synthesis.perguntas_para_entrevista?.map((q, i) => <li key={i}>{q}</li>)}
                 </ul>
               </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '20px', alignItems: 'center' }}>
                 <button className="btn-approve" onClick={handleApprove}>
                   Aprovar síntese e avançar
                 </button>
+                <SaveToDriveButton
+                  project={project}
+                  phase="1 - Escuta"
+                  type="sintese-documental"
+                  title={`Síntese Documental — ${project.nome}`}
+                  content={synthesis ? formatSynthesisMarkdown(synthesis) : ''}
+                  onSaved={df => {
+                    const updated = { ...project, driveFiles: [...(project.driveFiles || []).filter(f => f.type !== 'sintese-documental'), df] };
+                    saveProject(updated); onUpdate(updated);
+                  }}
+                />
                 <button className="btn-skip" onClick={handleSkip}>Pular</button>
               </div>
             </div>
@@ -1854,8 +1969,26 @@ function StepDeepAnalysis({
                   )}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar análise e continuar</button>
+                <SaveToDriveButton
+                  project={project}
+                  phase="2 - Decifração"
+                  type="analise-decifração"
+                  title={`Análise de Decifração — ${project.nome}`}
+                  content={analysis.status === 'done' ? [
+                    `## Arquétipo\n${analysis.arquetipo}`,
+                    `## Tensão Central\n${analysis.tensaoCentral}`,
+                    `## Território Recomendado\n${analysis.territorioRecomendado}`,
+                    `## Narrativa-Núcleo\n${analysis.narrativaNucleo}`,
+                    `## Gaps Principais\n${analysis.gapsPrincipais.map(g => `- ${g}`).join('\n')}`,
+                    `## Próximos Passos\n${analysis.proximosPassos.map(p => `- ${p}`).join('\n')}`,
+                  ].join('\n\n') : ''}
+                  onSaved={df => {
+                    const updated = { ...project, driveFiles: [...(project.driveFiles || []).filter(f => f.type !== 'analise-decifração'), df] };
+                    saveProject(updated); onUpdate(updated);
+                  }}
+                />
                 <button className="btn-skip" onClick={handleSkip}>Refazer depois</button>
               </div>
             </>
@@ -1984,6 +2117,21 @@ function StepChat({
               {messages.map((m, i) => (
                 <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>
                   <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
+                  {m.role === 'assistant' && m.content.length > 100 && (
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <SaveToDriveButton
+                        project={project}
+                        phase={step.id === 'chat_decifração' ? '2 - Decifração' : step.id === 'chat_reconstrucao' ? '3 - Reconstrução' : '4 - Travessia'}
+                        type={`entregavel-${step.id}-${i}`}
+                        title={`Entregável ${label} — mensagem ${i + 1}`}
+                        content={m.content}
+                        onSaved={df => {
+                          const updated = { ...project, driveFiles: [...(project.driveFiles || []), df] };
+                          saveProject(updated); onUpdate(updated);
+                        }}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
               {loading && (
