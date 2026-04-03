@@ -1251,6 +1251,50 @@ function ModuleDossie({
     saveAgenda(project.researchAgenda.filter(i => i.id !== id));
   }
 
+  // ── Rate-limit helpers ────────────────────────────────────────────────────
+  function sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  function is429(detail: unknown): boolean {
+    if (!detail) return false;
+    try {
+      return (JSON.parse(String(detail)) as { status?: number }).status === 429;
+    } catch {
+      return String(detail).includes('"status":429');
+    }
+  }
+
+  async function fetchResearchItem(
+    body: object,
+    onRetry: (attempt: number, delaySec: number) => void
+  ): Promise<Record<string, unknown>> {
+    const RETRY_DELAYS = [10_000, 20_000, 40_000]; // ms — 3 attempts max
+    let lastData: Record<string, unknown> = { error: 'Max retries exceeded' };
+
+    for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
+      const res = await fetch('/api/openai-research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      });
+      lastData = (await res.json()) as Record<string, unknown>;
+
+      // Retry only on 429 and while retries remain
+      if (lastData.error && is429(lastData.detail) && attempt < RETRY_DELAYS.length) {
+        const delay = RETRY_DELAYS[attempt];
+        onRetry(attempt + 1, Math.round(delay / 1000));
+        await sleep(delay);
+        continue;
+      }
+
+      return lastData; // success or non-429 error — stop retrying
+    }
+
+    return lastData;
+  }
+  // ─────────────────────────────────────────────────────────────────────────
+
   async function runResearch() {
     setLoading('research');
     setError(null);
@@ -1266,35 +1310,38 @@ function ModuleDossie({
         setProgressSub(`${i + 1} de ${agenda.length}: ${item.tema}`);
 
         try {
-          const res = await fetch('/api/openai-research', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              action: 'run_research_item',
-              projectContext: ctx,
-              agenda: item,
-            }),
-          });
+          const data = await fetchResearchItem(
+            { action: 'run_research_item', projectContext: ctx, agenda: item },
+            (attempt, delaySec) => {
+              setProgressSub(`Rate limit — aguardando ${delaySec}s antes da tentativa ${attempt}/3… (${i + 1}/${agenda.length}: ${item.tema})`);
+            }
+          );
 
-          const data = await res.json();
+          // Restore progress label after a retry
+          setProgressSub(`${i + 1} de ${agenda.length}: ${item.tema}`);
 
           if (data.error) {
             const detail = data.detail ? ` (${String(data.detail).slice(0, 120)})` : '';
             errors.push(`"${item.tema}": ${data.error}${detail}`);
             // Continue to next item — don't abort the whole loop
-            continue;
+          } else {
+            accumulated.push({ ...(data as unknown as ResearchResult), createdAt: new Date().toISOString() });
+
+            // Show result immediately in UI (no full re-render of parent)
+            setPartialResults([...accumulated]);
+            // Persist to localStorage after each item (no re-render mid-loop)
+            saveProject({ ...project, researchResults: [...accumulated] });
           }
 
-          accumulated.push({ ...data, createdAt: new Date().toISOString() });
-
-          // Show result immediately in UI (no full re-render of parent)
-          setPartialResults([...accumulated]);
-          // Persist to localStorage after each item (no re-render mid-loop)
-          saveProject({ ...project, researchResults: [...accumulated] });
+          // 4 s cooldown between items to stay within tokens/min limit
+          if (i < agenda.length - 1) {
+            setProgressSub(`Aguardando 4s antes do próximo tema…`);
+            await sleep(4_000);
+          }
 
         } catch (itemErr) {
           errors.push(`"${item.tema}": ${String(itemErr)}`);
-          continue; // keep going
+          // keep going
         }
       }
 
