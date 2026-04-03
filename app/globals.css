@@ -447,3 +447,336 @@ textarea { resize: vertical; }
   .sidebar { display: none; }
   .grid-2 { grid-template-columns: 1fr; }
 }
+
+/* ── WORKFLOW GUIADO ── */
+
+/* Variáveis adicionais */
+:root {
+  --text-secondary: #c8bfb2;
+}
+
+/* Botões do workflow */
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  background: var(--gold);
+  color: #0d0c09;
+  font-weight: 600;
+  font-size: 13px;
+  letter-spacing: 0.02em;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover:not(:disabled) { opacity: 0.88; }
+.btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-approve {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  background: rgba(90, 144, 96, 0.15);
+  border: 1px solid rgba(90, 144, 96, 0.4);
+  color: #7aba82;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 0.15s;
+}
+.btn-approve:hover { background: rgba(90, 144, 96, 0.25); }
+
+.btn-skip {
+  display: inline-flex;
+  align-items: center;
+  padding: 9px 18px;
+  border-radius: var(--radius);
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-skip:hover { border-color: var(--text-muted); color: var(--text-dim); }
+
+.btn-small { padding: 7px 14px; font-size: 12px; }
+
+/* Project header */
+.project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 36px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--border);
+}
+
+.project-setor {
+  font-size: 11px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+
+.project-title {
+  font-size: 28px;
+  color: var(--text);
+  margin-bottom: 6px;
+}
+
+.project-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Progress bar */
+.progress-bar-container {
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-bar {
+  height: 100%;
+  background: var(--gold);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* Workflow layout */
+.workflow-container {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+/* Fase */
+.workflow-fase {}
+
+.workflow-fase-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.workflow-fase-num {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.workflow-fase-title {
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  font-family: 'Helvetica Neue', sans-serif;
+  font-weight: 400;
+}
+
+/* Step */
+.workflow-step {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  margin-bottom: 8px;
+  overflow: hidden;
+  transition: border-color 0.2s;
+}
+
+.workflow-step-active {
+  border-color: rgba(201, 169, 110, 0.4);
+}
+
+.workflow-step-done {
+  opacity: 0.7;
+}
+
+.workflow-step-skipped {
+  opacity: 0.45;
+}
+
+.step-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 16px 20px;
+}
+
+.step-icon-wrap {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 1px;
+}
+
+.step-icon-done {
+  color: #7aba82;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.step-icon-skipped {
+  color: var(--text-muted);
+  font-size: 14px;
+}
+
+.step-icon-pending {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--border);
+  display: inline-block;
+}
+
+.step-icon-active {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--gold);
+  display: inline-block;
+  box-shadow: 0 0 0 3px rgba(201,169,110,0.2);
+}
+
+.step-title {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text);
+  letter-spacing: 0.01em;
+}
+
+.step-narrativa {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 6px;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* Step badge */
+.step-badge {
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 2px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.step-badge-done { background: rgba(90,144,96,0.12); color: #7aba82; }
+.step-badge-active { background: rgba(201,169,110,0.12); color: var(--gold); }
+.step-badge-pending { background: var(--surface-2); color: var(--text-muted); }
+.step-badge-skipped { background: var(--surface-2); color: var(--text-muted); opacity: 0.6; }
+
+/* Step body */
+.step-body {
+  padding: 0 20px 20px 52px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.step-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.step-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.step-done-msg {
+  font-size: 13px;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* AI Output block */
+.ai-output {
+  background: var(--surface-2);
+  border: 1px solid rgba(201,169,110,0.15);
+  border-radius: var(--radius);
+  padding: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+
+/* Chat messages no workflow */
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-height: 480px;
+  overflow-y: auto;
+  padding: 4px 0;
+}
+
+.chat-msg {
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  font-size: 13px;
+  line-height: 1.65;
+  max-width: 90%;
+}
+
+.chat-msg-user {
+  align-self: flex-end;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  color: var(--text);
+}
+
+.chat-msg-ai {
+  align-self: flex-start;
+  background: rgba(201,169,110,0.07);
+  border: 1px solid rgba(201,169,110,0.15);
+  color: var(--text-secondary);
+}
+
+/* Input/textarea reforço */
+.input {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  width: 100%;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.input:focus { border-color: var(--gold-dim); }
+
+.textarea {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: inherit;
+  font-size: 13px;
+  border-radius: var(--radius);
+  padding: 10px 12px;
+  width: 100%;
+  outline: none;
+  resize: vertical;
+  line-height: 1.6;
+  transition: border-color 0.15s;
+}
+.textarea:focus { border-color: var(--gold-dim); }

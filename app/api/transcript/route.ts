@@ -5,29 +5,27 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
 export async function POST(req: NextRequest) {
   try {
-    const { text, projectContext } = await req.json();
+    const { text, filename, publico, projectContext } = await req.json();
 
-    const prompt = `Você é o sistema de análise da AMUM. Analise esta transcrição de entrevista de branding e extraia:
+    const prompt = `Você é um analista estratégico da AMUM especializado em processar transcrições de entrevistas de branding.
 
-CONTEXTO DO PROJETO:
-${projectContext || 'Projeto de branding estratégico'}
+${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
+Analise a transcrição abaixo (${filename || 'entrevista'}, público: ${publico || 'não especificado'}) e retorne APENAS um JSON válido com esta estrutura exata:
+
+{
+  "keyQuotes": [
+    { "citacao": "trecho exato da fala", "relevancia": "por que esta citação importa estrategicamente" }
+  ],
+  "archetypes": ["arquétipo identificado 1", "arquétipo identificado 2"],
+  "gaps": ["gap entre discurso e percepção 1", "gap 2"],
+  "alerts": ["alerta de atenção 1", "alerta 2"],
+  "synthesis": "síntese estratégica em 2-3 parágrafos: o que essa entrevista revela sobre a marca, suas tensões internas e implicações para o reposicionamento"
+}
+
+Retorne SOMENTE o JSON, sem markdown, sem texto antes ou depois.
 
 TRANSCRIÇÃO:
-${text}
-
-Produza uma análise estruturada com:
-
-**CITAÇÕES-CHAVE** (máx. 5 — as falas mais reveladoras sobre identidade, cultura e percepção de marca)
-
-**ARQUÉTIPOS IDENTIFICADOS** (padrões simbólicos presentes na fala — Jung/Pearson & Mark)
-
-**GAPS E TENSÕES** (contradições entre o que dizem e o que a marca faz ou comunica)
-
-**ALERTAS** (sinais de risco ou oportunidade que merecem atenção imediata)
-
-**SÍNTESE ESTRATÉGICA** (1 parágrafo — o que esta entrevista revela sobre o estado da marca)
-
-Seja preciso. Cada item deve ter consequência estratégica. Evite observações genéricas.`;
+${text}`;
 
     const response = await client.messages.create({
       model: 'claude-sonnet-4-20250514',
@@ -35,14 +33,28 @@ Seja preciso. Cada item deve ter consequência estratégica. Evite observações
       messages: [{ role: 'user', content: prompt }],
     });
 
-    const analysis = response.content
+    const raw = response.content
       .filter(b => b.type === 'text')
       .map(b => (b as { type: 'text'; text: string }).text)
       .join('');
 
+    let analysis;
+    try {
+      const clean = raw.replace(/```json|```/g, '').trim();
+      analysis = JSON.parse(clean);
+    } catch {
+      analysis = {
+        keyQuotes: [],
+        archetypes: [],
+        gaps: [],
+        alerts: [],
+        synthesis: raw,
+      };
+    }
+
     return NextResponse.json({ analysis });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: 'Erro no processamento' }, { status: 500 });
+    return NextResponse.json({ error: 'Erro ao processar transcrição' }, { status: 500 });
   }
 }

@@ -23,8 +23,11 @@ export default function ProjetosPage() {
         <div className="project-grid">
           {projects.map(p => {
             const unread = p.intel.filter(i => !i.read).length;
-            const totalTasks = Object.values(p.tasks).flat().length;
-            const doneTasks = Object.values(p.tasks).flat().filter(t => t.done).length;
+            const steps = p.workflowSteps || [];
+            const doneSteps = steps.filter(s => s.status === 'done' || s.status === 'skipped').length;
+            const activeStep = steps.find(s => s.status === 'active');
+            const faseAtiva = activeStep?.fase ?? p.faseAtual ?? 1;
+            const progress = steps.length > 0 ? Math.round((doneSteps / steps.length) * 100) : 0;
 
             return (
               <Link key={p.id} href={`/projetos/${p.id}`} style={{ textDecoration: 'none' }}>
@@ -38,7 +41,7 @@ export default function ProjetosPage() {
                   <div className="project-sector">{p.setor}</div>
 
                   <div style={{ display: 'flex', gap: '8px', marginBottom: '12px', flexWrap: 'wrap' }}>
-                    <span className="badge badge-gold">Fase {p.faseAtual} — {PHASE_NAMES[p.faseAtual]}</span>
+                    <span className="badge badge-gold">Fase {faseAtiva} — {PHASE_NAMES[faseAtiva]}</span>
                     <span className="badge badge-dim">{p.investimento}</span>
                   </div>
 
@@ -46,19 +49,12 @@ export default function ProjetosPage() {
                     {p.status}
                   </div>
 
-                  {/* Phase bar */}
-                  <div className="phase-bar">
-                    {[1, 2, 3, 4, 5].map(n => (
-                      <div
-                        key={n}
-                        className={`phase-dot ${n < p.faseAtual ? 'done' : n === p.faseAtual ? 'active' : ''}`}
-                        title={PHASE_NAMES[n]}
-                      />
-                    ))}
+                  <div className="progress-bar-container">
+                    <div className="progress-bar" style={{ width: `${progress}%` }} />
                   </div>
 
-                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '10px' }}>
-                    {doneTasks}/{totalTasks} tarefas concluídas
+                  <div style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '8px' }}>
+                    {doneSteps}/{steps.length} etapas concluídas
                   </div>
                 </div>
               </Link>
