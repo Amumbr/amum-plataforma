@@ -70,22 +70,32 @@ export async function POST(req: NextRequest) {
       .eq('lead_id', lead.id)
       .single();
 
-    // 3. Buscar reports
+    // 3. Buscar reports — mais recente primeiro
     const { data: reports, error: reportsError } = await supabase
       .from('reports')
       .select('id, type, status, delivered_at, created_at, initial_answers, followup_answers, final_client, final_internal')
       .eq('lead_id', lead.id)
-      .order('created_at', { ascending: true });
+      .order('created_at', { ascending: false });
 
     if (reportsError) {
       console.error('reports query failed:', JSON.stringify(reportsError));
     }
 
+    // Apenas os entregues — .find() já pega o mais recente de cada tipo (ordem desc)
     const delivered = (reports ?? []).filter(r => r.status === 'delivered');
-    const diagnostico = delivered.find(r => r.type === 'diagnostico');
-    const espelho = delivered.find(r => r.type === 'espelho_simbolico');
-    const mapaTensao = delivered.find(r => r.type === 'mapa_tensao_cultural');
+    const diagnostico    = delivered.find(r => r.type === 'diagnostico');
+    const espelho        = delivered.find(r => r.type === 'espelho_simbolico');
+    const mapaTensao     = delivered.find(r => r.type === 'mapa_tensao_cultural');
     const planoTravessia = delivered.find(r => r.type === 'plano_travessia');
+
+    // Resumo deduplicado: um por tipo (o mais recente)
+    const tiposVistos = new Set<string>();
+    const resumo = (reports ?? []).filter(r => {
+      if (r.status !== 'delivered') return false;
+      if (tiposVistos.has(r.type)) return false;
+      tiposVistos.add(r.type);
+      return true;
+    });
 
     return NextResponse.json({
       encontrado: true,
@@ -109,7 +119,7 @@ export async function POST(req: NextRequest) {
       espelho: espelho?.final_client ?? null,
       mapaTensao: mapaTensao?.final_client ?? null,
       planoTravessia: planoTravessia?.final_client ?? null,
-      todosReports: (reports ?? []).map(r => ({
+      todosReports: resumo.map(r => ({
         type: r.type,
         status: r.status,
         deliveredAt: r.delivered_at,
