@@ -124,6 +124,41 @@ export interface NetnographyAnalysis {
   createdAt: string;
 }
 
+// ─── DIRETRIZES DE PESQUISA (extraídas do Dossiê) ─────────────────────────────
+
+export interface ResearchDirective {
+  id: string;
+  tipo: 'marca' | 'termo' | 'plataforma' | 'comunidade';
+  valor: string;
+  justificativa: string;
+  ativo: boolean;
+}
+
+export interface ResearchDirectives {
+  marcas: ResearchDirective[];       // para análise de redes sociais
+  termos: ResearchDirective[];       // para Google Trends
+  comunidades: ResearchDirective[];  // para netnografia
+  plataformas: ResearchDirective[];  // plataformas prioritárias a analisar
+  tensaoCentral: string;            // tensão do dossiê que ancora tudo
+  geradoAt: string;
+}
+
+// ─── SÍNTESE GERAL DA PESQUISA ────────────────────────────────────────────────
+
+export interface ResearchSynthesis {
+  visaoGeral: string;
+  tensaoCentral: string;
+  territorioDisponivel: string;
+  mapaCompetitivoDigital: string;
+  discursoDeRua: string;
+  contradicoesCentral: string[];
+  janelasOportunidade: string[];
+  insightsIntegrados: string[];
+  recomendacoesEstrategicas: string[];
+  perguntasParaEntrevista: string[];
+  createdAt: string;
+}
+
 export interface InterviewScript {
   id: string;
   publico: string;
@@ -335,9 +370,11 @@ export interface Project {
   documentSynthesis?: DocumentSynthesis;
   researchAgenda: ResearchAgendaItem[];
   researchResults: ResearchResult[];
+  researchDirectives?: ResearchDirectives;
   socialMediaAnalysis?: SocialMediaAnalysis;
   trendsAnalysis?: TrendsAnalysis;
   netnographyAnalysis?: NetnographyAnalysis;
+  researchSynthesis?: ResearchSynthesis;
   interviewScripts: InterviewScript[];
   transcripts: TranscriptAnalysis[];
   deepAnalysis: DeepAnalysis;
@@ -562,6 +599,18 @@ export function getProjectContext(project: Project): string {
     project.researchResults.forEach(r => {
       parts.push(`[${r.tema}]: ${r.sintese.slice(0, 400)}`);
     });
+  }
+
+  if (project.researchDirectives) {
+    const d = project.researchDirectives;
+    parts.push(`\nDIRETRIZES DE PESQUISA (extraídas do dossiê):`);
+    parts.push(`Tensão central: ${d.tensaoCentral}`);
+    const marcasAtivas = d.marcas.filter(m => m.ativo).map(m => m.valor);
+    if (marcasAtivas.length) parts.push(`Marcas a analisar: ${marcasAtivas.join(', ')}`);
+    const termosAtivos = d.termos.filter(t => t.ativo).map(t => t.valor);
+    if (termosAtivos.length) parts.push(`Termos-chave: ${termosAtivos.join(', ')}`);
+    const comunidadesAtivas = d.comunidades.filter(c => c.ativo).map(c => c.valor);
+    if (comunidadesAtivas.length) parts.push(`Comunidades/espaços: ${comunidadesAtivas.join(', ')}`);
   }
 
   if (project.socialMediaAnalysis) {

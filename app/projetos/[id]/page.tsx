@@ -20,6 +20,9 @@ import {
   DocumentSynthesis,
   ResearchAgendaItem,
   ResearchResult,
+  ResearchDirectives,
+  ResearchDirective,
+  ResearchSynthesis,
   SocialMediaAnalysis,
   SocialProfileResult,
   TrendsAnalysis,
@@ -1403,13 +1406,200 @@ function ModuleDossie({
           ))}
 
           {hasResults && (
-            <button className="btn-small" style={{ marginTop: '16px', opacity: 0.6 }} onClick={() => { const updated = { ...project, researchResults: [], researchAgenda: [] }; saveProject(updated); onUpdate(updated); }}>
+            <button className="btn-small" style={{ marginTop: '16px', opacity: 0.6 }} onClick={() => { const updated = { ...project, researchResults: [], researchAgenda: [], researchDirectives: undefined }; saveProject(updated); onUpdate(updated); }}>
               ↺ Refazer pesquisa
             </button>
           )}
         </div>
       )}
 
+      {/* ── DIRETRIZES: aparece após resultados existirem ── */}
+      {hasResults && (
+        <DirectivesPanel project={project} onUpdate={onUpdate} />
+      )}
+
+    </div>
+  );
+}
+
+// ─── PAINEL DE DIRETRIZES ─────────────────────────────────────────────────────
+
+function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const directives = project.researchDirectives;
+
+  async function extractDirectives() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'extract_directives',
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json();
+      if (data.error) { setError(data.error); return; }
+      if (data.marcas || data.termos) {
+        const updated = { ...project, researchDirectives: data as ResearchDirectives };
+        saveProject(updated);
+        onUpdate(updated);
+      } else { setError('Resposta inesperada. Tente novamente.'); }
+    } catch (e) { setError(String(e)); }
+    finally { setLoading(false); }
+  }
+
+  function toggleDirective(field: 'marcas' | 'termos' | 'comunidades' | 'plataformas', id: string) {
+    if (!directives) return;
+    const updated = {
+      ...project,
+      researchDirectives: {
+        ...directives,
+        [field]: directives[field].map((d: ResearchDirective) => d.id === id ? { ...d, ativo: !d.ativo } : d),
+      },
+    };
+    saveProject(updated);
+    onUpdate(updated);
+  }
+
+  function addDirective(field: 'marcas' | 'termos' | 'comunidades' | 'plataformas', tipo: ResearchDirective['tipo'], valor: string) {
+    if (!directives || !valor.trim()) return;
+    const newItem: ResearchDirective = { id: `${tipo}_${Date.now()}`, tipo, valor: valor.trim(), justificativa: 'Adicionado manualmente', ativo: true };
+    const updated = { ...project, researchDirectives: { ...directives, [field]: [...directives[field], newItem] } };
+    saveProject(updated);
+    onUpdate(updated);
+  }
+
+  function removeDirective(field: 'marcas' | 'termos' | 'comunidades' | 'plataformas', id: string) {
+    if (!directives) return;
+    const updated = { ...project, researchDirectives: { ...directives, [field]: directives[field].filter((d: ResearchDirective) => d.id !== id) } };
+    saveProject(updated);
+    onUpdate(updated);
+  }
+
+  if (!directives) {
+    return (
+      <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>Próximo passo</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '14px', lineHeight: 1.6 }}>
+          O Dossiê revelou concorrentes, tensões e padrões do setor. Gere as diretrizes para que as pesquisas seguintes sejam calibradas especificamente para este projeto.
+        </p>
+        {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '10px' }}>{error}</p>}
+        <button className="btn-primary" onClick={extractDirectives} disabled={loading}>
+          {loading ? 'Extraindo diretrizes...' : 'Gerar diretrizes para as próximas pesquisas'}
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
+        <div>
+          <p style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '4px' }}>Diretrizes extraídas do Dossiê</p>
+          {directives.tensaoCentral && (
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>"{directives.tensaoCentral}"</p>
+          )}
+        </div>
+        <button className="btn-small" style={{ opacity: 0.6, flexShrink: 0 }} onClick={extractDirectives} disabled={loading}>
+          {loading ? '...' : '↺ Regerar'}
+        </button>
+      </div>
+
+      <DirectiveGroup
+        label="Marcas / perfis a analisar"
+        subtitle="Redes Sociais"
+        items={directives.marcas}
+        onToggle={id => toggleDirective('marcas', id)}
+        onAdd={v => addDirective('marcas', 'marca', v)}
+        onRemove={id => removeDirective('marcas', id)}
+        placeholder="Adicionar marca ou perfil..."
+      />
+      <DirectiveGroup
+        label="Termos-chave"
+        subtitle="Google Trends"
+        items={directives.termos}
+        onToggle={id => toggleDirective('termos', id)}
+        onAdd={v => addDirective('termos', 'termo', v)}
+        onRemove={id => removeDirective('termos', id)}
+        placeholder="Adicionar termo de busca..."
+      />
+      <DirectiveGroup
+        label="Comunidades e espaços"
+        subtitle="Netnografia"
+        items={directives.comunidades}
+        onToggle={id => toggleDirective('comunidades', id)}
+        onAdd={v => addDirective('comunidades', 'comunidade', v)}
+        onRemove={id => removeDirective('comunidades', id)}
+        placeholder="Adicionar comunidade ou fórum..."
+      />
+      <DirectiveGroup
+        label="Plataformas prioritárias"
+        subtitle="Social + Netnografia"
+        items={directives.plataformas}
+        onToggle={id => toggleDirective('plataformas', id)}
+        onAdd={v => addDirective('plataformas', 'plataforma', v)}
+        onRemove={id => removeDirective('plataformas', id)}
+        placeholder="Ex: TikTok, Pinterest..."
+      />
+    </div>
+  );
+}
+
+function DirectiveGroup({
+  label, subtitle, items, onToggle, onAdd, onRemove, placeholder,
+}: {
+  label: string; subtitle: string; items: ResearchDirective[];
+  onToggle: (id: string) => void; onAdd: (v: string) => void;
+  onRemove: (id: string) => void; placeholder: string;
+}) {
+  const [input, setInput] = useState('');
+
+  return (
+    <div style={{ marginBottom: '16px' }}>
+      <div style={{ display: 'flex', alignItems: 'baseline', gap: '8px', marginBottom: '8px' }}>
+        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)' }}>{label}</p>
+        <p style={{ fontSize: '11px', color: 'var(--text-dim)' }}>→ {subtitle}</p>
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+        {items.map(item => (
+          <div
+            key={item.id}
+            title={item.justificativa}
+            style={{
+              display: 'flex', alignItems: 'center', gap: '5px',
+              padding: '4px 10px', borderRadius: '14px', fontSize: '12px',
+              background: item.ativo ? 'rgba(201,169,110,0.12)' : 'var(--surface)',
+              border: `1px solid ${item.ativo ? 'rgba(201,169,110,0.4)' : 'var(--border)'}`,
+              color: item.ativo ? 'var(--gold)' : 'var(--text-dim)',
+              cursor: 'pointer', transition: 'all 0.15s',
+            }}
+            onClick={() => onToggle(item.id)}
+          >
+            <span>{item.valor}</span>
+            <span
+              onClick={e => { e.stopPropagation(); onRemove(item.id); }}
+              style={{ opacity: 0.5, fontSize: '10px', marginLeft: '2px' }}
+            >✕</span>
+          </div>
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: '6px' }}>
+        <input
+          className="input"
+          style={{ flex: 1, fontSize: '12px', padding: '5px 10px' }}
+          placeholder={placeholder}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { onAdd(input); setInput(''); } }}
+        />
+        <button className="btn-small" onClick={() => { onAdd(input); setInput(''); }} disabled={!input.trim()}>
+          +
+        </button>
+      </div>
     </div>
   );
 }
@@ -1424,22 +1614,39 @@ function ModuleSocial({
   onUpdate: (p: Project) => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const analysis = project.socialMediaAnalysis;
+  const directives = project.researchDirectives;
+
+  const marcasAtivas = directives?.marcas.filter(m => m.ativo).map(m => m.valor) ?? [];
+  const plataformasAtivas = directives?.plataformas.filter(p => p.ativo).map(p => p.valor) ?? [];
+
+  function buildDirectivesContext() {
+    if (!directives) return '';
+    const parts = ['\n\nDIRETRIZES DO DOSSIÊ PARA ESTA ANÁLISE:'];
+    if (marcasAtivas.length) parts.push(`Marcas/perfis a analisar obrigatoriamente: ${marcasAtivas.join(', ')}`);
+    if (plataformasAtivas.length) parts.push(`Plataformas prioritárias: ${plataformasAtivas.join(', ')}`);
+    if (directives.tensaoCentral) parts.push(`Tensão central a observar: ${directives.tensaoCentral}`);
+    return parts.join('\n');
+  }
 
   async function runSocialAnalysis() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'social_analysis',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + buildDirectivesContext(),
         }),
       });
       const data = await res.json();
-      if (data.marca) {
+      if (data.error) {
+        setError(`Erro: ${data.error}${data.detail ? ` — ${data.detail}` : ''}`);
+      } else if (data.marca) {
         const updated = { ...project, socialMediaAnalysis: data as SocialMediaAnalysis };
         saveProject(updated);
         onUpdate(updated);
@@ -1449,7 +1656,11 @@ function ModuleSocial({
           content: data.comparativo?.slice(0, 300) || 'Análise de presença digital concluída.',
           source: 'Módulo Social',
         });
+      } else {
+        setError('Resposta inesperada da API. Tente novamente.');
       }
+    } catch (e) {
+      setError(`Erro de rede: ${String(e)}`);
     } finally {
       setLoading(false);
     }
@@ -1511,6 +1722,25 @@ function ModuleSocial({
         <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
           Analisa presença no Instagram, LinkedIn, YouTube e outras plataformas — da marca e dos concorrentes. Mapeia territórios digitais ocupados e disponíveis.
         </p>
+        {directives && marcasAtivas.length > 0 && (
+          <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(201,169,110,0.2)' }}>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Do dossiê — perfis a analisar</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {marcasAtivas.map((m, i) => <span key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{m}</span>)}
+              {plataformasAtivas.map((p, i) => <span key={i} style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{p}</span>)}
+            </div>
+          </div>
+        )}
+        {!directives && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(180,100,100,0.2)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>Recomendado: execute o Dossiê primeiro e gere as diretrizes antes desta etapa.</p>
+          </div>
+        )}
+        {error && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.1)', borderRadius: '6px', marginBottom: '12px', border: '1px solid rgba(180,100,100,0.3)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>{error}</p>
+          </div>
+        )}
         <button className="btn-primary" onClick={runSocialAnalysis} disabled={loading}>
           {loading ? 'Analisando redes sociais...' : 'Executar análise de redes sociais'}
         </button>
@@ -1572,21 +1802,35 @@ function ModuleTrends({
   onUpdate: (p: Project) => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const analysis = project.trendsAnalysis;
+  const directives = project.researchDirectives;
+  const termosAtivos = directives?.termos.filter(t => t.ativo).map(t => t.valor) ?? [];
+
+  function buildDirectivesContext() {
+    if (!directives) return '';
+    const parts = ['\n\nDIRETRIZES DO DOSSIÊ PARA ESTA ANÁLISE:'];
+    if (termosAtivos.length) parts.push(`Termos-chave obrigatórios a pesquisar: ${termosAtivos.join(', ')}`);
+    if (directives.tensaoCentral) parts.push(`Tensão central: ${directives.tensaoCentral}`);
+    return parts.join('\n');
+  }
 
   async function runTrendsAnalysis() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'trends_analysis',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + buildDirectivesContext(),
         }),
       });
       const data = await res.json();
-      if (data.tendencias) {
+      if (data.error) {
+        setError(`Erro: ${data.error}${data.detail ? ` — ${data.detail}` : ''}`);
+      } else if (data.tendencias) {
         const updated = { ...project, trendsAnalysis: data as TrendsAnalysis };
         saveProject(updated);
         onUpdate(updated);
@@ -1596,7 +1840,11 @@ function ModuleTrends({
           content: `Termos crescendo: ${(data.termosCrescentes || []).slice(0, 3).join(', ')}. ${(data.janelasDeOportunidade || [])[0] || ''}`,
           source: 'Módulo Trends',
         });
+      } else {
+        setError('Resposta inesperada da API. Tente novamente.');
       }
+    } catch (e) {
+      setError(`Erro de rede: ${String(e)}`);
     } finally {
       setLoading(false);
     }
@@ -1608,6 +1856,24 @@ function ModuleTrends({
         <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
           Pesquisa de tendências de busca para a marca, o setor e os concorrentes. Identifica termos crescentes, em declínio, sazonalidade e janelas de oportunidade.
         </p>
+        {termosAtivos.length > 0 && (
+          <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(201,169,110,0.2)' }}>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Do dossiê — termos a rastrear</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {termosAtivos.map((t, i) => <span key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{t}</span>)}
+            </div>
+          </div>
+        )}
+        {!directives && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(180,100,100,0.2)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>Recomendado: execute o Dossiê e gere as diretrizes antes desta etapa.</p>
+          </div>
+        )}
+        {error && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.1)', borderRadius: '6px', marginBottom: '12px', border: '1px solid rgba(180,100,100,0.3)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>{error}</p>
+          </div>
+        )}
         <button className="btn-primary" onClick={runTrendsAnalysis} disabled={loading}>
           {loading ? 'Pesquisando tendências...' : 'Executar análise de tendências'}
         </button>
@@ -1688,22 +1954,38 @@ function ModuleNetnography({
   onUpdate: (p: Project) => void;
 }) {
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<string | null>(null);
   const analysis = project.netnographyAnalysis;
+  const directives = project.researchDirectives;
+  const comunidadesAtivas = directives?.comunidades.filter(c => c.ativo).map(c => c.valor) ?? [];
+
+  function buildDirectivesContext() {
+    if (!directives) return '';
+    const parts = ['\n\nDIRETRIZES DO DOSSIÊ PARA ESTA ANÁLISE:'];
+    if (comunidadesAtivas.length) parts.push(`Espaços/comunidades a investigar obrigatoriamente: ${comunidadesAtivas.join(', ')}`);
+    if (directives.tensaoCentral) parts.push(`Tensão central a rastrear nas conversas: ${directives.tensaoCentral}`);
+    const marcasAtivas = directives.marcas.filter(m => m.ativo).map(m => m.valor);
+    if (marcasAtivas.length) parts.push(`Marcas a monitorar: ${marcasAtivas.join(', ')}`);
+    return parts.join('\n');
+  }
 
   async function runNetnography() {
     setLoading(true);
+    setError(null);
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'netnography',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + buildDirectivesContext(),
         }),
       });
       const data = await res.json();
-      if (data.fontes) {
+      if (data.error) {
+        setError(`Erro: ${data.error}${data.detail ? ` — ${data.detail}` : ''}`);
+      } else if (data.fontes) {
         const updated = { ...project, netnographyAnalysis: data as NetnographyAnalysis };
         saveProject(updated);
         onUpdate(updated);
@@ -1721,7 +2003,11 @@ function ModuleNetnography({
             source: 'Módulo Netnografia',
           });
         }
+      } else {
+        setError('Resposta inesperada da API. Tente novamente.');
       }
+    } catch (e) {
+      setError(`Erro de rede: ${String(e)}`);
     } finally {
       setLoading(false);
     }
@@ -1740,10 +2026,28 @@ function ModuleNetnography({
         <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
           Pesquisa o que as pessoas dizem sobre a marca e o setor fora dos canais oficiais — Reddit, ReclameAqui, avaliações, comentários, grupos, fóruns. O discurso real sem filtro institucional.
         </p>
+        {comunidadesAtivas.length > 0 && (
+          <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(201,169,110,0.2)' }}>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Do dossiê — espaços a investigar</p>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
+              {comunidadesAtivas.map((c, i) => <span key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{c}</span>)}
+            </div>
+          </div>
+        )}
+        {!directives && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(180,100,100,0.2)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>Recomendado: execute o Dossiê e gere as diretrizes antes desta etapa.</p>
+          </div>
+        )}
+        {error && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.1)', borderRadius: '6px', marginBottom: '12px', border: '1px solid rgba(180,100,100,0.3)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>{error}</p>
+          </div>
+        )}
         <button className="btn-primary" onClick={runNetnography} disabled={loading}>
           {loading ? 'Pesquisando comunidades...' : 'Executar pesquisa netnográfica'}
         </button>
-        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando em Reddit, avaliações, fóruns e redes sociais — pode levar 2–3 min.</p>}
+        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando Reddit, avaliações, fóruns e redes sociais — pode levar 2–3 min.</p>}
       </div>
     );
   }
@@ -1847,7 +2151,240 @@ function ModuleNetnography({
   );
 }
 
-// ─── STEP: PESQUISA PROFUNDA (4 módulos) ─────────────────────────────────────
+// ─── MÓDULO: SÍNTESE GERAL ────────────────────────────────────────────────────
+
+function ModuleSynthesis({
+  project,
+  onUpdate,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const synthesis = project.researchSynthesis;
+
+  async function generateSynthesis() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'research_synthesis',
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(`Erro: ${data.error}${data.detail ? ` — ${data.detail}` : ''}`);
+      } else if (data.visaoGeral) {
+        const updated = { ...project, researchSynthesis: data as ResearchSynthesis };
+        saveProject(updated);
+        onUpdate(updated);
+        addIntel(project.id, {
+          type: 'analise',
+          title: 'Síntese geral da pesquisa',
+          content: data.tensaoCentral || data.visaoGeral?.slice(0, 300),
+          source: 'Síntese Geral',
+        });
+      } else {
+        setError('Resposta inesperada. Tente novamente.');
+      }
+    } catch (e) {
+      setError(`Erro de rede: ${String(e)}`);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function downloadSynthesis() {
+    if (!synthesis) return;
+    const lines = [
+      'AMUM — SÍNTESE GERAL DA PESQUISA',
+      `${project.nome} · ${new Date(synthesis.createdAt).toLocaleDateString('pt-BR')}`,
+      '',
+      '═══════════════════════════════════════',
+      '',
+      'VISÃO GERAL',
+      synthesis.visaoGeral,
+      '',
+      'TENSÃO CENTRAL',
+      synthesis.tensaoCentral,
+      '',
+      'TERRITÓRIO DISPONÍVEL',
+      synthesis.territorioDisponivel,
+      '',
+      'MAPA COMPETITIVO DIGITAL',
+      synthesis.mapaCompetitivoDigital,
+      '',
+      'DISCURSO DE RUA',
+      synthesis.discursoDeRua,
+      '',
+      'CONTRADIÇÕES CENTRAIS',
+      ...synthesis.contradicoesCentral.map(c => `• ${c}`),
+      '',
+      'JANELAS DE OPORTUNIDADE',
+      ...synthesis.janelasOportunidade.map(j => `→ ${j}`),
+      '',
+      'INSIGHTS INTEGRADOS',
+      ...synthesis.insightsIntegrados.map(i => `— ${i}`),
+      '',
+      'RECOMENDAÇÕES ESTRATÉGICAS',
+      ...synthesis.recomendacoesEstrategicas.map(r => `✓ ${r}`),
+      '',
+      'PERGUNTAS PARA AS ENTREVISTAS',
+      ...synthesis.perguntasParaEntrevista.map((p, i) => `${i + 1}. ${p}`),
+    ];
+    const blob = new Blob([lines.join('\n')], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `AMUM_Sintese_Pesquisa_${project.nome.replace(/\s+/g, '_')}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  if (!synthesis) {
+    return (
+      <div>
+        <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
+          Integra todos os módulos de pesquisa em um único relatório estratégico. Cruza achados do Dossiê, Redes Sociais, Google Trends e Netnografia para produzir insights que só aparecem na interseção — e as perguntas-chave para as entrevistas.
+        </p>
+        <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '16px', border: '1px solid rgba(201,169,110,0.2)' }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            <strong style={{ color: 'var(--gold)' }}>Dados disponíveis para síntese: </strong>
+            {[
+              project.researchResults.length > 0 && 'Dossiê de Mercado',
+              !!project.researchDirectives && 'Diretrizes',
+              !!project.socialMediaAnalysis && 'Redes Sociais',
+              !!project.trendsAnalysis && 'Google Trends',
+              !!project.netnographyAnalysis && 'Netnografia',
+            ].filter(Boolean).join(' · ') || 'Nenhum módulo executado ainda'}
+          </p>
+        </div>
+        {error && (
+          <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.1)', borderRadius: '6px', marginBottom: '12px', border: '1px solid rgba(180,100,100,0.3)' }}>
+            <p style={{ fontSize: '12px', color: '#b56a6a' }}>{error}</p>
+          </div>
+        )}
+        <button className="btn-primary" onClick={generateSynthesis} disabled={loading}>
+          {loading ? 'Gerando síntese...' : 'Gerar síntese geral da pesquisa'}
+        </button>
+        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Integrando todos os módulos de pesquisa — pode levar 1–2 min.</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Header */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '20px' }}>
+        <div>
+          <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '4px' }}>Síntese concluída</p>
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>{new Date(synthesis.createdAt).toLocaleDateString('pt-BR', { day: '2-digit', month: 'long', year: 'numeric' })}</p>
+        </div>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button className="btn-small" onClick={downloadSynthesis}>↓ Baixar .txt</button>
+          <button className="btn-small" style={{ opacity: 0.6 }} onClick={generateSynthesis} disabled={loading}>{loading ? '...' : '↺ Regerar'}</button>
+        </div>
+      </div>
+
+      {/* Tensão central */}
+      <div style={{ padding: '14px 16px', background: 'rgba(201,169,110,0.08)', borderRadius: '8px', border: '1px solid rgba(201,169,110,0.25)', marginBottom: '16px' }}>
+        <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Tensão central</p>
+        <p style={{ fontSize: '15px', color: 'var(--text-secondary)', fontFamily: 'Georgia, serif', lineHeight: 1.6, fontStyle: 'italic' }}>"{synthesis.tensaoCentral}"</p>
+      </div>
+
+      {/* Visão geral */}
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Visão geral integrada</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-line' }}>{synthesis.visaoGeral}</p>
+      </div>
+
+      {/* Grid: território + discurso */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
+        <div style={{ padding: '12px', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>Território disponível</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{synthesis.territorioDisponivel}</p>
+        </div>
+        <div style={{ padding: '12px', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>Discurso de rua</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{synthesis.discursoDeRua}</p>
+        </div>
+      </div>
+
+      {/* Mapa competitivo */}
+      {synthesis.mapaCompetitivoDigital && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Mapa competitivo digital</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{synthesis.mapaCompetitivoDigital}</p>
+        </div>
+      )}
+
+      {/* Contradições */}
+      {synthesis.contradicoesCentral.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: '#b56a6a', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Contradições centrais</p>
+          {synthesis.contradicoesCentral.map((c, i) => (
+            <div key={i} style={{ padding: '8px 12px', background: 'rgba(180,100,100,0.06)', borderRadius: '4px', marginBottom: '6px', borderLeft: '3px solid rgba(180,100,100,0.4)' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>{c}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Insights integrados */}
+      {synthesis.insightsIntegrados.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Insights integrados</p>
+          {synthesis.insightsIntegrados.map((ins, i) => (
+            <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px', paddingLeft: '12px', borderLeft: '2px solid var(--border)' }}>— {ins}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Janelas de oportunidade */}
+      {synthesis.janelasOportunidade.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Janelas de oportunidade</p>
+          {synthesis.janelasOportunidade.map((j, i) => (
+            <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {j}</p>
+          ))}
+        </div>
+      )}
+
+      {/* Recomendações */}
+      {synthesis.recomendacoesEstrategicas.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Recomendações estratégicas</p>
+          {synthesis.recomendacoesEstrategicas.map((r, i) => (
+            <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '8px' }}>
+              <span style={{ color: '#6ab56a', fontSize: '14px', flexShrink: 0, marginTop: '1px' }}>✓</span>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{r}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Perguntas para entrevistas */}
+      {synthesis.perguntasParaEntrevista.length > 0 && (
+        <div style={{ padding: '14px 16px', background: 'rgba(201,169,110,0.06)', borderRadius: '8px', border: '1px solid rgba(201,169,110,0.2)' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Perguntas estratégicas para as entrevistas</p>
+          {synthesis.perguntasParaEntrevista.map((p, i) => (
+            <div key={i} style={{ display: 'flex', gap: '10px', marginBottom: '10px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 600, flexShrink: 0, minWidth: '20px' }}>{i + 1}.</span>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{p}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: PESQUISA PROFUNDA (5 módulos) ─────────────────────────────────────
 
 function StepWebResearch({
   project,
@@ -1893,39 +2430,53 @@ function StepWebResearch({
       desc: 'Discurso de rua',
       done: !!project.netnographyAnalysis,
     },
+    {
+      id: 'sintese',
+      label: 'Síntese Geral',
+      icon: '◈',
+      desc: 'Relatório unificado',
+      done: !!project.researchSynthesis,
+    },
   ];
 
   const doneCount = modules.filter(m => m.done).length;
+  // Síntese disponível apenas quando pelo menos 2 módulos de pesquisa têm dados
+  const canSynthesize = [project.researchResults.length > 0, !!project.socialMediaAnalysis, !!project.trendsAnalysis, !!project.netnographyAnalysis].filter(Boolean).length >= 2;
 
   return (
     <div className="step-body">
 
       {/* ── Tabs dos módulos ── */}
       <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {modules.map(mod => (
-          <button
-            key={mod.id}
-            onClick={() => setActiveModule(mod.id)}
-            style={{
-              padding: '8px 14px',
-              borderRadius: '6px',
-              border: '1px solid',
-              borderColor: activeModule === mod.id ? 'var(--gold)' : 'var(--border)',
-              background: activeModule === mod.id ? 'rgba(201,169,110,0.1)' : 'transparent',
-              color: activeModule === mod.id ? 'var(--gold)' : mod.done ? 'var(--text-secondary)' : 'var(--text-dim)',
-              fontSize: '13px',
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              transition: 'all 0.15s',
-            }}
-          >
-            <span>{mod.icon}</span>
-            <span>{mod.label}</span>
-            {mod.done && <span style={{ fontSize: '10px', color: '#6ab56a' }}>✓</span>}
-          </button>
-        ))}
+        {modules.map(mod => {
+          const isDisabled = mod.id === 'sintese' && !canSynthesize;
+          return (
+            <button
+              key={mod.id}
+              onClick={() => !isDisabled && setActiveModule(mod.id)}
+              title={isDisabled ? 'Execute ao menos 2 módulos de pesquisa antes de sintetizar' : undefined}
+              style={{
+                padding: '8px 14px',
+                borderRadius: '6px',
+                border: '1px solid',
+                borderColor: activeModule === mod.id ? 'var(--gold)' : mod.id === 'sintese' && canSynthesize && !mod.done ? 'rgba(201,169,110,0.4)' : 'var(--border)',
+                background: activeModule === mod.id ? 'rgba(201,169,110,0.1)' : 'transparent',
+                color: isDisabled ? 'var(--text-muted)' : activeModule === mod.id ? 'var(--gold)' : mod.done ? 'var(--text-secondary)' : mod.id === 'sintese' && canSynthesize ? 'var(--gold)' : 'var(--text-dim)',
+                fontSize: '13px',
+                cursor: isDisabled ? 'not-allowed' : 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                opacity: isDisabled ? 0.5 : 1,
+                transition: 'all 0.15s',
+              }}
+            >
+              <span>{mod.icon}</span>
+              <span>{mod.label}</span>
+              {mod.done && <span style={{ fontSize: '10px', color: '#6ab56a' }}>✓</span>}
+            </button>
+          );
+        })}
       </div>
 
       {/* ── Cabeçalho do módulo ativo ── */}
@@ -1949,6 +2500,9 @@ function StepWebResearch({
         )}
         {activeModule === 'netnografia' && (
           <ModuleNetnography project={project} onUpdate={onUpdate} />
+        )}
+        {activeModule === 'sintese' && (
+          <ModuleSynthesis project={project} onUpdate={onUpdate} />
         )}
       </div>
 
