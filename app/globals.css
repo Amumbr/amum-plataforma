@@ -1340,3 +1340,8 @@ textarea { resize: vertical; }
 .drive-saved-link:hover {
   background: rgba(90,158,111,0.15);
 }
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}

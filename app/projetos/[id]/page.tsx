@@ -1126,6 +1126,33 @@ const DIMENSOES_LABELS: Record<number, string> = {
   18: 'Síntese estratégica final',
 };
 
+// ─── HOOK: PROGRESS CYCLER ───────────────────────────────────────────────────
+
+function useProgressCycler(messages: string[], active: boolean, intervalMs = 2800): string {
+  const [idx, setIdx] = useState(0);
+  useEffect(() => {
+    if (!active) { setIdx(0); return; }
+    const timer = setInterval(() => setIdx(i => (i + 1) % messages.length), intervalMs);
+    return () => clearInterval(timer);
+  }, [active, messages.length, intervalMs]);
+  return active ? messages[idx] : '';
+}
+
+// ─── COMPONENTE: PROGRESS DISPLAY ────────────────────────────────────────────
+
+function ProgressDisplay({ message, sub }: { message: string; sub?: string }) {
+  if (!message) return null;
+  return (
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', border: '1px solid rgba(201,169,110,0.2)', marginTop: '12px' }}>
+      <span style={{ fontSize: '14px', animation: 'spin 2s linear infinite', display: 'inline-block', flexShrink: 0 }}>◌</span>
+      <div>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.5 }}>{message}</p>
+        {sub && <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '3px' }}>{sub}</p>}
+      </div>
+    </div>
+  );
+}
+
 // ─── MÓDULO: DOSSIÊ DE MERCADO ────────────────────────────────────────────────
 
 function ModuleDossie({
@@ -1138,10 +1165,26 @@ function ModuleDossie({
   onUpdate: (p: Project) => void;
 }) {
   const [loading, setLoading] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [progressSub, setProgressSub] = useState('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBuf, setEditBuf] = useState<ResearchAgendaItem | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
+
+  const agendaProgress = useProgressCycler([
+    'Lendo contexto do projeto...',
+    'Identificando dimensões relevantes...',
+    'Calibrando agenda ao momento da marca...',
+    'Estruturando temas de pesquisa...',
+  ], loading === 'agenda');
+
+  const researchProgress = useProgressCycler([
+    'Pesquisando na web...',
+    'Analisando dados coletados...',
+    'Sintetizando informação...',
+    'Identificando tensões e contradições...',
+  ], loading === 'research');
 
   function saveAgenda(agenda: ResearchAgendaItem[]) {
     const updated = { ...project, researchAgenda: agenda };
@@ -1151,6 +1194,7 @@ function ModuleDossie({
 
   async function generateAgenda() {
     setLoading('agenda');
+    setError(null);
     const notes = getStepNotes(step);
     try {
       const res = await fetch('/api/research', {
@@ -1163,7 +1207,15 @@ function ModuleDossie({
         }),
       });
       const data = await res.json();
-      if (data.agenda) saveAgenda(data.agenda);
+      if (data.error) {
+        setError(`Erro ao gerar agenda: ${data.error}`);
+      } else if (data.agenda) {
+        saveAgenda(data.agenda);
+      } else {
+        setError('Resposta inesperada. Tente novamente.');
+      }
+    } catch (e) {
+      setError(`Erro de rede: ${String(e)}`);
     } finally {
       setLoading('');
     }
@@ -1199,37 +1251,59 @@ function ModuleDossie({
 
   async function runResearch() {
     setLoading('research');
+    setError(null);
     const notes = getStepNotes(step);
+    const ctx = getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : '');
+    const accumulated: ResearchResult[] = [];
+
     try {
-      const res = await fetch('/api/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'run_research',
-          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
-          agenda: project.researchAgenda,
-        }),
-      });
-      const data = await res.json();
-      if (data.results) {
-        const results: ResearchResult[] = data.results.map((r: ResearchResult) => ({
-          ...r,
-          createdAt: new Date().toISOString(),
-        }));
-        const updated = { ...project, researchResults: results };
+      for (let i = 0; i < project.researchAgenda.length; i++) {
+        const item = project.researchAgenda[i];
+        setProgressSub(`${i + 1} de ${project.researchAgenda.length}: ${item.tema}`);
+
+        const res = await fetch('/api/research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'run_research_item',
+            projectContext: ctx,
+            agenda: item,
+          }),
+        });
+
+        if (!res.ok) {
+          setError(`Erro no item ${i + 1}: status ${res.status}`);
+          break;
+        }
+
+        const data = await res.json();
+        if (data.error) {
+          setError(`Erro em "${item.tema}": ${data.error}`);
+          break;
+        }
+
+        accumulated.push({ ...data, createdAt: new Date().toISOString() });
+
+        // Save incrementally so user sees each result as it arrives
+        const updated = { ...project, researchResults: [...accumulated] };
         saveProject(updated);
         onUpdate(updated);
-        results.forEach(r => {
-          addIntel(project.id, {
-            type: 'pesquisa',
-            title: r.tema,
-            content: r.sintese.slice(0, 300),
-            source: 'Pesquisa setorial',
-          });
-        });
       }
+
+      // Add to Intel Feed after all items
+      accumulated.forEach(r => {
+        addIntel(project.id, {
+          type: 'pesquisa',
+          title: r.tema,
+          content: r.sintese.slice(0, 300),
+          source: 'Dossiê de mercado',
+        });
+      });
+    } catch (e) {
+      setError(`Erro de rede: ${String(e)}`);
     } finally {
       setLoading('');
+      setProgressSub('');
     }
   }
 
@@ -1254,11 +1328,17 @@ function ModuleDossie({
           <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px' }}>
             A agenda será gerada com base no framework de dossiê AMUM (18 dimensões), calibrada para este projeto.
           </p>
+          {error && (
+            <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.1)', borderRadius: '6px', marginBottom: '12px', border: '1px solid rgba(180,100,100,0.3)' }}>
+              <p style={{ fontSize: '12px', color: '#b56a6a' }}>{error}</p>
+            </div>
+          )}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn-primary" onClick={generateAgenda} disabled={loading === 'agenda'}>
-              {loading === 'agenda' ? 'Gerando agenda...' : 'Gerar agenda de pesquisa'}
+              {loading === 'agenda' ? 'Gerando...' : 'Gerar agenda de pesquisa'}
             </button>
           </div>
+          <ProgressDisplay message={agendaProgress} />
         </div>
       )}
 
@@ -1335,14 +1415,15 @@ function ModuleDossie({
 
           <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
             <button className="btn-primary" onClick={runResearch} disabled={loading === 'research' || project.researchAgenda.length === 0}>
-              {loading === 'research' ? 'Executando pesquisa...' : `Executar pesquisa (${project.researchAgenda.length} temas)`}
+              {loading === 'research' ? 'Pesquisando...' : `Executar pesquisa (${project.researchAgenda.length} temas)`}
             </button>
           </div>
-          {loading === 'research' && (
-            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>
-              Pesquisa com web search ativa — pode levar 1 a 2 minutos dependendo do número de temas.
-            </p>
+          {error && (
+            <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.1)', borderRadius: '6px', marginTop: '10px', border: '1px solid rgba(180,100,100,0.3)' }}>
+              <p style={{ fontSize: '12px', color: '#b56a6a' }}>{error}</p>
+            </div>
           )}
+          <ProgressDisplay message={researchProgress} sub={progressSub} />
         </div>
       )}
 
@@ -1429,6 +1510,14 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
   const [error, setError] = useState<string | null>(null);
   const directives = project.researchDirectives;
 
+  const progress = useProgressCycler([
+    'Lendo dados do site AMUM...',
+    'Analisando documentos da empresa...',
+    'Cruzando com achados do dossiê...',
+    'Identificando tensões entre camadas...',
+    'Elaborando diretrizes de pesquisa...',
+  ], loading);
+
   async function extractDirectives() {
     setLoading(true);
     setError(null);
@@ -1489,8 +1578,9 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
         </p>
         {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '10px' }}>{error}</p>}
         <button className="btn-primary" onClick={extractDirectives} disabled={loading}>
-          {loading ? 'Cruzando dados e extraindo diretrizes...' : 'Gerar diretrizes de pesquisa'}
+          {loading ? 'Processando...' : 'Gerar diretrizes de pesquisa'}
         </button>
+        <ProgressDisplay message={progress} />
       </div>
     );
   }
@@ -1622,6 +1712,14 @@ function ModuleSocial({
   const marcasAtivas = directives?.marcas.filter(m => m.ativo).map(m => m.valor) ?? [];
   const plataformasAtivas = directives?.plataformas.filter(p => p.ativo).map(p => p.valor) ?? [];
 
+  const progress = useProgressCycler([
+    'Buscando perfis da marca...',
+    'Analisando comunicação dos concorrentes...',
+    'Comparando narrativas e formatos...',
+    'Mapeando territórios digitais ocupados...',
+    'Identificando espaços disponíveis...',
+  ], loading);
+
   function buildDirectivesContext() {
     if (!directives) return '';
     const parts = ['\n\nDIRETRIZES DO DOSSIÊ PARA ESTA ANÁLISE:'];
@@ -1742,9 +1840,9 @@ function ModuleSocial({
           </div>
         )}
         <button className="btn-primary" onClick={runSocialAnalysis} disabled={loading}>
-          {loading ? 'Analisando redes sociais...' : 'Executar análise de redes sociais'}
+          {loading ? 'Analisando...' : 'Executar análise de redes sociais'}
         </button>
-        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando perfis e conteúdos — pode levar 1–2 min.</p>}
+        <ProgressDisplay message={progress} />
       </div>
     );
   }
@@ -1806,6 +1904,14 @@ function ModuleTrends({
   const analysis = project.trendsAnalysis;
   const directives = project.researchDirectives;
   const termosAtivos = directives?.termos.filter(t => t.ativo).map(t => t.valor) ?? [];
+
+  const progress = useProgressCycler([
+    'Pesquisando volumes de busca...',
+    'Analisando direção das tendências...',
+    'Identificando termos emergentes...',
+    'Mapeando sazonalidade do setor...',
+    'Identificando janelas de oportunidade...',
+  ], loading);
 
   function buildDirectivesContext() {
     if (!directives) return '';
@@ -1875,9 +1981,9 @@ function ModuleTrends({
           </div>
         )}
         <button className="btn-primary" onClick={runTrendsAnalysis} disabled={loading}>
-          {loading ? 'Pesquisando tendências...' : 'Executar análise de tendências'}
+          {loading ? 'Pesquisando...' : 'Executar análise de tendências'}
         </button>
-        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando Google Trends e dados de busca — pode levar 1–2 min.</p>}
+        <ProgressDisplay message={progress} />
       </div>
     );
   }
@@ -1959,6 +2065,15 @@ function ModuleNetnography({
   const analysis = project.netnographyAnalysis;
   const directives = project.researchDirectives;
   const comunidadesAtivas = directives?.comunidades.filter(c => c.ativo).map(c => c.valor) ?? [];
+
+  const progress = useProgressCycler([
+    'Pesquisando Reddit e fóruns...',
+    'Analisando avaliações e reviews...',
+    'Mapeando discurso orgânico...',
+    'Cruzando com discurso oficial da marca...',
+    'Identificando contradições e desejos...',
+    'Sintetizando discurso de rua...',
+  ], loading);
 
   function buildDirectivesContext() {
     if (!directives) return '';
@@ -2045,9 +2160,9 @@ function ModuleNetnography({
           </div>
         )}
         <button className="btn-primary" onClick={runNetnography} disabled={loading}>
-          {loading ? 'Pesquisando comunidades...' : 'Executar pesquisa netnográfica'}
+          {loading ? 'Pesquisando...' : 'Executar pesquisa netnográfica'}
         </button>
-        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando Reddit, avaliações, fóruns e redes sociais — pode levar 2–3 min.</p>}
+        <ProgressDisplay message={progress} />
       </div>
     );
   }
@@ -2164,6 +2279,16 @@ function ModuleSynthesis({
   const [error, setError] = useState<string | null>(null);
   const synthesis = project.researchSynthesis;
 
+  const progress = useProgressCycler([
+    'Integrando dossiê de mercado...',
+    'Cruzando com dados do site AMUM...',
+    'Analisando redes sociais e tendências...',
+    'Lendo discurso de rua da netnografia...',
+    'Identificando contradições entre camadas...',
+    'Elaborando síntese estratégica...',
+    'Formulando perguntas para as entrevistas...',
+  ], loading, 2500);
+
   async function generateSynthesis() {
     setLoading(true);
     setError(null);
@@ -2270,9 +2395,9 @@ function ModuleSynthesis({
           </div>
         )}
         <button className="btn-primary" onClick={generateSynthesis} disabled={loading}>
-          {loading ? 'Gerando síntese...' : 'Gerar síntese geral da pesquisa'}
+          {loading ? 'Sintetizando...' : 'Gerar síntese geral da pesquisa'}
         </button>
-        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Integrando todos os módulos de pesquisa — pode levar 1–2 min.</p>}
+        <ProgressDisplay message={progress} />
       </div>
     );
   }
@@ -2290,6 +2415,7 @@ function ModuleSynthesis({
           <button className="btn-small" style={{ opacity: 0.6 }} onClick={generateSynthesis} disabled={loading}>{loading ? '...' : '↺ Regerar'}</button>
         </div>
       </div>
+      {loading && <ProgressDisplay message={progress} />}
 
       {/* Tensão central */}
       <div style={{ padding: '14px 16px', background: 'rgba(201,169,110,0.08)', borderRadius: '8px', border: '1px solid rgba(201,169,110,0.25)', marginBottom: '16px' }}>

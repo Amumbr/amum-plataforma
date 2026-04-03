@@ -134,7 +134,31 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
       return NextResponse.json({ results });
     }
 
-    // SINTETIZAR TUDO
+    // EXECUTAR PESQUISA — item único (chamado pelo cliente em loop para evitar timeout)
+    if (action === 'run_research_item') {
+      const item = agenda as { id: string; dimensao?: number; tema: string; objetivo: string; queries: string[] };
+      const prompt = `${ctx}TEMA: ${item.tema}
+OBJETIVO: ${item.objetivo}
+QUERIES: ${item.queries.join(' | ')}
+
+Pesquise este tema com profundidade usando web search. Identifique fatos verificáveis, tensões, contradições e implicações estratégicas.
+Não repita o discurso institucional. Compare o que a marca diz vs. faz vs. como é percebida.
+
+Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
+{"id":"${item.id}","tema":"${item.tema}","sintese":"síntese em 3-5 parágrafos densos","fatos":["fato1","fato2"],"tensoes":["tensão1"],"implicacoes":["implicação1"],"fontes":["fonte1"]}`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        tools: WEB_SEARCH_TOOL,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const text = extractText(r.content);
+      try {
+        return NextResponse.json({ ...robustParseJSON(text), createdAt: new Date().toISOString() });
+      } catch {
+        return NextResponse.json({ id: item.id, tema: item.tema, sintese: text, fatos: [], tensoes: [], implicacoes: [], fontes: [], createdAt: new Date().toISOString() });
+      }
+    }
     if (action === 'synthesize_all') {
       const summary = agenda ? (agenda as { tema: string; sintese: string }[]).map(r => `## ${r.tema}\n${r.sintese}`).join('\n\n') : '';
       const prompt = `${ctx}${summary ? `PESQUISA REALIZADA:\n${summary}\n\n` : ''}Produza a sintese estrategica final do dossie de marca.
