@@ -89,6 +89,31 @@ async function callOpenAIWithSearch(prompt: string): Promise<string> {
   return sanitizeText(text);
 }
 
+export async function GET() {
+  try {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) return NextResponse.json({ ok: false, error: 'OPENAI_API_KEY não configurada' });
+
+    // Quick probe: list models (lightweight, no tokens consumed)
+    const res = await fetch('https://api.openai.com/v1/models', {
+      headers: { Authorization: `Bearer ${key}` },
+    });
+    const data = await res.json();
+    if (!res.ok) return NextResponse.json({ ok: false, status: res.status, error: data });
+
+    const hasSearch = (data.data as { id: string }[]).some(m =>
+      m.id.includes('search') || m.id.includes('gpt-4o-search')
+    );
+    const searchModels = (data.data as { id: string }[])
+      .filter(m => m.id.includes('search'))
+      .map(m => m.id);
+
+    return NextResponse.json({ ok: true, keyPrefix: key.slice(0, 8) + '...', hasSearch, searchModels });
+  } catch (err) {
+    return NextResponse.json({ ok: false, error: String(err) });
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const { action, projectContext, agenda } = await req.json();
@@ -177,7 +202,15 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
     return NextResponse.json({ error: 'Ação inválida' }, { status: 400 });
 
   } catch (err) {
-    console.error('[openai-research]', err);
-    return NextResponse.json({ error: 'Erro interno', detail: String(err) }, { status: 500 });
+    const e = err as Record<string, unknown>;
+    const detail = {
+      message: e?.message ?? String(err),
+      status: e?.status,
+      code: e?.code,
+      type: e?.type,
+      openaiError: e?.error,
+    };
+    console.error('[openai-research] FULL ERROR:', JSON.stringify(detail));
+    return NextResponse.json({ error: 'Erro interno', detail: JSON.stringify(detail) }, { status: 500 });
   }
 }
