@@ -1563,7 +1563,7 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
         }),
       });
       const data = await res.json();
-      if (data.error) { setError(data.error); return; }
+      if (data.error) { setError(`${data.error}${data.raw ? ` — Resposta bruta: ${String(data.raw).slice(0, 150)}` : ''}`); return; }
       if (data.marcas || data.termos) {
         const updated = { ...project, researchDirectives: data as ResearchDirectives };
         saveProject(updated);

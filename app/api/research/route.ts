@@ -125,12 +125,25 @@ export async function POST(req: NextRequest) {
     if (action === 'generate_agenda') {
       const prompt = `${ctx}${DOSSIE_FRAMEWORK}
 
-Com base no contexto do projeto e no framework acima, gere uma agenda de pesquisa estrategica personalizada.
-Selecione entre 6 e 10 temas mais relevantes para este momento especifico da marca.
+Com base no contexto do projeto e no framework de 18 dimensoes acima, gere uma agenda de pesquisa estrategica personalizada com ENTRE 6 E 10 TEMAS.
+
+REGRAS OBRIGATORIAS:
+- Minimo de 6 temas, maximo de 10 — NUNCA menos de 6
+- Cada tema deve ser especifico para esta marca, nao generico
+- Priorize dimensoes onde ha mais tensao ou contradicao aparente
+- Adapte temas, objetivos e queries com os nomes reais da marca e dos concorrentes do projeto
+- Para cada tema, defina 3 queries de busca especificas e reais
 ${customInstructions ? `\nInstrucoes do estrategista: ${customInstructions}` : ''}
 
-Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"agenda":[{"id":"r1","dimensao":1,"tema":"nome do tema","objetivo":"o que descobrir","queries":["query1","query2","query3"]}]}`;
+Retorne APENAS o seguinte JSON com 6 a 10 itens na agenda — NADA mais, sem texto antes ou depois:
+{"agenda":[
+{"id":"r1","dimensao":1,"tema":"Posicionamento atual e papel no mercado","objetivo":"Como a marca se apresenta hoje e qual papel declara ter no mercado","queries":["[NOME_DA_MARCA] posicionamento","[NOME_DA_MARCA] sobre empresa site","[SETOR] principais players brasil"]},
+{"id":"r2","dimensao":3,"tema":"Desafio central e tensao estrategica","objetivo":"Principal problema de percepcao ou legitimidade que a marca enfrenta","queries":["[NOME_DA_MARCA] desafios","[SETOR] problemas percepcao mercado","[SETOR] gap estrategia execucao"]},
+{"id":"r3","dimensao":10,"tema":"Mapa competitivo — concorrentes e referencias","objetivo":"Como os concorrentes se posicionam e quais territorios estao ocupados","queries":["[CONCORRENTE_1] posicionamento diferencial","[CONCORRENTE_2] como se posiciona","[SETOR] melhores empresas brasil 2025"]},
+{"id":"r4","dimensao":11,"tema":"Contradicao estrutural do setor","objetivo":"Grande hipocrisia ou tensao nao resolvida que todo o setor carrega","queries":["[SETOR] criticas problemas","[SETOR] discurso vs realidade","[SETOR] reclamacoes clientes"]},
+{"id":"r5","dimensao":13,"tema":"Pressoes externas e forca de mudanca","objetivo":"Mudancas culturais, tecnologicas ou de mercado que pressionam o setor","queries":["[SETOR] tendencias 2025 2026","[SETOR] impacto tecnologia","[SETOR] futuro transformacao"]},
+{"id":"r6","dimensao":18,"tema":"Territorio disponivel — oportunidade de posicionamento","objetivo":"Onde existe espaco nao ocupado no imaginario do setor","queries":["[SETOR] diferenciacao inovacao","[SETOR] novo posicionamento branding","[SETOR] oportunidade mercado"]}
+]}`;
 
       const r = await client.messages.create({
         model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
@@ -269,37 +282,38 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 
     // EXTRAIR DIRETRIZES — fusão de todas as camadas de dados anteriores
     if (action === 'extract_directives') {
-      const prompt = `${ctx}
-Voce e um estrategista senior da AMUM. Antes de definir qualquer diretriz, faca uma LEITURA CRUZADA de todas as camadas de informacao disponiveis no contexto acima.
+      // Truncate context to avoid token limit — keep most important layers
+      const ctxTruncated = ctx.length > 8000 ? ctx.slice(0, 8000) + '\n[...contexto truncado para processamento]' : ctx;
 
-As camadas presentes podem incluir:
-- DADOS DO SITE AMUM: diagnostico pre-qualificacao, brand_context acumulado na jornada digital, scores de prontidao e fit metodologico, relatorios de Espelho Simbolico, Mapa de Tensao Cultural e Plano de Travessia — o que o cliente ja revelou antes do projeto comecar
-- DOCUMENTOS ANALISADOS: materiais internos da empresa (pitch, apresentacao institucional, portfolio) — o que a marca usa para se vender, com sua linguagem real
-- PESQUISA SETORIAL (dossie de mercado): achados das 18 dimensoes com web search — tensoes do setor, codigos saturados, concorrentes, pressoes externas
-- INTEL FEED: achados anteriores registrados pelo estrategista
+      const prompt = `${ctxTruncated}
+Voce e um estrategista senior da AMUM. Faca uma LEITURA CRUZADA de todas as camadas de informacao acima e defina diretrizes de pesquisa.
 
-Sua tarefa e FUNDIR essas camadas — nao apenas listar o que o dossie disse, mas cruzar o que a marca declara nos documentos internos com o que o diagnostico digital revelou e com o que a pesquisa setorial confirmou ou contradiz.
+As camadas disponiveis podem incluir: dados do site AMUM (diagnostico, brand_context, relatorios do funil), documentos internos da empresa, pesquisa setorial (dossie), intel feed.
 
-A tensao central que ancora as diretrizes nao vem de uma unica fonte — ela emerge do atrito entre as camadas.
+Sua tarefa: FUNDIR essas camadas para encontrar o atrito entre o que a marca declara e o que os dados externos revelam.
 
-Com base nessa fusao, defina as diretrizes operacionais para as pesquisas seguintes:
-1. MARCAS/PERFIS a analisar em redes sociais: a propria marca + concorrentes identificados + referencias que aparecem em multiplas camadas como relevantes
-2. TERMOS-CHAVE para Google Trends: termos que aparecem no discurso da marca (documentos), na percepcao do mercado (dossie) e nas tensoes diagnosticadas — especialmente onde ha divergencia entre o que a marca usa e o que o mercado busca
-3. COMUNIDADES/ESPACOS para netnografia: onde o publico desta marca conversa organicamente — informado pelo setor, pelos arquétipos identificados e pelos comportamentos revelados no dossie
-4. PLATAFORMAS prioritarias para analise social — baseado no setor, publico e no que os documentos da marca revelam sobre sua presenca atual
-5. TENSAO CENTRAL que ancora todas as pesquisas: a tensao que aparece em mais de uma camada de dados
+Defina:
+1. MARCAS/PERFIS para redes sociais: a propria marca + concorrentes identificados + referencias relevantes
+2. TERMOS-CHAVE para Google Trends: termos do discurso da marca vs. termos que o mercado efetivamente busca
+3. COMUNIDADES/ESPACOS para netnografia: onde o publico desta marca/setor conversa organicamente
+4. PLATAFORMAS prioritarias: baseado no setor e perfil do publico
+5. TENSAO CENTRAL: a tensao que aparece em mais de uma camada de dados
 
-Para cada item, a justificativa deve indicar de qual(is) camada(s) o item emerge.
+Para cada item, justifique de qual(is) camada(s) ele emerge.
 
-Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"marcas":[{"id":"m1","tipo":"marca","valor":"nome da marca principal","justificativa":"razao baseada na fusao de camadas","ativo":true},{"id":"m2","tipo":"marca","valor":"concorrente 1","justificativa":"razao","ativo":true}],"termos":[{"id":"t1","tipo":"termo","valor":"termo chave","justificativa":"camada de origem","ativo":true}],"comunidades":[{"id":"c1","tipo":"comunidade","valor":"espaco especifico","justificativa":"razao","ativo":true}],"plataformas":[{"id":"p1","tipo":"plataforma","valor":"Instagram","justificativa":"razao baseada no perfil da marca e setor","ativo":true}],"tensaoCentral":"tensao central que atravessa multiplas camadas de dados"}`;
+Retorne APENAS o seguinte JSON, sem texto antes ou depois:
+{"marcas":[{"id":"m1","tipo":"marca","valor":"nome da marca principal","justificativa":"fonte dos dados","ativo":true},{"id":"m2","tipo":"marca","valor":"concorrente 1","justificativa":"fonte","ativo":true},{"id":"m3","tipo":"marca","valor":"concorrente 2","justificativa":"fonte","ativo":true}],"termos":[{"id":"t1","tipo":"termo","valor":"termo 1","justificativa":"fonte","ativo":true},{"id":"t2","tipo":"termo","valor":"termo 2","justificativa":"fonte","ativo":true},{"id":"t3","tipo":"termo","valor":"termo 3","justificativa":"fonte","ativo":true}],"comunidades":[{"id":"c1","tipo":"comunidade","valor":"comunidade 1","justificativa":"fonte","ativo":true},{"id":"c2","tipo":"comunidade","valor":"comunidade 2","justificativa":"fonte","ativo":true}],"plataformas":[{"id":"p1","tipo":"plataforma","valor":"Instagram","justificativa":"fonte","ativo":true},{"id":"p2","tipo":"plataforma","valor":"LinkedIn","justificativa":"fonte","ativo":true}],"tensaoCentral":"tensao central que atravessa multiplas camadas"}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
-      try { return NextResponse.json(robustParseJSON(extractText(r.content))); }
-      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+      const rawText = extractText(r.content);
+      try { return NextResponse.json(robustParseJSON(rawText)); }
+      catch (e) {
+        console.error('[extract_directives] parse error:', e, 'raw:', rawText.slice(0, 300));
+        return NextResponse.json({ error: `Erro ao parsear diretrizes: ${String(e)}`, raw: rawText.slice(0, 500) }, { status: 500 });
+      }
     }
 
     // SÍNTESE GERAL — relatório unificado de toda a pesquisa
