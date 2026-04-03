@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 
+export const maxDuration = 60;
+
 // Lazy client — only instantiated at runtime (not during build)
 let _client: OpenAI | null = null;
 function getClient(): OpenAI {
