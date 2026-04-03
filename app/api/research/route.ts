@@ -18,7 +18,6 @@ PRINCÍPIOS DE PESQUISA:
 
 const DOSSIE_FRAMEWORK = `
 FRAMEWORK DE DOSSIÊ DE MARCA AMUM — 18 DIMENSÕES:
-
 1. VISÃO GERAL DA MARCA — o que é, em que mercado atua, qual seu papel, eixo principal de posicionamento hoje
 2. NEGÓCIO E CONTEXTO — origem, modelo de negócio, áreas de atuação, presença geográfica, produtos/serviços, momento atual
 3. DESAFIO CENTRAL DA MARCA — principal desafio estratégico, o que precisa alcançar, problema de percepção ou legitimidade
@@ -38,298 +37,221 @@ FRAMEWORK DE DOSSIÊ DE MARCA AMUM — 18 DIMENSÕES:
 17. HORIZONTE DE 12 MESES — o que precisa ter mudado, sinais concretos de avanço, o que seria perfumaria vs. mudança estrutural
 18. SÍNTESE ESTRATÉGICA FINAL — diagnóstico, principal tensão, principal oportunidade, principal risco, direção para reposicionamento`;
 
-type WebSearchTool = { type: 'web_search_20250305'; name: 'web_search' };
-const WEB_SEARCH: WebSearchTool[] = [{ type: 'web_search_20250305', name: 'web_search' }];
-
-function extractText(content: Anthropic.ContentBlock[]): string {
-  return content
-    .filter((b): b is Anthropic.TextBlock => b.type === 'text')
-    .map(b => b.text)
-    .join('');
+function extractJson(text: string): string {
+  return text.replace(/```json|```/g, '').trim();
 }
 
-function parseJSON(raw: string) {
-  const clean = raw.replace(/```json|```/g, '').trim();
-  return JSON.parse(clean);
+function extractText(content: Anthropic.Messages.ContentBlock[]): string {
+  return content
+    .filter(b => b.type === 'text')
+    .map(b => (b as { type: 'text'; text: string }).text)
+    .join('');
 }
 
 export async function POST(req: NextRequest) {
   try {
     const { action, projectContext, agenda, customInstructions } = await req.json();
 
-    // ── GERAR AGENDA ─────────────────────────────────────────────────────────
     if (action === 'generate_agenda') {
       const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
 ${DOSSIE_FRAMEWORK}
 
-Com base no contexto do projeto e no framework de 18 dimensões acima, gere uma agenda de pesquisa estratégica personalizada para esta marca específica.
-Selecione as dimensões mais relevantes (entre 6 e 10 temas), adaptando os objetivos ao contexto específico do projeto.
-${customInstructions ? `\nInstruções adicionais do estrategista:\n${customInstructions}` : ''}
+Com base no contexto do projeto e no framework de 18 dimensões acima, gere uma agenda de pesquisa estratégica personalizada.
+Selecione entre 6 e 10 temas, adaptando os objetivos ao contexto específico do projeto.
+${customInstructions ? `\nInstruções adicionais:\n${customInstructions}` : ''}
 
-Retorne APENAS um JSON válido com esta estrutura:
+Retorne APENAS JSON válido:
 {
   "agenda": [
     {
       "id": "r1",
       "dimensao": 1,
-      "tema": "nome do tema adaptado para esta marca",
-      "objetivo": "o que precisamos descobrir — específico para esta marca",
-      "queries": ["query de busca 1", "query de busca 2", "query de busca 3"]
+      "tema": "nome do tema",
+      "objetivo": "o que precisamos descobrir",
+      "queries": ["query 1", "query 2", "query 3"]
     }
   ]
-}
-Retorne SOMENTE o JSON.`;
+}`;
 
-      const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000,
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
         system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
-      try { return NextResponse.json(parseJSON(extractText(r.content))); }
-      catch { return NextResponse.json({ error: 'Erro ao parsear agenda', raw: extractText(r.content) }, { status: 500 }); }
+
+      try {
+        return NextResponse.json(JSON.parse(extractJson(extractText(response.content))));
+      } catch {
+        return NextResponse.json({ error: 'Erro ao parsear agenda' }, { status: 500 });
+      }
     }
 
-    // ── EXECUTAR PESQUISA ─────────────────────────────────────────────────────
     if (action === 'run_research') {
       const agendaItems = agenda as { id: string; dimensao?: number; tema: string; objetivo: string; queries: string[] }[];
       const results = [];
 
       for (const item of agendaItems) {
-        const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
-TEMA: ${item.tema}
-OBJETIVO: ${item.objetivo}
-QUERIES: ${item.queries.join(' | ')}
+        const prompt = `${projectContext ? `CONTEXTO:\n${projectContext}\n\n` : ''}
+TEMA: ${item.tema} | OBJETIVO: ${item.objetivo} | QUERIES: ${item.queries.join(' | ')}
 
-Pesquise com profundidade. Separe: fatos verificáveis | leitura analítica | hipóteses interpretativas.
-Não repita o discurso institucional sem crítica. Identifique contradições e tensões.
+Pesquise com profundidade. Separe: fato verificável | leitura analítica | hipótese. Identifique contradições e tensões.
 
-Retorne APENAS um JSON:
-{
-  "id": "${item.id}",
-  "tema": "${item.tema}",
-  "sintese": "síntese em 3-5 parágrafos densos",
-  "fatos": ["fato 1", "fato 2"],
-  "tensoes": ["tensão 1", "tensão 2"],
-  "implicacoes": ["implicação 1", "implicação 2"],
-  "fontes": ["fonte 1", "fonte 2"]
-}
-Retorne SOMENTE o JSON.`;
+Retorne APENAS JSON:
+{"id":"${item.id}","tema":"${item.tema}","sintese":"síntese em 3-5 parágrafos","fatos":[],"tensoes":[],"implicacoes":[],"fontes":[]}`;
 
-        const r = await client.messages.create({
-          model: 'claude-sonnet-4-20250514', max_tokens: 2000,
+        const response = await client.messages.create({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 2000,
           system: AMUM_SYSTEM,
-          tools: WEB_SEARCH as unknown as Parameters<typeof client.messages.create>[0]["tools"],
+          tools: [{ type: 'web_search_20250305', name: 'web_search' }] as Parameters<typeof client.messages.create>[0]['tools'],
           messages: [{ role: 'user', content: prompt }],
         });
-        const text = extractText(r.content);
-        try { results.push({ ...parseJSON(text), createdAt: new Date().toISOString() }); }
-        catch { results.push({ id: item.id, tema: item.tema, sintese: text, fatos: [], tensoes: [], implicacoes: [], fontes: [], createdAt: new Date().toISOString() }); }
+
+        try {
+          results.push({ ...JSON.parse(extractJson(extractText(response.content))), createdAt: new Date().toISOString() });
+        } catch {
+          results.push({ id: item.id, tema: item.tema, sintese: extractText(response.content), fatos: [], tensoes: [], implicacoes: [], fontes: [], createdAt: new Date().toISOString() });
+        }
       }
 
       return NextResponse.json({ results });
     }
 
-    // ── SÍNTESE FINAL ─────────────────────────────────────────────────────────
     if (action === 'synthesize_all') {
-      const summary = agenda
-        ? (agenda as { tema: string; sintese: string }[]).map(r => `## ${r.tema}\n${r.sintese}`).join('\n\n')
-        : '';
+      const summary = agenda ? (agenda as { tema: string; sintese: string }[]).map(r => `## ${r.tema}\n${r.sintese}`).join('\n\n') : '';
 
-      const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
-${summary ? `PESQUISA REALIZADA:\n${summary}\n\n` : ''}
+      const prompt = `${projectContext ? `CONTEXTO:\n${projectContext}\n\n` : ''}${summary ? `PESQUISA:\n${summary}\n\n` : ''}
 Produza a síntese estratégica final do dossiê de marca.
 
-Retorne APENAS um JSON:
-{
-  "tensaoCentral": "tensão geradora central em uma frase irrefutável",
-  "desafioPrincipal": "principal desafio estratégico",
-  "territorioDisponivel": "território de posicionamento disponível e autêntico",
-  "promessaPrincipal": "o que a marca promete hoje",
-  "percepcaoProvavel": "como o mercado a percebe na prática",
-  "contradicaoCentral": "o que ela tenta ser vs. o que ainda é",
-  "concorrentes": [{ "nome": "empresa", "arquetipo": "arquétipo", "posicao": "posicionamento" }],
-  "pressoesExternas": ["pressão 1", "pressão 2"],
-  "oPreservar": ["ativo 1", "ativo 2"],
-  "oMudar": ["o que mudar 1", "o que mudar 2"],
-  "meta12meses": "o que precisa ter acontecido em 12 meses",
-  "direcaoEstrategica": "direção sugerida em 2-3 frases",
-  "diagnostico": "diagnóstico final em 1 parágrafo preciso"
-}
-Retorne SOMENTE o JSON.`;
+Retorne APENAS JSON:
+{"tensaoCentral":"","desafioPrincipal":"","territorioDisponivel":"","promessaPrincipal":"","percepcaoProvavel":"","contradicaoCentral":"","concorrentes":[{"nome":"","arquetipo":"","posicao":""}],"pressoesExternas":[],"oPreservar":[],"oMudar":[],"meta12meses":"","direcaoEstrategica":"","diagnostico":""}`;
 
-      const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000,
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
         system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
-      try { return NextResponse.json(parseJSON(extractText(r.content))); }
-      catch { return NextResponse.json({ error: 'Erro ao parsear síntese', raw: extractText(r.content) }, { status: 500 }); }
+
+      try {
+        return NextResponse.json(JSON.parse(extractJson(extractText(response.content))));
+      } catch {
+        return NextResponse.json({ error: 'Erro ao parsear síntese' }, { status: 500 });
+      }
     }
 
-    // ── ANÁLISE DE REDES SOCIAIS ──────────────────────────────────────────────
     if (action === 'social_analysis') {
       const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
 
-Você é um analista estratégico de branding. Analise a presença em redes sociais da marca principal e dos concorrentes mencionados no contexto.
+Analise a presença digital da marca principal e dos concorrentes mencionados no contexto.
 
-Para cada entidade, pesquise e analise:
-1. Presença no Instagram, LinkedIn, YouTube e plataformas relevantes do setor
-2. Volume de seguidores, frequência e consistência de postagem
-3. Temas recorrentes e narrativa central construída
-4. Tom de voz e formatos dominantes (stories, reels, carrosséis, artigos, vídeos)
-5. Nível de engajamento e qualidade das interações
-6. Ponto forte e ponto fraco da estratégia digital
+Para cada entidade, pesquise Instagram, LinkedIn, YouTube e outras plataformas relevantes do setor. Analise:
+seguidores, frequência de postagem, temas recorrentes, tom de voz, formatos dominantes, engajamento, ponto forte e ponto fraco.
 
-Após analisar cada entidade, identifique:
-- Territórios digitais já ocupados e saturados
-- Territórios disponíveis como oportunidade
-- Insights estratégicos de diferenciação
+Após analisar, identifique territórios digitais saturados e territórios disponíveis para diferenciação.
 
-Retorne APENAS um JSON válido:
+Retorne APENAS JSON válido:
 {
   "marca": {
-    "entidade": "nome da marca",
+    "entidade": "nome",
     "tipo": "marca",
-    "plataformas": [
-      {
-        "nome": "Instagram",
-        "handle": "@handle",
-        "seguidores": "estimativa",
-        "frequencia": "X posts/semana",
-        "temasRecorrentes": ["tema 1", "tema 2"],
-        "tomDeVoz": "descrição",
-        "formatosDominantes": ["formato 1"],
-        "engajamento": "qualitativo",
-        "pontoForte": "...",
-        "pontoFraco": "..."
-      }
-    ],
-    "posicionamento": "como se posiciona digitalmente em uma frase",
+    "plataformas": [{"nome":"Instagram","handle":"@","seguidores":"","frequencia":"","temasRecorrentes":[],"tomDeVoz":"","formatosDominantes":[],"engajamento":"","pontoForte":"","pontoFraco":""}],
+    "posicionamento": "frase precisa",
     "arquetipo": "arquétipo identificado"
   },
   "concorrentes": [
-    {
-      "entidade": "nome",
-      "tipo": "concorrente",
-      "plataformas": [],
-      "posicionamento": "...",
-      "arquetipo": "..."
-    }
+    {"entidade":"nome","tipo":"concorrente","plataformas":[],"posicionamento":"","arquetipo":""}
   ],
   "comparativo": "análise comparativa em 2-3 parágrafos",
-  "territoriosOcupados": ["território saturado 1"],
+  "territoriosOcupados": ["território 1"],
   "territoriosVazios": ["território disponível 1"],
   "insights": ["insight 1", "insight 2", "insight 3"]
-}
-Retorne SOMENTE o JSON.`;
+}`;
 
-      const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000,
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
         system: AMUM_SYSTEM,
-        tools: WEB_SEARCH as unknown as Parameters<typeof client.messages.create>[0]["tools"],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }] as Parameters<typeof client.messages.create>[0]['tools'],
         messages: [{ role: 'user', content: prompt }],
       });
+
       try {
-        return NextResponse.json({ ...parseJSON(extractText(r.content)), createdAt: new Date().toISOString() });
+        return NextResponse.json({ ...JSON.parse(extractJson(extractText(response.content))), createdAt: new Date().toISOString() });
       } catch {
-        return NextResponse.json({ error: 'Erro ao parsear análise social', raw: extractText(r.content) }, { status: 500 });
+        return NextResponse.json({ error: 'Erro ao parsear análise social' }, { status: 500 });
       }
     }
 
-    // ── GOOGLE TRENDS & BUSCAS ────────────────────────────────────────────────
     if (action === 'trends_analysis') {
       const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
 
-Você é um analista estratégico de branding. Pesquise tendências de busca para esta marca e setor.
+Pesquise tendências de busca no Google Trends e comportamento digital para esta marca e setor.
 
-Investigue:
-1. Termos de busca da marca, do setor e dos concorrentes — volume e direção
-2. Direção das tendências nos últimos 12 meses (crescendo, estável, declínio)
-3. Sazonalidade relevante (datas, eventos, ciclos do setor)
-4. Termos emergentes ainda não adotados pelo mercado
-5. Janelas de oportunidade baseadas em tendências macro
-6. Gaps de conteúdo: alta busca com baixa oferta de resposta
+Analise: termos relacionados à marca e concorrentes, direção das tendências nos últimos 12 meses, sazonalidade, termos emergentes, janelas de oportunidade baseadas em eventos e ciclos de mercado.
 
-Retorne APENAS um JSON válido:
+Retorne APENAS JSON válido:
 {
-  "termosAnalisados": ["termo 1", "termo 2"],
-  "tendencias": [
-    {
-      "termo": "nome",
-      "direcao": "crescendo",
-      "contexto": "explicação da tendência"
-    }
-  ],
-  "termosCrescentes": ["termo 1", "termo 2"],
+  "termosAnalisados": ["termo 1"],
+  "tendencias": [{"termo":"","direcao":"crescendo|estavel|declinio","contexto":""}],
+  "termosCrescentes": ["termo 1"],
   "termosDeclinando": ["termo 1"],
-  "sazonalidade": "descrição dos picos sazonais — quando e por quê",
-  "janelasDeOportunidade": ["janela 1 — timing", "janela 2"],
-  "insights": ["insight 1", "insight 2", "insight 3"]
-}
-Retorne SOMENTE o JSON.`;
+  "sazonalidade": "descrição dos picos sazonais",
+  "janelasDeOportunidade": ["janela 1 — timing"],
+  "insights": ["insight 1", "insight 2"]
+}`;
 
-      const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000,
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 2000,
         system: AMUM_SYSTEM,
-        tools: WEB_SEARCH as unknown as Parameters<typeof client.messages.create>[0]["tools"],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }] as Parameters<typeof client.messages.create>[0]['tools'],
         messages: [{ role: 'user', content: prompt }],
       });
+
       try {
-        return NextResponse.json({ ...parseJSON(extractText(r.content)), createdAt: new Date().toISOString() });
+        return NextResponse.json({ ...JSON.parse(extractJson(extractText(response.content))), createdAt: new Date().toISOString() });
       } catch {
-        return NextResponse.json({ error: 'Erro ao parsear tendências', raw: extractText(r.content) }, { status: 500 });
+        return NextResponse.json({ error: 'Erro ao parsear tendências' }, { status: 500 });
       }
     }
 
-    // ── NETNOGRAFIA ───────────────────────────────────────────────────────────
     if (action === 'netnography') {
       const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
 
-Você é um pesquisador netnográfico especializado em branding. Pesquise o que as pessoas dizem sobre esta marca e setor fora dos canais oficiais.
+Você é um pesquisador netnográfico. Pesquise o que as pessoas dizem sobre esta marca e setor fora dos canais oficiais.
 
-Investigue ativamente:
-1. Reddit, Twitter/X, LinkedIn (comentários orgânicos), YouTube (comentários)
-2. Sites de avaliação: Glassdoor, ReclameAqui, Google Reviews
-3. Publicações de clientes, ex-clientes, funcionários atuais e ex
-4. Blogs, portais especializados, cobertura jornalística crítica
-5. Linguagem, memes e jargões que o público usa para se referir ao setor
-6. Grupos e comunidades profissionais do setor
+Investigue: Reddit, Twitter/X, comentários no LinkedIn e YouTube, ReclameAqui, Google Reviews, Glassdoor, blogs especializados, cobertura jornalística crítica, publicações de clientes e ex-funcionários.
 
-Para cada fonte: elogios, críticas, desejos não atendidos, mitos, contradições entre discurso oficial e percepção real.
+Identifique: o que elogiam, criticam, desejam mas não encontram, mitos estabelecidos, contradições entre discurso oficial e percepção real, vocabulário próprio da comunidade.
 
-Retorne APENAS um JSON válido:
+Retorne APENAS JSON válido:
 {
   "fontes": [
-    {
-      "fonte": "nome da plataforma",
-      "tipo": "fórum|rede social|avaliação|mídia|comunidade",
-      "tema": "tema central",
-      "volume": "alto|médio|baixo",
-      "sentimento": "positivo|negativo|ambivalente|neutro",
-      "citacoes": ["citação representativa 1", "citação 2"],
-      "sintese": "o que essa fonte revela em 2-3 frases"
-    }
+    {"fonte":"nome","tipo":"fórum|rede social|avaliação|mídia","tema":"tema central","volume":"alto|médio|baixo","sentimento":"positivo|negativo|ambivalente|neutro","citacoes":["paráfrase 1"],"sintese":"síntese em 2-3 frases"}
   ],
-  "discursoDeRua": "o que as pessoas realmente dizem em 2-3 parágrafos sem filtro institucional",
-  "vocabularioComunidade": ["termo 1", "jargão 2", "expressão 3"],
-  "contradicoes": ["contradição entre discurso e percepção 1", "contradição 2"],
-  "mitos": ["mito estabelecido no mercado 1", "mito 2"],
-  "desejos": ["desejo não atendido 1", "desejo 2", "desejo 3"],
-  "oportunidades": ["oportunidade de posicionamento 1", "oportunidade 2"],
-  "alertas": ["alerta estratégico 1", "alerta 2"]
-}
-Retorne SOMENTE o JSON.`;
+  "discursoDeRua": "o que as pessoas realmente dizem em 2-3 parágrafos",
+  "vocabularioComunidade": ["termo 1", "jargão 2"],
+  "contradicoes": ["contradição 1", "contradição 2"],
+  "mitos": ["mito 1", "mito 2"],
+  "desejos": ["desejo não atendido 1", "desejo 2"],
+  "oportunidades": ["oportunidade 1", "oportunidade 2"],
+  "alertas": ["alerta 1", "alerta 2"]
+}`;
 
-      const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000,
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
         system: AMUM_SYSTEM,
-        tools: WEB_SEARCH as unknown as Parameters<typeof client.messages.create>[0]["tools"],
+        tools: [{ type: 'web_search_20250305', name: 'web_search' }] as Parameters<typeof client.messages.create>[0]['tools'],
         messages: [{ role: 'user', content: prompt }],
       });
+
       try {
-        return NextResponse.json({ ...parseJSON(extractText(r.content)), createdAt: new Date().toISOString() });
+        return NextResponse.json({ ...JSON.parse(extractJson(extractText(response.content))), createdAt: new Date().toISOString() });
       } catch {
-        return NextResponse.json({ error: 'Erro ao parsear netnografia', raw: extractText(r.content) }, { status: 500 });
+        return NextResponse.json({ error: 'Erro ao parsear netnografia' }, { status: 500 });
       }
     }
 
