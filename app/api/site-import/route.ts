@@ -12,20 +12,37 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ encontrado: false, erro: 'Informe o email do contato' });
     }
 
-    if (!SERVICE_ROLE_KEY) {
+    if (!SERVICE_ROLE_KEY || !SUPABASE_URL) {
       return NextResponse.json({
         encontrado: false,
-        erro: 'SUPABASE_SERVICE_ROLE_KEY não configurada. Configure a variável de ambiente no Vercel.',
+        erro: 'Variáveis de ambiente Supabase não configuradas.',
       });
     }
 
-    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
+    // 1. Buscar usuário via REST direto (mais confiável em server-side do que SDK admin)
+    const usersRes = await fetch(
+      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`,
+      {
+        headers: {
+          apikey: SERVICE_ROLE_KEY,
+          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
+        },
+      }
+    );
 
-    // 1. Buscar usuário pelo email em auth.users
-    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
-    if (authError) throw authError;
+    if (!usersRes.ok) {
+      const errBody = await usersRes.text();
+      console.error('auth/admin/users error:', usersRes.status, errBody);
+      return NextResponse.json({
+        encontrado: false,
+        erro: `Erro na consulta de usuários: ${usersRes.status}`,
+      });
+    }
 
-    const user = authData.users.find(
+    const usersData = await usersRes.json();
+    const users: Array<{ id: string; email: string }> = usersData.users ?? [];
+
+    const user = users.find(
       (u) => u.email?.toLowerCase() === email.toLowerCase()
     );
 
@@ -36,34 +53,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 2. Buscar lead (jornada do cliente)
-    const { data: lead, error: leadError } = await supabase
+    // 2. Buscar lead e reports via SDK (tabelas públicas — funciona com service role)
+    const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+
+    const { data: lead } = await supabase
       .from('leads')
       .select('*')
       .eq('lead_id', user.id)
       .single();
 
-    if (leadError && leadError.code !== 'PGRST116') {
-      console.error('lead fetch error:', leadError);
-    }
-
-    // 3. Buscar todos os reports do usuário
-    const { data: reports, error: reportsError } = await supabase
+    const { data: reports } = await supabase
       .from('reports')
       .select('*')
       .eq('lead_id', user.id)
       .order('created_at', { ascending: false });
 
-    if (reportsError) {
-      console.error('reports fetch error:', reportsError);
-    }
-
-    // 4. Selecionar o relatório de diagnóstico entregue (o mais relevante)
     const diagnostico = reports?.find(
       (r) => r.type === 'diagnostico' && r.status === 'delivered'
     );
-
-    // 5. Outros relatórios do funil (em ordem de profundidade)
     const espelho = reports?.find(
       (r) => r.type === 'espelho_simbolico' && r.status === 'delivered'
     );
@@ -78,29 +87,27 @@ export async function POST(req: NextRequest) {
       encontrado: true,
       email: user.email,
       userId: user.id,
-      // Dados da jornada
-      faseAtual: lead?.current_phase || null,
-      jornadaCompleta: lead?.journey_completed || false,
-      brandContext: lead?.brand_context || null,
-      // Relatórios entregues
-      diagnostico: diagnostico?.client_report || null,
-      diagnosticoInterno: diagnostico?.internal_report || null,
-      respostasFormulario: diagnostico?.initial_answers || null,
-      espelho: espelho?.client_report || null,
-      mapaTensao: mapaTensao?.client_report || null,
-      planoTravessia: planoTravessia?.client_report || null,
-      // Lista completa para referência
-      todosReports: (reports || []).map((r) => ({
+      faseAtual: lead?.current_phase ?? null,
+      jornadaCompleta: lead?.journey_completed ?? false,
+      brandContext: lead?.brand_context ?? null,
+      diagnostico: diagnostico?.client_report ?? null,
+      diagnosticoInterno: diagnostico?.internal_report ?? null,
+      respostasFormulario: diagnostico?.initial_answers ?? null,
+      espelho: espelho?.client_report ?? null,
+      mapaTensao: mapaTensao?.client_report ?? null,
+      planoTravessia: planoTravessia?.client_report ?? null,
+      todosReports: (reports ?? []).map((r) => ({
         type: r.type,
         status: r.status,
         createdAt: r.created_at,
       })),
     });
-  } catch (err) {
-    console.error('site-import error:', err);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error('site-import error:', msg);
     return NextResponse.json({
       encontrado: false,
-      erro: 'Erro ao consultar banco. Verifique as credenciais Supabase.',
+      erro: `Erro interno: ${msg}`,
     });
   }
 }
