@@ -30,6 +30,7 @@ import {
   InterviewScript,
   PHASE_NAMES,
 } from '@/lib/store';
+import { fetchProjectFromSupabase } from '@/lib/db';
 
 // ─── DOWNLOAD BUTTON ──────────────────────────────────────────────────────────
 
@@ -3288,9 +3289,19 @@ export default function ProjetoPage() {
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    const p = getProject(id);
-    if (!p) { router.push('/projetos'); return; }
-    setProject(p);
+    // Load from localStorage immediately
+    const local = getProject(id);
+    if (!local) { router.push('/projetos'); return; }
+    setProject(local);
+
+    // Then try Supabase for fresher data (cross-device sync)
+    fetchProjectFromSupabase(id).then(remote => {
+      if (remote) {
+        setProject(remote);
+        // Also update localStorage so it stays consistent
+        saveProject(remote);
+      }
+    }).catch(() => {});
   }, [id, router]);
 
   function handleUpdate(p: Project) {

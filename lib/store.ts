@@ -386,7 +386,7 @@ export interface Project {
 
 // ─── SEED ─────────────────────────────────────────────────────────────────────
 
-const STORAGE_KEY = 'amum_projects_v2';
+export const STORAGE_KEY = 'amum_projects_v2';
 
 function buildInitialSteps(): WorkflowStep[] {
   return STEP_DEFINITIONS.map((def, i) => ({
@@ -404,9 +404,9 @@ const DOBRASIL_SEED: Project = {
   faseAtual: 1,
   investimento: 'R$ 160.000',
   escopo: 'Jornada Completa — Fases 1 a 4 (12 entregáveis)',
-  status: 'Ativo — Entrevistas com sócias iniciam esta semana',
-  interlocutor: 'A confirmar',
-  emailContato: '',
+  status: 'Ativo — Entrevistas com sócias em andamento',
+  interlocutor: 'Patricia Tavares (CEO) · Junia Viana (CFO) · Paula Cerqueira (Diretora de Projetos) · Nadja Garbin (Diretora de Operações)',
+  emailContato: 'felipe@dobrasil.live',
   workflowSteps: buildInitialSteps(),
   documents: [],
   researchAgenda: [],
@@ -488,6 +488,8 @@ export function saveProject(project: Project): void {
   if (idx >= 0) projects[idx] = project;
   else projects.push(project);
   localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  // Push to Supabase in background — non-blocking
+  import('./db').then(({ pushToSupabase }) => pushToSupabase(project)).catch(() => {});
 }
 
 export function approveStep(project: Project, stepId: string): Project {

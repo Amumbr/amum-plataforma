@@ -3,12 +3,27 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Sidebar from '@/components/Sidebar';
 import { getProjects, Project, PHASE_NAMES } from '@/lib/store';
+import { syncFromSupabase, bootstrapSupabase } from '@/lib/db';
 
 export default function ProjetosPage() {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
-    setProjects(getProjects());
+    // Load from localStorage immediately
+    const local = getProjects();
+    setProjects(local);
+
+    // Then sync from Supabase in background
+    setSyncing(true);
+    syncFromSupabase().then(remote => {
+      if (remote && remote.length > 0) {
+        setProjects(remote);
+      } else if (remote !== null && remote.length === 0) {
+        // Supabase is configured but empty — bootstrap with local data
+        bootstrapSupabase(local);
+      }
+    }).finally(() => setSyncing(false));
   }, []);
 
   return (
@@ -18,7 +33,10 @@ export default function ProjetosPage() {
         <div className="page-header">
           <div>
             <h2>Projetos</h2>
-            <p>Gestão de projetos de branding estratégico</p>
+            <p>
+              Gestão de projetos de branding estratégico
+              {syncing && <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: '10px' }}>● sincronizando...</span>}
+            </p>
           </div>
           <Link href="/projetos/novo">
             <button className="btn-primary" style={{ whiteSpace: 'nowrap' }}>
