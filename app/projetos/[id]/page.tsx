@@ -523,9 +523,30 @@ function StepDocuments({
     }]);
 
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/documents', { method: 'POST', body: formData });
+      // Lê o arquivo como base64 no cliente — sem limite de payload multipart
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          // Remove o prefixo "data:...;base64,"
+          resolve(result.split(',')[1] || result);
+        };
+        reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+        reader.readAsDataURL(file);
+      });
+
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'extract',
+          filename: file.name,
+          fileType: file.type || 'application/octet-stream',
+          size: file.size,
+          base64,
+        }),
+      });
+
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
