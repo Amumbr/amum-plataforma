@@ -18,98 +18,48 @@ import {
   TranscriptAnalysis,
   ClientDocument,
   DocumentSynthesis,
-  DriveFile,
   ResearchAgendaItem,
   ResearchResult,
   InterviewScript,
   PHASE_NAMES,
 } from '@/lib/store';
 
-// ─── DRIVE SAVE BUTTON ────────────────────────────────────────────────────────
+// ─── DOWNLOAD BUTTON ──────────────────────────────────────────────────────────
 
-function SaveToDriveButton({
-  project,
-  phase,
-  type,
+function DownloadButton({
   title,
   content,
-  onSaved,
 }: {
-  project: Project;
-  phase: string;
-  type: string;
   title: string;
   content: string;
-  onSaved?: (file: DriveFile) => void;
 }) {
-  const [status, setStatus] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
-  const [link, setLink] = useState('');
+  const [status, setStatus] = useState<'idle' | 'done'>('idle');
 
-  // Verifica se já foi salvo antes
-  const existing = project.driveFiles?.find(f => f.type === type && f.phase === phase);
-  React.useEffect(() => {
-    if (existing) { setStatus('saved'); setLink(existing.webViewLink); }
-  }, [existing]);
-
-  async function handleSave() {
+  function handleDownload() {
     if (!content?.trim()) return;
-    setStatus('saving');
-    try {
-      const res = await fetch('/api/drive', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'save',
-          projectName: project.nome,
-          phase,
-          type,
-          title,
-          content,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setStatus('saved');
-      setLink(data.webViewLink);
-      const driveFile: DriveFile = {
-        id: `df_${Date.now()}`,
-        fileId: data.fileId,
-        webViewLink: data.webViewLink,
-        filename: data.filename,
-        phase,
-        type,
-        savedAt: new Date().toISOString(),
-      };
-      if (onSaved) onSaved(driveFile);
-    } catch (err) {
-      console.error('Drive save error:', err);
-      setStatus('error');
-      setTimeout(() => setStatus('idle'), 4000);
-    }
-  }
-
-  if (status === 'saved') {
-    return (
-      <a
-        href={link}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="drive-saved-link"
-        title="Ver no Google Drive"
-      >
-        ✓ Drive
-      </a>
-    );
+    const date = new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }).replace(/\//g, '-');
+    const header = `# ${title}\n\n*Gerado pela plataforma AMUM em ${date}*\n\n---\n\n`;
+    const blob = new Blob([header + content], { type: 'text/plain;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${title.replace(/[/\\?%*:|"<>]/g, '-').slice(0, 80)}.txt`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    setStatus('done');
+    setTimeout(() => setStatus('idle'), 3000);
   }
 
   return (
     <button
       className="drive-save-btn"
-      onClick={handleSave}
-      disabled={status === 'saving' || !content?.trim()}
-      title="Salvar no Google Drive da AMUM"
+      onClick={handleDownload}
+      disabled={!content?.trim()}
+      title="Baixar como arquivo de texto"
     >
-      {status === 'saving' ? '...' : status === 'error' ? '⚠ Erro' : '↑ Drive'}
+      {status === 'done' ? '✓ Baixado' : '↓ Baixar'}
     </button>
   );
 }
@@ -610,9 +560,6 @@ function StepDocuments({
     project.documentSynthesis || null
   );
   const [synthError, setSynthError] = useState('');
-  const [driveUrl, setDriveUrl] = useState('');
-  const [driveLoading, setDriveLoading] = useState(false);
-  const [driveError, setDriveError] = useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const projectRef = React.useRef(project);
   projectRef.current = project;
@@ -620,64 +567,6 @@ function StepDocuments({
 
   const ACCEPTED_TYPES = '.pdf,.docx,.doc,.txt,.md,.html,.htm,.png,.jpg,.jpeg,.webp';
 
-  async function importFromDrive() {
-    if (!driveUrl.trim()) return;
-    const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    const urlLabel = driveUrl.split('/').filter(Boolean).pop()?.slice(0, 50) || 'Google Drive';
-    setDriveLoading(true);
-    setDriveError('');
-
-    setPending(prev => [...prev, {
-      id: docId,
-      name: urlLabel,
-      size: 0,
-      type: 'application/octet-stream',
-      status: 'extracting',
-    }]);
-
-    try {
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'extract-from-url', url: driveUrl.trim() }),
-      });
-
-      const responseText = await res.text();
-      let data: { extractedText?: string; filename?: string; fileType?: string; charCount?: number; error?: string };
-      try { data = JSON.parse(responseText); }
-      catch { throw new Error(`Erro do servidor (${res.status}). Verifique se o arquivo está acessível.`); }
-      if (data.error) throw new Error(data.error);
-
-      const newDoc: ClientDocument = {
-        id: docId,
-        filename: data.filename || urlLabel,
-        fileType: data.fileType || 'application/pdf',
-        size: 0,
-        content: data.extractedText || '',
-        createdAt: new Date().toISOString(),
-      };
-
-      setPending(prev => prev.filter(p => p.id !== docId));
-      setRecentSuccess(prev => [...prev, docId]);
-      setTimeout(() => setRecentSuccess(prev => prev.filter(id => id !== docId)), 4000);
-
-      const current = projectRef.current;
-      const updated = { ...current, documents: [...current.documents, newDoc] };
-      saveProject(updated);
-      onUpdate(updated);
-      setDriveUrl('');
-
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : 'Falha ao importar do Drive';
-      setDriveError(msg);
-      setPending(prev => prev.map(p => p.id === docId
-        ? { ...p, status: 'error' as const, errorMsg: msg }
-        : p
-      ));
-    } finally {
-      setDriveLoading(false);
-    }
-  }
 
   async function processFileSafe(file: File) {
     const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -942,37 +831,7 @@ function StepDocuments({
             </p>
           </div>
 
-          {/* ── Google Drive import ── */}
-          <div className="drive-import-section">
-            <div className="drive-import-header">
-              <span>🔗</span>
-              <span className="drive-import-label">Importar do Google Drive</span>
-              <span className="drive-import-badge">Sem limite de tamanho</span>
-            </div>
-            <div className="drive-import-row">
-              <input
-                className="input"
-                value={driveUrl}
-                onChange={e => { setDriveUrl(e.target.value); setDriveError(''); }}
-                onKeyDown={e => { if (e.key === 'Enter') importFromDrive(); }}
-                placeholder="Cole o link de compartilhamento do Google Drive..."
-                disabled={driveLoading}
-              />
-              <button
-                className="btn-primary btn-small"
-                style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                onClick={importFromDrive}
-                disabled={!driveUrl.trim() || driveLoading}
-              >
-                {driveLoading ? 'Importando...' : 'Importar'}
-              </button>
-            </div>
-            {driveError && <p className="drive-import-error">{driveError}</p>}
-            <p className="drive-import-tip">
-              Arquivos do Drive · Google Docs · Slides · Planilhas · PDFs grandes.
-              Compartilhe com "Qualquer pessoa com o link" antes de importar.
-            </p>
-          </div>
+
 
           {/* ── Lista unificada: pending + incorporados ── */}
           {showList && (
@@ -1206,16 +1065,9 @@ function StepDocuments({
                 <button className="btn-approve" onClick={handleApprove}>
                   Aprovar síntese e avançar
                 </button>
-                <SaveToDriveButton
-                  project={project}
-                  phase="1 - Escuta"
-                  type="sintese-documental"
+                <DownloadButton
                   title={`Síntese Documental — ${project.nome}`}
                   content={synthesis ? formatSynthesisMarkdown(synthesis) : ''}
-                  onSaved={df => {
-                    const updated = { ...project, driveFiles: [...(project.driveFiles || []).filter(f => f.type !== 'sintese-documental'), df] };
-                    saveProject(updated); onUpdate(updated);
-                  }}
                 />
                 <button className="btn-skip" onClick={handleSkip}>Pular</button>
               </div>
@@ -1971,10 +1823,7 @@ function StepDeepAnalysis({
               </div>
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar análise e continuar</button>
-                <SaveToDriveButton
-                  project={project}
-                  phase="2 - Decifração"
-                  type="analise-decifração"
+                <DownloadButton
                   title={`Análise de Decifração — ${project.nome}`}
                   content={analysis.status === 'done' ? [
                     `## Arquétipo\n${analysis.arquetipo}`,
@@ -1984,10 +1833,6 @@ function StepDeepAnalysis({
                     `## Gaps Principais\n${analysis.gapsPrincipais.map(g => `- ${g}`).join('\n')}`,
                     `## Próximos Passos\n${analysis.proximosPassos.map(p => `- ${p}`).join('\n')}`,
                   ].join('\n\n') : ''}
-                  onSaved={df => {
-                    const updated = { ...project, driveFiles: [...(project.driveFiles || []).filter(f => f.type !== 'analise-decifração'), df] };
-                    saveProject(updated); onUpdate(updated);
-                  }}
                 />
                 <button className="btn-skip" onClick={handleSkip}>Refazer depois</button>
               </div>
@@ -2119,16 +1964,9 @@ function StepChat({
                   <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
                   {m.role === 'assistant' && m.content.length > 100 && (
                     <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
-                      <SaveToDriveButton
-                        project={project}
-                        phase={step.id === 'chat_decifração' ? '2 - Decifração' : step.id === 'chat_reconstrucao' ? '3 - Reconstrução' : '4 - Travessia'}
-                        type={`entregavel-${step.id}-${i}`}
+                      <DownloadButton
                         title={`Entregável ${label} — mensagem ${i + 1}`}
                         content={m.content}
-                        onSaved={df => {
-                          const updated = { ...project, driveFiles: [...(project.driveFiles || []), df] };
-                          saveProject(updated); onUpdate(updated);
-                        }}
                       />
                     </div>
                   )}
