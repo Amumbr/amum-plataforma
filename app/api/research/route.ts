@@ -210,21 +210,32 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
       catch (e) { return NextResponse.json({ error: 'Parse error', raw: text, detail: String(e) }, { status: 500 }); }
     }
 
-    // EXTRAIR DIRETRIZES DO DOSSIÊ
+    // EXTRAIR DIRETRIZES — fusão de todas as camadas de dados anteriores
     if (action === 'extract_directives') {
-      const prompt = `${ctx}Voce e um estrategista da AMUM. Com base no dossie de pesquisa realizado acima, extraia as diretrizes operacionais para as proximas pesquisas.
+      const prompt = `${ctx}
+Voce e um estrategista senior da AMUM. Antes de definir qualquer diretriz, faca uma LEITURA CRUZADA de todas as camadas de informacao disponiveis no contexto acima.
 
-Identifique:
-1. MARCAS/PERFIS para analisar em redes sociais: a propria marca + concorrentes diretos e indiretos identificados no dossie + referencias internacionais relevantes
-2. TERMOS-CHAVE para Google Trends: termos de busca da marca, do setor, dos concorrentes e das tensoes identificadas
-3. COMUNIDADES/ESPACOS para netnografia: onde o publico desta marca/setor conversa organicamente (Reddit, grupos, forums, portais)
-4. PLATAFORMAS prioritarias para analise social (Instagram, LinkedIn, YouTube, TikTok, etc.) — baseado no setor e publico
-5. TENSAO CENTRAL que ancora todas as pesquisas seguintes
+As camadas presentes podem incluir:
+- DADOS DO SITE AMUM: diagnostico pre-qualificacao, brand_context acumulado na jornada digital, scores de prontidao e fit metodologico, relatorios de Espelho Simbolico, Mapa de Tensao Cultural e Plano de Travessia — o que o cliente ja revelou antes do projeto comecar
+- DOCUMENTOS ANALISADOS: materiais internos da empresa (pitch, apresentacao institucional, portfolio) — o que a marca usa para se vender, com sua linguagem real
+- PESQUISA SETORIAL (dossie de mercado): achados das 18 dimensoes com web search — tensoes do setor, codigos saturados, concorrentes, pressoes externas
+- INTEL FEED: achados anteriores registrados pelo estrategista
 
-Para cada item, inclua uma justificativa breve baseada no que o dossie revelou.
+Sua tarefa e FUNDIR essas camadas — nao apenas listar o que o dossie disse, mas cruzar o que a marca declara nos documentos internos com o que o diagnostico digital revelou e com o que a pesquisa setorial confirmou ou contradiz.
+
+A tensao central que ancora as diretrizes nao vem de uma unica fonte — ela emerge do atrito entre as camadas.
+
+Com base nessa fusao, defina as diretrizes operacionais para as pesquisas seguintes:
+1. MARCAS/PERFIS a analisar em redes sociais: a propria marca + concorrentes identificados + referencias que aparecem em multiplas camadas como relevantes
+2. TERMOS-CHAVE para Google Trends: termos que aparecem no discurso da marca (documentos), na percepcao do mercado (dossie) e nas tensoes diagnosticadas — especialmente onde ha divergencia entre o que a marca usa e o que o mercado busca
+3. COMUNIDADES/ESPACOS para netnografia: onde o publico desta marca conversa organicamente — informado pelo setor, pelos arquétipos identificados e pelos comportamentos revelados no dossie
+4. PLATAFORMAS prioritarias para analise social — baseado no setor, publico e no que os documentos da marca revelam sobre sua presenca atual
+5. TENSAO CENTRAL que ancora todas as pesquisas: a tensao que aparece em mais de uma camada de dados
+
+Para cada item, a justificativa deve indicar de qual(is) camada(s) o item emerge.
 
 Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"marcas":[{"id":"m1","tipo":"marca","valor":"nome da marca principal","justificativa":"razao baseada no dossie","ativo":true},{"id":"m2","tipo":"marca","valor":"concorrente 1","justificativa":"razao","ativo":true}],"termos":[{"id":"t1","tipo":"termo","valor":"termo chave","justificativa":"razao","ativo":true}],"comunidades":[{"id":"c1","tipo":"comunidade","valor":"Reddit/setor ou forum especifico","justificativa":"razao","ativo":true}],"plataformas":[{"id":"p1","tipo":"plataforma","valor":"Instagram","justificativa":"razao","ativo":true}],"tensaoCentral":"tensao central que ancora as pesquisas"}`;
+{"marcas":[{"id":"m1","tipo":"marca","valor":"nome da marca principal","justificativa":"razao baseada na fusao de camadas","ativo":true},{"id":"m2","tipo":"marca","valor":"concorrente 1","justificativa":"razao","ativo":true}],"termos":[{"id":"t1","tipo":"termo","valor":"termo chave","justificativa":"camada de origem","ativo":true}],"comunidades":[{"id":"c1","tipo":"comunidade","valor":"espaco especifico","justificativa":"razao","ativo":true}],"plataformas":[{"id":"p1","tipo":"plataforma","valor":"Instagram","justificativa":"razao baseada no perfil da marca e setor","ativo":true}],"tensaoCentral":"tensao central que atravessa multiplas camadas de dados"}`;
 
       const r = await client.messages.create({
         model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
@@ -236,17 +247,23 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 
     // SÍNTESE GERAL — relatório unificado de toda a pesquisa
     if (action === 'research_synthesis') {
-      const prompt = `${ctx}Voce e um estrategista senior da AMUM. Com base em toda a pesquisa realizada — dossie de mercado, analise de redes sociais, tendencias de busca e netnografia — produza o relatorio de sintese final da fase de Escuta.
+      const prompt = `${ctx}
+Voce e um estrategista senior da AMUM. Produza o relatorio de sintese final que fecha a fase de Escuta e prepara o estrategista para as entrevistas.
 
-Este relatorio deve:
-1. Integrar os achados de todos os modulos, nao apenas repetir
-2. Identificar as contradicoes entre o que a marca comunica e o que o mercado percebe
-3. Mapear o territorio disponivel com evidencias de multiplas fontes
-4. Formular perguntas estrategicas para as entrevistas que ainda faltam
-5. Dar ao estrategista o embasamento necessario para conduzir as entrevistas com profundidade
+Este relatorio integra TODAS as camadas de informacao disponiveis:
+- Pre-pesquisa: dados do site AMUM (diagnostico, brand_context, relatorios do funil digital), documentos internos da empresa
+- Pesquisa primaria: dossie de mercado (18 dimensoes), analise de redes sociais, tendencias de busca, netnografia
+
+Principios de integracao:
+1. O que e CONFIRMADO por multiplas fontes tem peso maior que o que aparece em apenas uma
+2. As CONTRADICOES entre camadas sao mais reveladoras que as confirmacoes — onde o que a marca declara (documentos) diverge do que o mercado percebe (dossie/netnografia), ali esta a tensao estrategica real
+3. Os insights mais valiosos emergem do ATRITO entre o que a marca acredita ser e o que os dados externos mostram
+4. As perguntas para entrevista devem ser formuladas para investigar exatamente os pontos onde as fontes divergem ou onde ha lacunas nao respondidas por nenhuma camada
+
+O relatorio deve dar ao estrategista o embasamento necessario para conduzir as entrevistas com profundidade — sabendo de antemao onde estao as tensoes, o que precisa ser confirmado em campo e quais hipoteses precisam ser testadas.
 
 Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"visaoGeral":"panorama integrado em 2-3 paragrafos — o que todas as pesquisas revelam em conjunto","tensaoCentral":"a tensao que atravessa todos os modulos de pesquisa em uma frase precisa","territorioDisponivel":"territorio identificado com evidencias de social + trends + netnografia","mapaCompetitivoDigital":"como os concorrentes se posicionam digitalmente — 1-2 paragrafos","discursoDeRua":"o que as comunidades dizem que o mercado formal nao vê — 1-2 paragrafos","contradicoesCentral":["contradicao evidenciada por multiplas fontes 1","contradicao 2"],"janelasOportunidade":["janela com timing e base de evidencia 1","janela 2","janela 3"],"insightsIntegrados":["insight que so aparece ao cruzar modulos 1","insight 2","insight 3","insight 4"],"recomendacoesEstrategicas":["recomendacao baseada em evidencias 1","recomendacao 2","recomendacao 3"],"perguntasParaEntrevista":["pergunta estrategica para aprofundar nas entrevistas 1","pergunta 2","pergunta 3","pergunta 4","pergunta 5"]}`;
+{"visaoGeral":"panorama integrado em 2-3 paragrafos — o que o conjunto de todas as fontes revela sobre esta marca e seu momento","tensaoCentral":"a tensao que aparece em multiplas camadas de dados em uma frase precisa e irrefutavel","territorioDisponivel":"territorio identificado com evidencias convergentes de pelo menos duas fontes","mapaCompetitivoDigital":"como os concorrentes se posicionam digitalmente vs. o que o dossie revela sobre eles — 1-2 paragrafos","discursoDeRua":"o que as comunidades dizem que contradiz ou complementa o discurso oficial — 1-2 paragrafos","contradicoesCentral":["contradicao identificada em multiplas camadas 1 — indicar as fontes","contradicao 2 — indicar as fontes"],"janelasOportunidade":["janela com base de evidencia e timing 1","janela 2","janela 3"],"insightsIntegrados":["insight que so aparece ao cruzar pelo menos duas camadas 1","insight 2","insight 3","insight 4"],"recomendacoesEstrategicas":["recomendacao baseada em convergencia de evidencias 1","recomendacao 2","recomendacao 3"],"perguntasParaEntrevista":["pergunta que investiga tensao especifica identificada nos dados 1","pergunta que testa hipotese emergente 2","pergunta sobre lacuna nao respondida pelas pesquisas 3","pergunta 4","pergunta 5"]}`;
 
       const r = await client.messages.create({
         model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,

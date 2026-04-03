@@ -1483,13 +1483,13 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
   if (!directives) {
     return (
       <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
-        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>Próximo passo</p>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', fontWeight: 600, marginBottom: '6px' }}>Próximo passo — diretrizes de pesquisa</p>
         <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '14px', lineHeight: 1.6 }}>
-          O Dossiê revelou concorrentes, tensões e padrões do setor. Gere as diretrizes para que as pesquisas seguintes sejam calibradas especificamente para este projeto.
+          O sistema vai cruzar os dados do site AMUM (diagnóstico, brand_context), os documentos da empresa e os achados do Dossiê para derivar as diretrizes das pesquisas seguintes. A tensão central e os perfis a investigar emergem do atrito entre essas camadas — não de uma fonte única.
         </p>
         {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '10px' }}>{error}</p>}
         <button className="btn-primary" onClick={extractDirectives} disabled={loading}>
-          {loading ? 'Extraindo diretrizes...' : 'Gerar diretrizes para as próximas pesquisas'}
+          {loading ? 'Cruzando dados e extraindo diretrizes...' : 'Gerar diretrizes de pesquisa'}
         </button>
       </div>
     );
@@ -1499,7 +1499,7 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
     <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
         <div>
-          <p style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '4px' }}>Diretrizes extraídas do Dossiê</p>
+          <p style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '4px' }}>Diretrizes — fusão de dados</p>
           {directives.tensaoCentral && (
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>"{directives.tensaoCentral}"</p>
           )}
@@ -1724,7 +1724,7 @@ function ModuleSocial({
         </p>
         {directives && marcasAtivas.length > 0 && (
           <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(201,169,110,0.2)' }}>
-            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Do dossiê — perfis a analisar</p>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Diretrizes — perfis a analisar</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
               {marcasAtivas.map((m, i) => <span key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{m}</span>)}
               {plataformasAtivas.map((p, i) => <span key={i} style={{ fontSize: '11px', color: 'var(--text-dim)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{p}</span>)}
@@ -1858,7 +1858,7 @@ function ModuleTrends({
         </p>
         {termosAtivos.length > 0 && (
           <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(201,169,110,0.2)' }}>
-            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Do dossiê — termos a rastrear</p>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Diretrizes — termos a rastrear</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
               {termosAtivos.map((t, i) => <span key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{t}</span>)}
             </div>
@@ -2028,7 +2028,7 @@ function ModuleNetnography({
         </p>
         {comunidadesAtivas.length > 0 && (
           <div style={{ padding: '10px 12px', background: 'rgba(201,169,110,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(201,169,110,0.2)' }}>
-            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Do dossiê — espaços a investigar</p>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Diretrizes — espaços a investigar</p>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '5px' }}>
               {comunidadesAtivas.map((c, i) => <span key={i} style={{ fontSize: '12px', color: 'var(--text-secondary)', background: 'var(--surface)', padding: '2px 8px', borderRadius: '10px', border: '1px solid var(--border)' }}>{c}</span>)}
             </div>
