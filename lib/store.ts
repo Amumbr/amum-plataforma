@@ -13,8 +13,27 @@ export interface IntelItem {
 export interface ClientDocument {
   id: string;
   filename: string;
-  content: string;
+  fileType: string;
+  size?: number;
+  content: string; // extracted text (truncated to 8000 chars)
   analysis?: string;
+  createdAt: string;
+}
+
+export interface DocumentSynthesis {
+  apresentacao: string;
+  linguagem: string;
+  arquetipo: {
+    dominante: string;
+    secundario: string;
+    sombra: string;
+  };
+  tensoes: string[];
+  signos_fortes: string[];
+  signos_conflito: string[];
+  potencia_latente: string;
+  hipoteses_estrategicas: string[];
+  perguntas_para_entrevista: string[];
   createdAt: string;
 }
 
@@ -231,6 +250,7 @@ export interface Project {
   workflowSteps: WorkflowStep[];
   siteImport?: SiteImportData;
   documents: ClientDocument[];
+  documentSynthesis?: DocumentSynthesis;
   researchAgenda: ResearchAgendaItem[];
   researchResults: ResearchResult[];
   interviewScripts: InterviewScript[];

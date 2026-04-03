@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Sidebar from '@/components/Sidebar';
 import {
@@ -16,6 +16,7 @@ import {
   WorkflowStep,
   TranscriptAnalysis,
   ClientDocument,
+  DocumentSynthesis,
   ResearchAgendaItem,
   ResearchResult,
   InterviewScript,
@@ -219,6 +220,36 @@ function StepImportSite({
 
 // ─── STEP: DOCUMENTOS ────────────────────────────────────────────────────────
 
+// ─── FILE TYPE HELPERS ────────────────────────────────────────────────────────
+
+function getFileIcon(fileType: string, filename: string): string {
+  const name = filename.toLowerCase();
+  if (name.endsWith('.pdf') || fileType === 'application/pdf') return '📄';
+  if (name.endsWith('.docx') || name.endsWith('.doc')) return '📝';
+  if (name.endsWith('.txt') || name.endsWith('.md')) return '📃';
+  if (fileType.startsWith('image/')) return '🖼';
+  return '📎';
+}
+
+function getFileTypeLabel(fileType: string, filename: string): string {
+  const name = filename.toLowerCase();
+  if (name.endsWith('.pdf')) return 'PDF';
+  if (name.endsWith('.docx') || name.endsWith('.doc')) return 'Word';
+  if (name.endsWith('.txt')) return 'TXT';
+  if (name.endsWith('.md')) return 'Markdown';
+  if (fileType.startsWith('image/')) return 'Imagem';
+  return 'Arquivo';
+}
+
+function formatBytes(bytes: number): string {
+  if (!bytes) return '';
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1048576) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / 1048576).toFixed(1)} MB`;
+}
+
+// ─── STEP: DOCUMENTOS DA EMPRESA ─────────────────────────────────────────────
+
 function StepDocuments({
   project,
   step,
@@ -228,56 +259,128 @@ function StepDocuments({
   step: WorkflowStep;
   onUpdate: (p: Project) => void;
 }) {
-  const [filename, setFilename] = useState('');
-  const [content, setContent] = useState('');
-  const [loading, setLoading] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false);
+  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [synthesis, setSynthesis] = useState<DocumentSynthesis | null>(
+    project.documentSynthesis || null
+  );
+  const [synthError, setSynthError] = useState('');
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
   const isDone = step.status === 'done' || step.status === 'skipped';
 
-  async function handleAnalyze() {
-    if (!content.trim()) return;
-    const docId = `doc_${Date.now()}`;
-    setLoading(docId);
+  const ACCEPTED_TYPES = '.pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.webp';
+
+  async function processFile(file: File) {
+    const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    setUploading(prev => ({ ...prev, [docId]: true }));
+
     try {
-      const res = await fetch('/api/claude', {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const res = await fetch('/api/documents', { method: 'POST', body: formData });
+      const data = await res.json();
+
+      if (data.error) throw new Error(data.error);
+
+      const newDoc: ClientDocument = {
+        id: docId,
+        filename: file.name,
+        fileType: file.type || 'application/octet-stream',
+        size: file.size,
+        content: data.extractedText || '',
+        createdAt: new Date().toISOString(),
+      };
+
+      const updated = {
+        ...project,
+        documents: [...project.documents, newDoc],
+      };
+      saveProject(updated);
+      onUpdate(updated);
+    } catch (err) {
+      console.error('Upload error:', err);
+    } finally {
+      setUploading(prev => {
+        const next = { ...prev };
+        delete next[docId];
+        return next;
+      });
+    }
+  }
+
+  async function handleFiles(files: FileList | File[]) {
+    const arr = Array.from(files);
+    for (const file of arr) {
+      await processFile(file);
+    }
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault();
+    setDragging(false);
+    if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+  }
+
+  function handleRemoveDoc(docId: string) {
+    const updated = {
+      ...project,
+      documents: project.documents.filter(d => d.id !== docId),
+      documentSynthesis: undefined,
+    };
+    saveProject(updated);
+    onUpdate(updated);
+    setSynthesis(null);
+  }
+
+  async function handleSynthesize() {
+    if (project.documents.length === 0) return;
+    setSynthesizing(true);
+    setSynthError('');
+    try {
+      const res = await fetch('/api/documents', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          action: 'synthesize',
+          documents: project.documents.map(d => ({
+            filename: d.filename,
+            fileType: d.fileType,
+            content: d.content,
+          })),
           projectContext: getProjectContext(project),
-          messages: [{
-            role: 'user',
-            content: `Analise este documento corporativo (${filename || 'documento'}) da empresa ${project.nome}.
-Extraia: (1) como a empresa se apresenta, (2) linguagem usada, (3) arquétipos presentes, (4) tensões entre discurso e realidade, (5) oportunidades de reposicionamento.
-Seja denso e preciso. 3-4 parágrafos.
-
-DOCUMENTO:\n${content.slice(0, 3000)}`,
-          }],
         }),
       });
       const data = await res.json();
-      const newDoc: ClientDocument = {
-        id: docId,
-        filename: filename || 'documento',
-        content: content.slice(0, 5000),
-        analysis: data.text,
+      if (data.error) throw new Error(data.error);
+
+      const newSynthesis: DocumentSynthesis = {
+        ...data.synthesis,
         createdAt: new Date().toISOString(),
       };
-      const updated = { ...project, documents: [...project.documents, newDoc] };
+      setSynthesis(newSynthesis);
+
+      const updated = { ...project, documentSynthesis: newSynthesis };
       saveProject(updated);
       onUpdate(updated);
-      setFilename('');
-      setContent('');
-      addIntel(project.id, {
-        type: 'diagnostico',
-        title: `Análise: ${newDoc.filename}`,
-        content: data.text.slice(0, 300),
-        source: 'Documentos',
-      });
+    } catch (err) {
+      setSynthError('Erro ao gerar síntese. Tente novamente.');
+      console.error(err);
     } finally {
-      setLoading(null);
+      setSynthesizing(false);
     }
   }
 
   function handleApprove() {
+    if (synthesis) {
+      addIntel(project.id, {
+        type: 'analise',
+        title: `Síntese documental — ${project.documents.length} doc(s)`,
+        content: synthesis.apresentacao?.slice(0, 300) || '',
+        source: 'Documentos',
+      });
+    }
     onUpdate(approveStep(project, step.id));
   }
 
@@ -285,49 +388,181 @@ DOCUMENTO:\n${content.slice(0, 3000)}`,
     onUpdate(skipStep(project, step.id));
   }
 
+  const isUploading = Object.keys(uploading).length > 0;
+
   return (
     <div className="step-body">
       {!isDone && (
         <>
-          <div className="step-field">
-            <label className="step-label">Nome do documento</label>
+          {/* ── Drop Zone ── */}
+          <div
+            className={`doc-dropzone${dragging ? ' doc-dropzone--active' : ''}`}
+            onDragOver={e => { e.preventDefault(); setDragging(true); }}
+            onDragLeave={() => setDragging(false)}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+          >
             <input
-              className="input"
-              value={filename}
-              onChange={e => setFilename(e.target.value)}
-              placeholder="Apresentação institucional, Pitch, Portfólio..."
+              ref={fileInputRef}
+              type="file"
+              multiple
+              accept={ACCEPTED_TYPES}
+              style={{ display: 'none' }}
+              onChange={e => e.target.files && handleFiles(e.target.files)}
             />
+            <div className="doc-dropzone-icon">⊕</div>
+            <p className="doc-dropzone-label">
+              {dragging ? 'Solte para fazer upload' : 'Arraste arquivos ou clique para selecionar'}
+            </p>
+            <p className="doc-dropzone-hint">
+              PDF · Word · TXT · Imagens — múltiplos arquivos suportados
+            </p>
+            {isUploading && (
+              <p className="doc-dropzone-hint" style={{ color: 'var(--gold)', marginTop: '8px' }}>
+                Extraindo texto...
+              </p>
+            )}
           </div>
-          <div className="step-field">
-            <label className="step-label">Conteúdo (cole o texto do documento)</label>
-            <textarea
-              className="textarea"
-              value={content}
-              onChange={e => setContent(e.target.value)}
-              placeholder="Cole aqui o conteúdo do documento..."
-              rows={6}
-            />
-          </div>
-          <button className="btn-primary btn-small" onClick={handleAnalyze} disabled={!content.trim() || !!loading}>
-            {loading ? 'Analisando...' : 'Analisar com IA'}
-          </button>
 
+          {/* ── File List ── */}
           {project.documents.length > 0 && (
-            <div style={{ marginTop: '16px' }}>
-              <p className="step-label" style={{ marginBottom: '8px' }}>Documentos analisados ({project.documents.length})</p>
+            <div className="doc-list">
+              <p className="step-label" style={{ marginBottom: '10px' }}>
+                {project.documents.length} documento{project.documents.length !== 1 ? 's' : ''} carregado{project.documents.length !== 1 ? 's' : ''}
+              </p>
               {project.documents.map(doc => (
-                <div key={doc.id} className="card" style={{ marginBottom: '8px' }}>
-                  <p style={{ fontWeight: 600, color: 'var(--gold)', marginBottom: '6px' }}>{doc.filename}</p>
-                  <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>{doc.analysis?.slice(0, 200)}...</p>
+                <div key={doc.id} className="doc-item">
+                  <span className="doc-item-icon">{getFileIcon(doc.fileType, doc.filename)}</span>
+                  <div className="doc-item-info">
+                    <span className="doc-item-name">{doc.filename}</span>
+                    <span className="doc-item-meta">
+                      {getFileTypeLabel(doc.fileType, doc.filename)}
+                      {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
+                      {doc.content ? ` · ${doc.content.length.toLocaleString()} chars extraídos` : ''}
+                    </span>
+                  </div>
+                  <button
+                    className="doc-item-remove"
+                    onClick={() => handleRemoveDoc(doc.id)}
+                    title="Remover documento"
+                  >
+                    ×
+                  </button>
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <button className="btn-approve" onClick={handleApprove}>Aprovar documentos e continuar</button>
+
+              {/* ── Synthesize button ── */}
+              {!synthesis && (
+                <button
+                  className="btn-primary"
+                  style={{ marginTop: '16px', width: '100%' }}
+                  onClick={handleSynthesize}
+                  disabled={synthesizing || isUploading}
+                >
+                  {synthesizing
+                    ? 'Gerando síntese estratégica...'
+                    : `Gerar Síntese Estratégica — ${project.documents.length} documento${project.documents.length !== 1 ? 's' : ''}`}
+                </button>
+              )}
+              {synthError && (
+                <p style={{ color: '#e05555', marginTop: '8px', fontSize: '13px' }}>{synthError}</p>
+              )}
+            </div>
+          )}
+
+          {/* ── Synthesis Result ── */}
+          {synthesis && synthesis.apresentacao && (
+            <div className="doc-synthesis">
+              <div className="doc-synthesis-header">
+                <span style={{ color: 'var(--gold)', fontWeight: 700, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                  Síntese Estratégica
+                </span>
+                <button
+                  className="btn-small"
+                  style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+                  onClick={handleSynthesize}
+                  disabled={synthesizing}
+                >
+                  {synthesizing ? '...' : 'Regerar'}
+                </button>
+              </div>
+
+              <div className="doc-synthesis-section">
+                <p className="doc-synth-label">Como a empresa se apresenta</p>
+                <p className="doc-synth-text">{synthesis.apresentacao}</p>
+              </div>
+
+              <div className="doc-synthesis-section">
+                <p className="doc-synth-label">Linguagem</p>
+                <p className="doc-synth-text">{synthesis.linguagem}</p>
+              </div>
+
+              <div className="doc-synthesis-grid">
+                <div className="doc-synth-card">
+                  <p className="doc-synth-label">Arquétipo dominante</p>
+                  <p className="doc-synth-value">{synthesis.arquetipo?.dominante}</p>
+                </div>
+                <div className="doc-synth-card">
+                  <p className="doc-synth-label">Arquétipo secundário</p>
+                  <p className="doc-synth-value">{synthesis.arquetipo?.secundario}</p>
+                </div>
+                <div className="doc-synth-card" style={{ gridColumn: '1 / -1' }}>
+                  <p className="doc-synth-label">Sombra — o que os documentos evitam</p>
+                  <p className="doc-synth-value">{synthesis.arquetipo?.sombra}</p>
+                </div>
+              </div>
+
+              <div className="doc-synthesis-section">
+                <p className="doc-synth-label">Tensões estruturais</p>
+                <ul className="doc-synth-list">
+                  {synthesis.tensoes?.map((t, i) => <li key={i}>{t}</li>)}
+                </ul>
+              </div>
+
+              <div className="doc-synthesis-grid">
+                <div>
+                  <p className="doc-synth-label">Signos que funcionam</p>
+                  <ul className="doc-synth-list doc-synth-list--green">
+                    {synthesis.signos_fortes?.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+                <div>
+                  <p className="doc-synth-label">Signos em conflito</p>
+                  <ul className="doc-synth-list doc-synth-list--amber">
+                    {synthesis.signos_conflito?.map((s, i) => <li key={i}>{s}</li>)}
+                  </ul>
+                </div>
+              </div>
+
+              <div className="doc-synthesis-section" style={{ background: 'rgba(201,169,110,0.06)', borderLeft: '3px solid var(--gold)', padding: '14px 16px', borderRadius: '4px' }}>
+                <p className="doc-synth-label">Potência latente</p>
+                <p className="doc-synth-text">{synthesis.potencia_latente}</p>
+              </div>
+
+              <div className="doc-synthesis-section">
+                <p className="doc-synth-label">Hipóteses estratégicas</p>
+                <ul className="doc-synth-list">
+                  {synthesis.hipoteses_estrategicas?.map((h, i) => <li key={i}>{h}</li>)}
+                </ul>
+              </div>
+
+              <div className="doc-synthesis-section">
+                <p className="doc-synth-label">Perguntas que os documentos levantam para as entrevistas</p>
+                <ul className="doc-synth-list doc-synth-list--questions">
+                  {synthesis.perguntas_para_entrevista?.map((q, i) => <li key={i}>{q}</li>)}
+                </ul>
+              </div>
+
+              <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
+                <button className="btn-approve" onClick={handleApprove}>
+                  Aprovar síntese e avançar
+                </button>
                 <button className="btn-skip" onClick={handleSkip}>Pular</button>
               </div>
             </div>
           )}
 
+          {/* Skip without docs */}
           {project.documents.length === 0 && (
             <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>
               Pular — sem documentos disponíveis
@@ -335,12 +570,22 @@ DOCUMENTO:\n${content.slice(0, 3000)}`,
           )}
         </>
       )}
+
       {isDone && (
-        <p className="step-done-msg">
-          {step.status === 'skipped'
-            ? 'Etapa pulada.'
-            : `${project.documents.length} documento(s) analisado(s) e aprovado(s).`}
-        </p>
+        <div>
+          <p className="step-done-msg">
+            {step.status === 'skipped'
+              ? 'Etapa pulada.'
+              : `${project.documents.length} documento(s) processado(s). Síntese estratégica aprovada.`}
+          </p>
+          {synthesis && (
+            <div style={{ marginTop: '12px', padding: '12px 14px', background: 'var(--surface)', borderRadius: '6px', borderLeft: '3px solid var(--gold)' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '6px' }}>ARQUÉTIPO IDENTIFICADO</p>
+              <p style={{ color: 'var(--gold)', fontSize: '14px', fontWeight: 600 }}>{synthesis.arquetipo?.dominante}</p>
+              <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '4px' }}>{synthesis.potencia_latente?.slice(0, 180)}...</p>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
