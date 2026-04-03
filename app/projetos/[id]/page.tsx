@@ -20,6 +20,10 @@ import {
   DocumentSynthesis,
   ResearchAgendaItem,
   ResearchResult,
+  SocialMediaAnalysis,
+  SocialProfileResult,
+  TrendsAnalysis,
+  NetnographyAnalysis,
   InterviewScript,
   PHASE_NAMES,
 } from '@/lib/store';
@@ -1119,7 +1123,9 @@ const DIMENSOES_LABELS: Record<number, string> = {
   18: 'Síntese estratégica final',
 };
 
-function StepWebResearch({
+// ─── MÓDULO: DOSSIÊ DE MERCADO ────────────────────────────────────────────────
+
+function ModuleDossie({
   project,
   step,
   onUpdate,
@@ -1133,7 +1139,6 @@ function StepWebResearch({
   const [editBuf, setEditBuf] = useState<ResearchAgendaItem | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
   const [expandedResult, setExpandedResult] = useState<string | null>(null);
-  const isDone = step.status === 'done' || step.status === 'skipped';
 
   function saveAgenda(agenda: ResearchAgendaItem[]) {
     const updated = { ...project, researchAgenda: agenda };
@@ -1225,14 +1230,11 @@ function StepWebResearch({
     }
   }
 
-  function handleApprove() { onUpdate(approveStep(project, step.id)); }
-  function handleSkip() { onUpdate(skipStep(project, step.id)); }
-
   const hasAgenda = project.researchAgenda.length > 0;
   const hasResults = project.researchResults.length > 0;
 
   return (
-    <div className="step-body">
+    <div>
 
       {/* ── FASE 1: sem agenda ── */}
       {!hasAgenda && (
@@ -1253,7 +1255,6 @@ function StepWebResearch({
             <button className="btn-primary" onClick={generateAgenda} disabled={loading === 'agenda'}>
               {loading === 'agenda' ? 'Gerando agenda...' : 'Gerar agenda de pesquisa'}
             </button>
-            <button className="btn-skip" onClick={handleSkip}>Pular pesquisa</button>
           </div>
         </div>
       )}
@@ -1333,7 +1334,6 @@ function StepWebResearch({
             <button className="btn-primary" onClick={runResearch} disabled={loading === 'research' || project.researchAgenda.length === 0}>
               {loading === 'research' ? 'Executando pesquisa...' : `Executar pesquisa (${project.researchAgenda.length} temas)`}
             </button>
-            <button className="btn-skip" onClick={handleSkip}>Pular</button>
           </div>
           {loading === 'research' && (
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>
@@ -1402,26 +1402,587 @@ function StepWebResearch({
             </div>
           ))}
 
-          {!isDone && (
-            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-              <button className="btn-approve" onClick={handleApprove}>Aprovar pesquisa e continuar</button>
-              <button className="btn-skip" onClick={handleSkip}>Pular</button>
-            </div>
-          )}
-
-          {isDone && (
-            <p className="step-done-msg">
-              {step.status === 'skipped' ? 'Etapa pulada.' : `${project.researchResults.length} temas aprovados.`}
-            </p>
+          {hasResults && (
+            <button className="btn-small" style={{ marginTop: '16px', opacity: 0.6 }} onClick={() => { const updated = { ...project, researchResults: [], researchAgenda: [] }; saveProject(updated); onUpdate(updated); }}>
+              ↺ Refazer pesquisa
+            </button>
           )}
         </div>
       )}
 
-      {isDone && !hasResults && (
-        <p className="step-done-msg">Etapa pulada.</p>
+    </div>
+  );
+}
+
+// ─── MÓDULO: REDES SOCIAIS ────────────────────────────────────────────────────
+
+function ModuleSocial({
+  project,
+  onUpdate,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const analysis = project.socialMediaAnalysis;
+
+  async function runSocialAnalysis() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'social_analysis',
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json();
+      if (data.marca) {
+        const updated = { ...project, socialMediaAnalysis: data as SocialMediaAnalysis };
+        saveProject(updated);
+        onUpdate(updated);
+        addIntel(project.id, {
+          type: 'pesquisa',
+          title: 'Análise de redes sociais',
+          content: data.comparativo?.slice(0, 300) || 'Análise de presença digital concluída.',
+          source: 'Módulo Social',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function renderProfile(profile: SocialProfileResult) {
+    return (
+      <div key={profile.entidade} style={{ marginBottom: '12px' }}>
+        <div
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+          onClick={() => setExpanded(expanded === profile.entidade ? null : profile.entidade)}
+        >
+          <p style={{ fontWeight: 600, color: profile.tipo === 'marca' ? 'var(--gold)' : 'var(--text-secondary)' }}>
+            {profile.tipo === 'marca' ? '★ ' : '◦ '}{profile.entidade}
+          </p>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{expanded === profile.entidade ? '▲' : '▼'}</span>
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '2px' }}>{profile.posicionamento}</p>
+        {expanded === profile.entidade && (
+          <div style={{ marginTop: '10px', paddingLeft: '12px', borderLeft: '2px solid var(--border)' }}>
+            {profile.arquetipo && (
+              <p style={{ fontSize: '12px', color: 'var(--gold)', marginBottom: '8px' }}>Arquétipo: {profile.arquetipo}</p>
+            )}
+            {profile.plataformas.map(plat => (
+              <div key={plat.nome} className="card" style={{ marginBottom: '8px', padding: '10px 12px' }}>
+                <p style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                  {plat.nome} {plat.handle && <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}>· {plat.handle}</span>}
+                  {plat.seguidores && <span style={{ color: 'var(--text-dim)', fontWeight: 400 }}> · {plat.seguidores}</span>}
+                </p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span>Freq: {plat.frequencia}</span>
+                  <span>Engajamento: {plat.engajamento}</span>
+                </div>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '6px' }}>
+                  Temas: {plat.temasRecorrentes.join(' · ')}
+                </p>
+                <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginTop: '4px' }}>Tom: {plat.tomDeVoz}</p>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginTop: '8px' }}>
+                  <div style={{ background: 'rgba(100,180,100,0.08)', borderRadius: '4px', padding: '6px 8px' }}>
+                    <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, marginBottom: '2px' }}>✓ Forte</p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{plat.pontoForte}</p>
+                  </div>
+                  <div style={{ background: 'rgba(180,100,100,0.08)', borderRadius: '4px', padding: '6px 8px' }}>
+                    <p style={{ fontSize: '11px', color: '#b56a6a', fontWeight: 600, marginBottom: '2px' }}>✗ Fraco</p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>{plat.pontoFraco}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  if (!analysis) {
+    return (
+      <div>
+        <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
+          Analisa presença no Instagram, LinkedIn, YouTube e outras plataformas — da marca e dos concorrentes. Mapeia territórios digitais ocupados e disponíveis.
+        </p>
+        <button className="btn-primary" onClick={runSocialAnalysis} disabled={loading}>
+          {loading ? 'Analisando redes sociais...' : 'Executar análise de redes sociais'}
+        </button>
+        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando perfis e conteúdos — pode levar 1–2 min.</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {renderProfile(analysis.marca)}
+      {analysis.concorrentes.map(c => renderProfile(c))}
+
+      {analysis.comparativo && (
+        <div style={{ marginTop: '16px', padding: '12px', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Análise comparativa</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{analysis.comparativo}</p>
+        </div>
       )}
-      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Dimensões prioritárias, ângulos específicos do setor, concorrentes a monitorar, referências internacionais..." />
-      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa setorial" />
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginTop: '12px' }}>
+        {analysis.territoriosOcupados.length > 0 && (
+          <div style={{ padding: '10px', background: 'rgba(180,100,100,0.07)', borderRadius: '6px' }}>
+            <p style={{ fontSize: '11px', color: '#b56a6a', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Territórios saturados</p>
+            {analysis.territoriosOcupados.map((t, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>— {t}</p>)}
+          </div>
+        )}
+        {analysis.territoriosVazios.length > 0 && (
+          <div style={{ padding: '10px', background: 'rgba(100,180,100,0.07)', borderRadius: '6px' }}>
+            <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Territórios disponíveis</p>
+            {analysis.territoriosVazios.map((t, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>→ {t}</p>)}
+          </div>
+        )}
+      </div>
+
+      {analysis.insights.length > 0 && (
+        <div style={{ marginTop: '12px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Insights estratégicos</p>
+          {analysis.insights.map((ins, i) => (
+            <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {ins}</p>
+          ))}
+        </div>
+      )}
+
+      <button className="btn-small" style={{ marginTop: '14px', opacity: 0.6 }} onClick={runSocialAnalysis} disabled={loading}>
+        {loading ? 'Reexecutando...' : '↺ Refazer análise'}
+      </button>
+    </div>
+  );
+}
+
+// ─── MÓDULO: GOOGLE TRENDS ────────────────────────────────────────────────────
+
+function ModuleTrends({
+  project,
+  onUpdate,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const analysis = project.trendsAnalysis;
+
+  async function runTrendsAnalysis() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'trends_analysis',
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json();
+      if (data.tendencias) {
+        const updated = { ...project, trendsAnalysis: data as TrendsAnalysis };
+        saveProject(updated);
+        onUpdate(updated);
+        addIntel(project.id, {
+          type: 'pesquisa',
+          title: 'Google Trends & buscas',
+          content: `Termos crescendo: ${(data.termosCrescentes || []).slice(0, 3).join(', ')}. ${(data.janelasDeOportunidade || [])[0] || ''}`,
+          source: 'Módulo Trends',
+        });
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (!analysis) {
+    return (
+      <div>
+        <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
+          Pesquisa de tendências de busca para a marca, o setor e os concorrentes. Identifica termos crescentes, em declínio, sazonalidade e janelas de oportunidade.
+        </p>
+        <button className="btn-primary" onClick={runTrendsAnalysis} disabled={loading}>
+          {loading ? 'Pesquisando tendências...' : 'Executar análise de tendências'}
+        </button>
+        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando Google Trends e dados de busca — pode levar 1–2 min.</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+        <div style={{ padding: '10px', background: 'rgba(100,180,100,0.07)', borderRadius: '6px' }}>
+          <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>↑ Crescendo</p>
+          {analysis.termosCrescentes.map((t, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>{t}</p>)}
+        </div>
+        <div style={{ padding: '10px', background: 'rgba(180,100,100,0.07)', borderRadius: '6px' }}>
+          <p style={{ fontSize: '11px', color: '#b56a6a', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>↓ Em declínio</p>
+          {analysis.termosDeclinando.map((t, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>{t}</p>)}
+        </div>
+      </div>
+
+      {analysis.tendencias.length > 0 && (
+        <div style={{ marginBottom: '14px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Termos analisados</p>
+          {analysis.tendencias.map((t, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', color: t.direcao === 'crescendo' ? '#6ab56a' : t.direcao === 'declinio' ? '#b56a6a' : 'var(--text-dim)', flexShrink: 0, marginTop: '2px' }}>
+                {t.direcao === 'crescendo' ? '↑' : t.direcao === 'declinio' ? '↓' : '→'}
+              </span>
+              <div>
+                <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)' }}>{t.termo}</span>
+                <span style={{ fontSize: '12px', color: 'var(--text-dim)', marginLeft: '8px' }}>{t.contexto}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {analysis.sazonalidade && (
+        <div style={{ padding: '10px 12px', background: 'var(--surface)', borderRadius: '6px', marginBottom: '12px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '4px' }}>Sazonalidade</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{analysis.sazonalidade}</p>
+        </div>
+      )}
+
+      {analysis.janelasDeOportunidade.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Janelas de oportunidade</p>
+          {analysis.janelasDeOportunidade.map((j, i) => (
+            <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {j}</p>
+          ))}
+        </div>
+      )}
+
+      {analysis.insights.length > 0 && (
+        <div>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Insights</p>
+          {analysis.insights.map((ins, i) => (
+            <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>— {ins}</p>
+          ))}
+        </div>
+      )}
+
+      <button className="btn-small" style={{ marginTop: '14px', opacity: 0.6 }} onClick={runTrendsAnalysis} disabled={loading}>
+        {loading ? 'Reexecutando...' : '↺ Refazer análise'}
+      </button>
+    </div>
+  );
+}
+
+// ─── MÓDULO: NETNOGRAFIA ─────────────────────────────────────────────────────
+
+function ModuleNetnography({
+  project,
+  onUpdate,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const analysis = project.netnographyAnalysis;
+
+  async function runNetnography() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'netnography',
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json();
+      if (data.fontes) {
+        const updated = { ...project, netnographyAnalysis: data as NetnographyAnalysis };
+        saveProject(updated);
+        onUpdate(updated);
+        addIntel(project.id, {
+          type: 'pesquisa',
+          title: 'Netnografia — discurso de rua',
+          content: data.discursoDeRua?.slice(0, 300) || 'Análise netnográfica concluída.',
+          source: 'Módulo Netnografia',
+        });
+        if (data.alertas?.length > 0) {
+          addIntel(project.id, {
+            type: 'alerta',
+            title: 'Alertas netnográficos',
+            content: data.alertas.slice(0, 3).join(' | '),
+            source: 'Módulo Netnografia',
+          });
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  const sentimentColor = (s: string) => {
+    if (s === 'positivo') return '#6ab56a';
+    if (s === 'negativo') return '#b56a6a';
+    if (s === 'ambivalente') return 'var(--gold)';
+    return 'var(--text-dim)';
+  };
+
+  if (!analysis) {
+    return (
+      <div>
+        <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
+          Pesquisa o que as pessoas dizem sobre a marca e o setor fora dos canais oficiais — Reddit, ReclameAqui, avaliações, comentários, grupos, fóruns. O discurso real sem filtro institucional.
+        </p>
+        <button className="btn-primary" onClick={runNetnography} disabled={loading}>
+          {loading ? 'Pesquisando comunidades...' : 'Executar pesquisa netnográfica'}
+        </button>
+        {loading && <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>Pesquisando em Reddit, avaliações, fóruns e redes sociais — pode levar 2–3 min.</p>}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {analysis.discursoDeRua && (
+        <div style={{ padding: '12px', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)', marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Discurso de rua</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>{analysis.discursoDeRua}</p>
+        </div>
+      )}
+
+      {analysis.fontes.length > 0 && (
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Fontes pesquisadas ({analysis.fontes.length})</p>
+          {analysis.fontes.map((fonte, i) => (
+            <div key={i} className="card" style={{ marginBottom: '8px' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                onClick={() => setExpanded(expanded === `fonte_${i}` ? null : `fonte_${i}`)}
+              >
+                <div>
+                  <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--text-secondary)' }}>{fonte.fonte}</span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-dim)', marginLeft: '8px' }}>{fonte.tipo} · {fonte.volume}</span>
+                </div>
+                <span style={{ fontSize: '11px', color: sentimentColor(fonte.sentimento), flexShrink: 0, marginLeft: '8px' }}>
+                  ● {fonte.sentimento}
+                </span>
+              </div>
+              {expanded === `fonte_${i}` && (
+                <div style={{ marginTop: '10px', paddingTop: '10px', borderTop: '1px solid var(--border)' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '8px', lineHeight: 1.6 }}>{fonte.sintese}</p>
+                  {fonte.citacoes.length > 0 && (
+                    <div>
+                      {fonte.citacoes.map((c, j) => (
+                        <p key={j} style={{ fontSize: '12px', color: 'var(--text-muted)', fontStyle: 'italic', marginBottom: '4px', paddingLeft: '10px', borderLeft: '2px solid var(--border)' }}>
+                          "{c}"
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
+        {analysis.contradicoes.length > 0 && (
+          <div style={{ padding: '10px', background: 'rgba(180,100,100,0.07)', borderRadius: '6px' }}>
+            <p style={{ fontSize: '11px', color: '#b56a6a', fontWeight: 600, marginBottom: '6px' }}>Contradições</p>
+            {analysis.contradicoes.map((c, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>— {c}</p>)}
+          </div>
+        )}
+        {analysis.mitos.length > 0 && (
+          <div style={{ padding: '10px', background: 'rgba(200,150,50,0.07)', borderRadius: '6px' }}>
+            <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px' }}>Mitos do setor</p>
+            {analysis.mitos.map((m, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>— {m}</p>)}
+          </div>
+        )}
+      </div>
+
+      {analysis.desejos.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Desejos não atendidos</p>
+          {analysis.desejos.map((d, i) => <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {d}</p>)}
+        </div>
+      )}
+
+      {analysis.vocabularioComunidade.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Vocabulário da comunidade</p>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+            {analysis.vocabularioComunidade.map((v, i) => (
+              <span key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '12px', padding: '2px 10px' }}>{v}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {analysis.oportunidades.length > 0 && (
+        <div style={{ marginBottom: '12px' }}>
+          <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Oportunidades identificadas</p>
+          {analysis.oportunidades.map((o, i) => <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {o}</p>)}
+        </div>
+      )}
+
+      {analysis.alertas.length > 0 && (
+        <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.07)', borderRadius: '6px', marginBottom: '12px' }}>
+          <p style={{ fontSize: '11px', color: '#b56a6a', fontWeight: 600, marginBottom: '6px' }}>⚠ Alertas</p>
+          {analysis.alertas.map((a, i) => <p key={i} style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '3px' }}>— {a}</p>)}
+        </div>
+      )}
+
+      <button className="btn-small" style={{ marginTop: '6px', opacity: 0.6 }} onClick={runNetnography} disabled={loading}>
+        {loading ? 'Reexecutando...' : '↺ Refazer pesquisa'}
+      </button>
+    </div>
+  );
+}
+
+// ─── STEP: PESQUISA PROFUNDA (4 módulos) ─────────────────────────────────────
+
+function StepWebResearch({
+  project,
+  step,
+  onUpdate,
+}: {
+  project: Project;
+  step: WorkflowStep;
+  onUpdate: (p: Project) => void;
+}) {
+  const [activeModule, setActiveModule] = useState<string>('dossie');
+  const isDone = step.status === 'done' || step.status === 'skipped';
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+
+  const modules = [
+    {
+      id: 'dossie',
+      label: 'Dossiê de Mercado',
+      icon: '⊡',
+      desc: '18 dimensões estratégicas',
+      done: project.researchResults.length > 0,
+    },
+    {
+      id: 'social',
+      label: 'Redes Sociais',
+      icon: '◎',
+      desc: 'Marca e concorrentes',
+      done: !!project.socialMediaAnalysis,
+    },
+    {
+      id: 'trends',
+      label: 'Google Trends',
+      icon: '↗',
+      desc: 'Buscas e tendências',
+      done: !!project.trendsAnalysis,
+    },
+    {
+      id: 'netnografia',
+      label: 'Netnografia',
+      icon: '◉',
+      desc: 'Discurso de rua',
+      done: !!project.netnographyAnalysis,
+    },
+  ];
+
+  const doneCount = modules.filter(m => m.done).length;
+
+  return (
+    <div className="step-body">
+
+      {/* ── Tabs dos módulos ── */}
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {modules.map(mod => (
+          <button
+            key={mod.id}
+            onClick={() => setActiveModule(mod.id)}
+            style={{
+              padding: '8px 14px',
+              borderRadius: '6px',
+              border: '1px solid',
+              borderColor: activeModule === mod.id ? 'var(--gold)' : 'var(--border)',
+              background: activeModule === mod.id ? 'rgba(201,169,110,0.1)' : 'transparent',
+              color: activeModule === mod.id ? 'var(--gold)' : mod.done ? 'var(--text-secondary)' : 'var(--text-dim)',
+              fontSize: '13px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              transition: 'all 0.15s',
+            }}
+          >
+            <span>{mod.icon}</span>
+            <span>{mod.label}</span>
+            {mod.done && <span style={{ fontSize: '10px', color: '#6ab56a' }}>✓</span>}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Cabeçalho do módulo ativo ── */}
+      <div style={{ marginBottom: '16px' }}>
+        <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+          {modules.find(m => m.id === activeModule)?.desc}
+          {doneCount > 0 && <span style={{ marginLeft: '12px', color: '#6ab56a' }}>{doneCount}/{modules.length} módulos concluídos</span>}
+        </p>
+      </div>
+
+      {/* ── Conteúdo do módulo ativo ── */}
+      <div>
+        {activeModule === 'dossie' && (
+          <ModuleDossie project={project} step={step} onUpdate={onUpdate} />
+        )}
+        {activeModule === 'social' && (
+          <ModuleSocial project={project} onUpdate={onUpdate} />
+        )}
+        {activeModule === 'trends' && (
+          <ModuleTrends project={project} onUpdate={onUpdate} />
+        )}
+        {activeModule === 'netnografia' && (
+          <ModuleNetnography project={project} onUpdate={onUpdate} />
+        )}
+      </div>
+
+      {/* ── Aprovação global ── */}
+      {!isDone && doneCount > 0 && (
+        <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px' }}>
+            {doneCount === modules.length
+              ? 'Todos os módulos concluídos. Pesquisa pronta para aprovação.'
+              : `${doneCount} de ${modules.length} módulos concluídos. Você pode aprovar agora ou completar os demais primeiro.`}
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-approve" onClick={handleApprove}>
+              Aprovar pesquisa e continuar
+            </button>
+            <button className="btn-skip" onClick={handleSkip}>Pular</button>
+          </div>
+        </div>
+      )}
+
+      {!isDone && doneCount === 0 && (
+        <div style={{ marginTop: '20px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular pesquisa</button>
+        </div>
+      )}
+
+      {isDone && (
+        <p className="step-done-msg" style={{ marginTop: '16px' }}>
+          {step.status === 'skipped' ? 'Etapa pulada.' : `Pesquisa aprovada — ${doneCount} módulo(s) executados.`}
+        </p>
+      )}
+
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Concorrentes prioritários, plataformas a focar, ângulos específicos para a netnografia..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa profunda" />
     </div>
   );
 }

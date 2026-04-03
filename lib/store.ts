@@ -52,6 +52,78 @@ export interface ResearchResult {
   createdAt: string;
 }
 
+// ─── ANÁLISE DE REDES SOCIAIS ──────────────────────────────────────────────────
+
+export interface SocialProfileResult {
+  entidade: string; // nome da marca ou concorrente
+  tipo: 'marca' | 'concorrente';
+  plataformas: {
+    nome: string;
+    handle?: string;
+    seguidores?: string;
+    frequencia: string;
+    temasRecorrentes: string[];
+    tomDeVoz: string;
+    formatosDominantes: string[];
+    engajamento: string;
+    pontoForte: string;
+    pontoFraco: string;
+  }[];
+  posicionamento: string;
+  arquetipo?: string;
+}
+
+export interface SocialMediaAnalysis {
+  marca: SocialProfileResult;
+  concorrentes: SocialProfileResult[];
+  comparativo: string;
+  territoriosOcupados: string[];
+  territoriosVazios: string[];
+  insights: string[];
+  createdAt: string;
+}
+
+// ─── GOOGLE TRENDS ────────────────────────────────────────────────────────────
+
+export interface TrendsAnalysis {
+  termosAnalisados: string[];
+  tendencias: {
+    termo: string;
+    direcao: 'crescendo' | 'estavel' | 'declinio';
+    contexto: string;
+  }[];
+  termosCrescentes: string[];
+  termosDeclinando: string[];
+  sazonalidade: string;
+  janelasDeOportunidade: string[];
+  insights: string[];
+  createdAt: string;
+}
+
+// ─── NETNOGRAFIA ──────────────────────────────────────────────────────────────
+
+export interface NetnographySource {
+  fonte: string;
+  tipo: string;
+  tema: string;
+  volume: string;
+  sentimento: 'positivo' | 'negativo' | 'ambivalente' | 'neutro';
+  citacoes: string[];
+  sintese: string;
+}
+
+export interface NetnographyAnalysis {
+  fontes: NetnographySource[];
+  discursoDeRua: string;
+  vocabularioComunidade: string[];
+  contradicoes: string[];
+  mitos: string[];
+  desejos: string[];
+  oportunidades: string[];
+  alertas: string[];
+  createdAt: string;
+}
+
 export interface InterviewScript {
   id: string;
   publico: string;
@@ -151,9 +223,9 @@ export const STEP_DEFINITIONS: {
     id: 'web_research',
     type: 'web_research',
     fase: 1,
-    label: 'Pesquisa setorial',
+    label: 'Pesquisa profunda',
     narrativa:
-      'O sistema vai gerar uma agenda de pesquisa estruturada, executar a busca e sintetizar os achados — tensões do setor, posicionamento dos concorrentes, oportunidades de território.',
+      'Quatro módulos de inteligência para entrar nas entrevistas com máximo embasamento: dossiê de mercado (18 dimensões), análise de redes sociais da marca e dos concorrentes, Google Trends e pesquisa netnográfica — o que as pessoas realmente dizem fora dos canais oficiais.',
   },
   {
     id: 'scripts',
@@ -263,6 +335,9 @@ export interface Project {
   documentSynthesis?: DocumentSynthesis;
   researchAgenda: ResearchAgendaItem[];
   researchResults: ResearchResult[];
+  socialMediaAnalysis?: SocialMediaAnalysis;
+  trendsAnalysis?: TrendsAnalysis;
+  netnographyAnalysis?: NetnographyAnalysis;
   interviewScripts: InterviewScript[];
   transcripts: TranscriptAnalysis[];
   deepAnalysis: DeepAnalysis;
@@ -483,10 +558,36 @@ export function getProjectContext(project: Project): string {
   }
 
   if (project.researchResults.length > 0) {
-    parts.push(`\nPESQUISA SETORIAL APROVADA:`);
+    parts.push(`\nPESQUISA SETORIAL APROVADA (dossiê de mercado):`);
     project.researchResults.forEach(r => {
       parts.push(`[${r.tema}]: ${r.sintese.slice(0, 400)}`);
     });
+  }
+
+  if (project.socialMediaAnalysis) {
+    const s = project.socialMediaAnalysis;
+    parts.push(`\nANÁLISE DE REDES SOCIAIS:`);
+    parts.push(`Marca: ${s.marca.posicionamento}`);
+    parts.push(`Territórios ocupados pelos concorrentes: ${s.territoriosOcupados.join(', ')}`);
+    parts.push(`Territórios digitais disponíveis: ${s.territoriosVazios.join(', ')}`);
+    parts.push(`Insights: ${s.insights.slice(0, 3).join(' | ')}`);
+  }
+
+  if (project.trendsAnalysis) {
+    const t = project.trendsAnalysis;
+    parts.push(`\nGOOGLE TRENDS & BUSCAS:`);
+    parts.push(`Termos crescendo: ${t.termosCrescentes.join(', ')}`);
+    parts.push(`Termos em declínio: ${t.termosDeclinando.join(', ')}`);
+    parts.push(`Janelas de oportunidade: ${t.janelasDeOportunidade.join(' | ')}`);
+  }
+
+  if (project.netnographyAnalysis) {
+    const n = project.netnographyAnalysis;
+    parts.push(`\nNETNOGRAFIA — DISCURSO DE RUA:`);
+    parts.push(`Discurso: ${n.discursoDeRua.slice(0, 300)}`);
+    parts.push(`Vocabulário da comunidade: ${n.vocabularioComunidade.join(', ')}`);
+    parts.push(`Contradições detectadas: ${n.contradicoes.slice(0, 3).join(' | ')}`);
+    parts.push(`Desejos não atendidos: ${n.desejos.slice(0, 3).join(' | ')}`);
   }
 
   if (project.interviewScripts.length > 0) {
