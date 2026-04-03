@@ -1167,6 +1167,7 @@ function ModuleDossie({
   const [loading, setLoading] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [progressSub, setProgressSub] = useState('');
+  const [partialResults, setPartialResults] = useState<ResearchResult[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editBuf, setEditBuf] = useState<ResearchAgendaItem | null>(null);
   const [customInstructions, setCustomInstructions] = useState('');
@@ -1254,43 +1255,53 @@ function ModuleDossie({
     setError(null);
     const notes = getStepNotes(step);
     const ctx = getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : '');
+    const agenda = project.researchAgenda; // snapshot — won't change during loop
     const accumulated: ResearchResult[] = [];
+    const errors: string[] = [];
 
     try {
-      for (let i = 0; i < project.researchAgenda.length; i++) {
-        const item = project.researchAgenda[i];
-        setProgressSub(`${i + 1} de ${project.researchAgenda.length}: ${item.tema}`);
+      for (let i = 0; i < agenda.length; i++) {
+        const item = agenda[i];
+        setProgressSub(`${i + 1} de ${agenda.length}: ${item.tema}`);
 
-        const res = await fetch('/api/research', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            action: 'run_research_item',
-            projectContext: ctx,
-            agenda: item,
-          }),
-        });
+        try {
+          const res = await fetch('/api/research', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              action: 'run_research_item',
+              projectContext: ctx,
+              agenda: item,
+            }),
+          });
 
-        if (!res.ok) {
-          setError(`Erro no item ${i + 1}: status ${res.status}`);
-          break;
+          const data = await res.json();
+
+          if (data.error) {
+            errors.push(`"${item.tema}": ${data.error}`);
+            // Continue to next item — don't abort the whole loop
+            continue;
+          }
+
+          accumulated.push({ ...data, createdAt: new Date().toISOString() });
+
+          // Show result immediately in UI (no full re-render of parent)
+          setPartialResults([...accumulated]);
+          // Persist to localStorage after each item (no re-render mid-loop)
+          saveProject({ ...project, researchResults: [...accumulated] });
+
+        } catch (itemErr) {
+          errors.push(`"${item.tema}": ${String(itemErr)}`);
+          continue; // keep going
         }
-
-        const data = await res.json();
-        if (data.error) {
-          setError(`Erro em "${item.tema}": ${data.error}`);
-          break;
-        }
-
-        accumulated.push({ ...data, createdAt: new Date().toISOString() });
-
-        // Save incrementally so user sees each result as it arrives
-        const updated = { ...project, researchResults: [...accumulated] };
-        saveProject(updated);
-        onUpdate(updated);
       }
 
-      // Add to Intel Feed after all items
+      // Single re-render at the end with all results
+      const finalProject = { ...project, researchResults: accumulated };
+      saveProject(finalProject);
+      onUpdate(finalProject);
+
+      // Add to Intel Feed
       accumulated.forEach(r => {
         addIntel(project.id, {
           type: 'pesquisa',
@@ -1299,11 +1310,17 @@ function ModuleDossie({
           source: 'Dossiê de mercado',
         });
       });
+
+      if (errors.length > 0) {
+        setError(`${accumulated.length} de ${agenda.length} temas pesquisados. Erros: ${errors.slice(0, 2).join(' | ')}${errors.length > 2 ? ` (+${errors.length - 2})` : ''}`);
+      }
+
     } catch (e) {
       setError(`Erro de rede: ${String(e)}`);
     } finally {
       setLoading('');
       setProgressSub('');
+      setPartialResults([]);
     }
   }
 
@@ -1424,6 +1441,21 @@ function ModuleDossie({
             </div>
           )}
           <ProgressDisplay message={researchProgress} sub={progressSub} />
+
+          {/* Resultados parciais — aparecem um a um durante a pesquisa */}
+          {partialResults.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '8px' }}>
+                {partialResults.length} de {project.researchAgenda.length} temas concluídos
+              </p>
+              {partialResults.map(r => (
+                <div key={r.id} style={{ padding: '8px 12px', background: 'var(--surface)', borderRadius: '4px', marginBottom: '6px', borderLeft: '2px solid var(--gold)', opacity: 0.85 }}>
+                  <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--gold)', marginBottom: '3px' }}>✓ {r.tema}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.5 }}>{r.sintese.slice(0, 120)}…</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

@@ -37,47 +37,80 @@ const DOSSIE_FRAMEWORK = `FRAMEWORK DE DOSSIE DE MARCA AMUM - 18 DIMENSOES:
 18. SINTESE ESTRATEGICA FINAL`;
 
 function robustParseJSON(raw: string): object {
+  let parsed: unknown;
+
   // Method 1: strip markdown fences and try direct parse
   try {
     const clean = raw.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
     if (clean.startsWith('{') || clean.startsWith('[')) {
-      return JSON.parse(clean);
+      parsed = JSON.parse(clean);
     }
   } catch { /* continue */ }
 
   // Method 2: brace-matching to find the outermost JSON object
-  const firstBrace = raw.indexOf('{');
-  if (firstBrace >= 0) {
-    let depth = 0;
-    let inString = false;
-    let escape = false;
-    let end = -1;
-    for (let i = firstBrace; i < raw.length; i++) {
-      const ch = raw[i];
-      if (escape) { escape = false; continue; }
-      if (ch === '\\' && inString) { escape = true; continue; }
-      if (ch === '"') { inString = !inString; continue; }
-      if (inString) continue;
-      if (ch === '{') depth++;
-      else if (ch === '}') {
-        depth--;
-        if (depth === 0) { end = i; break; }
+  if (!parsed) {
+    const firstBrace = raw.indexOf('{');
+    if (firstBrace >= 0) {
+      let depth = 0;
+      let inString = false;
+      let escape = false;
+      let end = -1;
+      for (let i = firstBrace; i < raw.length; i++) {
+        const ch = raw[i];
+        if (escape) { escape = false; continue; }
+        if (ch === '\\' && inString) { escape = true; continue; }
+        if (ch === '"') { inString = !inString; continue; }
+        if (inString) continue;
+        if (ch === '{') depth++;
+        else if (ch === '}') {
+          depth--;
+          if (depth === 0) { end = i; break; }
+        }
       }
-    }
-    if (end > firstBrace) {
-      try { return JSON.parse(raw.slice(firstBrace, end + 1)); }
-      catch { /* continue */ }
+      if (end > firstBrace) {
+        try { parsed = JSON.parse(raw.slice(firstBrace, end + 1)); }
+        catch { /* continue */ }
+      }
     }
   }
 
-  throw new Error('No valid JSON found. Start: ' + raw.slice(0, 200));
+  if (!parsed) throw new Error('No valid JSON found. Start: ' + raw.slice(0, 200));
+
+  // Always sanitize all string values to remove cite tags and stray HTML
+  return sanitizeJSON(parsed) as object;
+}
+
+function sanitizeText(text: string): string {
+  return text
+    // Remove <cite index="...">...</cite> tags (web_search artifacts)
+    .replace(/<cite[^>]*>[\s\S]*?<\/cite>/g, '')
+    // Remove any other stray HTML tags that might leak
+    .replace(/<[a-z][a-z0-9]*(\s[^>]*)?\/?>/gi, '')
+    .replace(/<\/[a-z][a-z0-9]*>/gi, '')
+    // Clean up extra whitespace left by removals
+    .replace(/\s{3,}/g, '  ')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
+// Recursively sanitize all string values in a parsed JSON object
+function sanitizeJSON(obj: unknown): unknown {
+  if (typeof obj === 'string') return sanitizeText(obj);
+  if (Array.isArray(obj)) return obj.map(sanitizeJSON);
+  if (obj && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj as Record<string, unknown>).map(([k, v]) => [k, sanitizeJSON(v)])
+    );
+  }
+  return obj;
 }
 
 function extractText(content: Anthropic.Messages.ContentBlock[]): string {
-  return content
+  const raw = content
     .filter(b => b.type === 'text')
     .map(b => (b as Anthropic.Messages.TextBlock).text)
     .join('\n');
+  return sanitizeText(raw);
 }
 
 type ToolParam = Parameters<typeof client.messages.create>[0]['tools'];
