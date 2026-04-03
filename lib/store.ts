@@ -678,3 +678,48 @@ export const PHASE_NAMES: Record<number, string> = {
   4: 'Travessia',
   5: 'Regeneração',
 };
+
+export function createProject(fields: {
+  nome: string;
+  setor: string;
+  investimento: string;
+  escopo: string;
+  interlocutor: string;
+  emailContato?: string;
+  status?: string;
+}): Project {
+  const id = `proj_${Date.now()}`;
+  const project: Project = {
+    id,
+    nome: fields.nome,
+    setor: fields.setor,
+    faseAtual: 1,
+    investimento: fields.investimento,
+    escopo: fields.escopo,
+    status: fields.status || 'Ativo',
+    interlocutor: fields.interlocutor,
+    emailContato: fields.emailContato || '',
+    workflowSteps: buildInitialSteps(),
+    documents: [],
+    researchAgenda: [],
+    researchResults: [],
+    interviewScripts: [],
+    transcripts: [],
+    deepAnalysis: {
+      status: 'not_started',
+      arquetipo: '',
+      tensaoCentral: '',
+      territorios: [],
+      territorioRecomendado: '',
+      gapsPrincipais: [],
+      narrativaNucleo: '',
+      proximosPassos: [],
+    },
+    deliverables: [],
+    driveFiles: [],
+    intel: [],
+    createdAt: new Date().toISOString(),
+  };
+  saveProject(project);
+  return project;
+}

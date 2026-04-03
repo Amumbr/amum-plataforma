@@ -129,21 +129,23 @@ Com base no contexto do projeto e no framework de 18 dimensoes acima, gere uma a
 
 REGRAS OBRIGATORIAS:
 - Minimo de 6 temas, maximo de 10 — NUNCA menos de 6
-- Cada tema deve ser especifico para esta marca, nao generico
-- Priorize dimensoes onde ha mais tensao ou contradicao aparente
-- Adapte temas, objetivos e queries com os nomes reais da marca e dos concorrentes do projeto
-- Para cada tema, defina 3 queries de busca especificas e reais
+- Cada tema deve ser especifico para esta marca — use os nomes REAIS da empresa, setor e concorrentes do projeto
+- NUNCA use placeholders como [NOME_DA_MARCA] ou [SETOR] — substitua sempre pelos nomes reais
+- Priorize dimensoes onde ha mais tensao ou contradicao aparente dado o contexto
+- Para cada tema, defina 3 queries de busca especificas com os nomes reais, prontas para uso em buscador
 ${customInstructions ? `\nInstrucoes do estrategista: ${customInstructions}` : ''}
 
-Retorne APENAS o seguinte JSON com 6 a 10 itens na agenda — NADA mais, sem texto antes ou depois:
+FORMATO DE SAIDA — retorne APENAS este JSON (sem texto antes ou depois, sem backticks):
 {"agenda":[
-{"id":"r1","dimensao":1,"tema":"Posicionamento atual e papel no mercado","objetivo":"Como a marca se apresenta hoje e qual papel declara ter no mercado","queries":["[NOME_DA_MARCA] posicionamento","[NOME_DA_MARCA] sobre empresa site","[SETOR] principais players brasil"]},
-{"id":"r2","dimensao":3,"tema":"Desafio central e tensao estrategica","objetivo":"Principal problema de percepcao ou legitimidade que a marca enfrenta","queries":["[NOME_DA_MARCA] desafios","[SETOR] problemas percepcao mercado","[SETOR] gap estrategia execucao"]},
-{"id":"r3","dimensao":10,"tema":"Mapa competitivo — concorrentes e referencias","objetivo":"Como os concorrentes se posicionam e quais territorios estao ocupados","queries":["[CONCORRENTE_1] posicionamento diferencial","[CONCORRENTE_2] como se posiciona","[SETOR] melhores empresas brasil 2025"]},
-{"id":"r4","dimensao":11,"tema":"Contradicao estrutural do setor","objetivo":"Grande hipocrisia ou tensao nao resolvida que todo o setor carrega","queries":["[SETOR] criticas problemas","[SETOR] discurso vs realidade","[SETOR] reclamacoes clientes"]},
-{"id":"r5","dimensao":13,"tema":"Pressoes externas e forca de mudanca","objetivo":"Mudancas culturais, tecnologicas ou de mercado que pressionam o setor","queries":["[SETOR] tendencias 2025 2026","[SETOR] impacto tecnologia","[SETOR] futuro transformacao"]},
-{"id":"r6","dimensao":18,"tema":"Territorio disponivel — oportunidade de posicionamento","objetivo":"Onde existe espaco nao ocupado no imaginario do setor","queries":["[SETOR] diferenciacao inovacao","[SETOR] novo posicionamento branding","[SETOR] oportunidade mercado"]}
-]}`;
+{"id":"r1","dimensao":1,"tema":"TEMA REAL DO PROJETO","objetivo":"OBJETIVO ESPECIFICO","queries":["QUERY REAL 1","QUERY REAL 2","QUERY REAL 3"]},
+{"id":"r2","dimensao":3,"tema":"TEMA REAL DO PROJETO","objetivo":"OBJETIVO ESPECIFICO","queries":["QUERY REAL 1","QUERY REAL 2","QUERY REAL 3"]},
+{"id":"r3","dimensao":10,"tema":"TEMA REAL DO PROJETO","objetivo":"OBJETIVO ESPECIFICO","queries":["QUERY REAL 1","QUERY REAL 2","QUERY REAL 3"]},
+{"id":"r4","dimensao":11,"tema":"TEMA REAL DO PROJETO","objetivo":"OBJETIVO ESPECIFICO","queries":["QUERY REAL 1","QUERY REAL 2","QUERY REAL 3"]},
+{"id":"r5","dimensao":13,"tema":"TEMA REAL DO PROJETO","objetivo":"OBJETIVO ESPECIFICO","queries":["QUERY REAL 1","QUERY REAL 2","QUERY REAL 3"]},
+{"id":"r6","dimensao":18,"tema":"TEMA REAL DO PROJETO","objetivo":"OBJETIVO ESPECIFICO","queries":["QUERY REAL 1","QUERY REAL 2","QUERY REAL 3"]}
+]}
+
+Gere 6 a 10 itens com os dados reais do projeto. Adapte as dimensoes escolhidas ao que e mais relevante para esta marca especifica.`;
 
       const r = await client.messages.create({
         model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,

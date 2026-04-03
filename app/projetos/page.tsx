@@ -16,8 +16,15 @@ export default function ProjetosPage() {
       <Sidebar />
       <main className="main-content">
         <div className="page-header">
-          <h2>Projetos</h2>
-          <p>Gestão de projetos de branding estratégico</p>
+          <div>
+            <h2>Projetos</h2>
+            <p>Gestão de projetos de branding estratégico</p>
+          </div>
+          <Link href="/projetos/novo">
+            <button className="btn-primary" style={{ whiteSpace: 'nowrap' }}>
+              + Novo projeto
+            </button>
+          </Link>
         </div>
 
         <div className="project-grid">
@@ -64,7 +71,10 @@ export default function ProjetosPage() {
 
         {projects.length === 0 && (
           <div style={{ color: 'var(--text-muted)', textAlign: 'center', marginTop: '60px' }}>
-            Nenhum projeto encontrado.
+            <p style={{ marginBottom: '16px' }}>Nenhum projeto encontrado.</p>
+            <Link href="/projetos/novo">
+              <button className="btn-primary">+ Criar primeiro projeto</button>
+            </Link>
           </div>
         )}
       </main>
