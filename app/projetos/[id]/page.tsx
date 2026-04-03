@@ -500,18 +500,80 @@ function StepDocuments({
 }) {
   const [dragging, setDragging] = useState(false);
   const [pending, setPending] = useState<PendingFile[]>([]);
-  const [recentSuccess, setRecentSuccess] = useState<string[]>([]); // IDs recém-incorporados
+  const [recentSuccess, setRecentSuccess] = useState<string[]>([]);
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthesis, setSynthesis] = useState<DocumentSynthesis | null>(
     project.documentSynthesis || null
   );
   const [synthError, setSynthError] = useState('');
+  const [driveUrl, setDriveUrl] = useState('');
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [driveError, setDriveError] = useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
   const projectRef = React.useRef(project);
   projectRef.current = project;
   const isDone = step.status === 'done' || step.status === 'skipped';
 
   const ACCEPTED_TYPES = '.pdf,.docx,.doc,.txt,.md,.html,.htm,.png,.jpg,.jpeg,.webp';
+
+  async function importFromDrive() {
+    if (!driveUrl.trim()) return;
+    const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const urlLabel = driveUrl.split('/').filter(Boolean).pop()?.slice(0, 50) || 'Google Drive';
+    setDriveLoading(true);
+    setDriveError('');
+
+    setPending(prev => [...prev, {
+      id: docId,
+      name: urlLabel,
+      size: 0,
+      type: 'application/octet-stream',
+      status: 'extracting',
+    }]);
+
+    try {
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract-from-url', url: driveUrl.trim() }),
+      });
+
+      const responseText = await res.text();
+      let data: { extractedText?: string; filename?: string; fileType?: string; charCount?: number; error?: string };
+      try { data = JSON.parse(responseText); }
+      catch { throw new Error(`Erro do servidor (${res.status}). Verifique se o arquivo está acessível.`); }
+      if (data.error) throw new Error(data.error);
+
+      const newDoc: ClientDocument = {
+        id: docId,
+        filename: data.filename || urlLabel,
+        fileType: data.fileType || 'application/pdf',
+        size: 0,
+        content: data.extractedText || '',
+        createdAt: new Date().toISOString(),
+      };
+
+      setPending(prev => prev.filter(p => p.id !== docId));
+      setRecentSuccess(prev => [...prev, docId]);
+      setTimeout(() => setRecentSuccess(prev => prev.filter(id => id !== docId)), 4000);
+
+      const current = projectRef.current;
+      const updated = { ...current, documents: [...current.documents, newDoc] };
+      saveProject(updated);
+      onUpdate(updated);
+      setDriveUrl('');
+
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Falha ao importar do Drive';
+      setDriveError(msg);
+      setPending(prev => prev.map(p => p.id === docId
+        ? { ...p, status: 'error' as const, errorMsg: msg }
+        : p
+      ));
+    } finally {
+      setDriveLoading(false);
+    }
+  }
 
   async function processFileSafe(file: File) {
     const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
@@ -773,6 +835,38 @@ function StepDocuments({
             </p>
             <p className="doc-dropzone-hint">
               PDF · Word · TXT · HTML · Imagens — múltiplos arquivos simultâneos
+            </p>
+          </div>
+
+          {/* ── Google Drive import ── */}
+          <div className="drive-import-section">
+            <div className="drive-import-header">
+              <span>🔗</span>
+              <span className="drive-import-label">Importar do Google Drive</span>
+              <span className="drive-import-badge">Sem limite de tamanho</span>
+            </div>
+            <div className="drive-import-row">
+              <input
+                className="input"
+                value={driveUrl}
+                onChange={e => { setDriveUrl(e.target.value); setDriveError(''); }}
+                onKeyDown={e => { if (e.key === 'Enter') importFromDrive(); }}
+                placeholder="Cole o link de compartilhamento do Google Drive..."
+                disabled={driveLoading}
+              />
+              <button
+                className="btn-primary btn-small"
+                style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                onClick={importFromDrive}
+                disabled={!driveUrl.trim() || driveLoading}
+              >
+                {driveLoading ? 'Importando...' : 'Importar'}
+              </button>
+            </div>
+            {driveError && <p className="drive-import-error">{driveError}</p>}
+            <p className="drive-import-tip">
+              Arquivos do Drive · Google Docs · Slides · Planilhas · PDFs grandes.
+              Compartilhe com "Qualquer pessoa com o link" antes de importar.
             </p>
           </div>
 

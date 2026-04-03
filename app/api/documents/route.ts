@@ -9,6 +9,7 @@ export async function POST(req: NextRequest) {
   if (contentType.includes('multipart/form-data')) return handleMultipart(req);
   const body = await req.json();
   if (body.action === 'extract') return handleBase64(body);
+  if (body.action === 'extract-from-url') return extractFromUrl(body);
   if (body.action === 'synthesize') return handleSynthesize(body);
   return NextResponse.json({ error: 'Ação inválida' }, { status: 400 });
 }
@@ -170,4 +171,198 @@ async function handleSynthesize(body: { documents: { filename: string; fileType:
     console.error(err);
     return NextResponse.json({ error: 'Erro ao gerar síntese.' }, { status: 500 });
   }
+}
+
+// ── EXTRACT FROM GOOGLE DRIVE URL ─────────────────────────────────────────────
+// Chamado com { action: 'extract-from-url', url: string, filename?: string }
+// O servidor baixa o arquivo do Drive e processa — sem limite de tamanho no cliente
+
+async function extractFromUrl(body: {
+  url: string;
+  filename?: string;
+}) {
+  const { url, filename } = body;
+
+  // Converte link de compartilhamento para URL de download direto
+  const downloadUrl = resolveGoogleDriveUrl(url);
+  if (!downloadUrl) {
+    return NextResponse.json({
+      error: 'URL inválida. Use um link de compartilhamento do Google Drive (drive.google.com ou docs.google.com).',
+    }, { status: 400 });
+  }
+
+  let fileBuffer: Buffer;
+  let detectedType = 'application/octet-stream';
+  let detectedName = filename || 'documento';
+
+  try {
+    // Baixa o arquivo com seguimento de redirecionamentos (necessário para Drive)
+    const response = await fetch(downloadUrl, {
+      headers: { 'User-Agent': 'Mozilla/5.0' },
+      redirect: 'follow',
+    });
+
+    if (!response.ok) {
+      return NextResponse.json({
+        error: `Falha ao baixar o arquivo do Drive (${response.status}). Verifique se o arquivo está compartilhado com "Qualquer pessoa com o link".`,
+      }, { status: 400 });
+    }
+
+    // Detecta tipo pelo Content-Type ou Content-Disposition
+    const contentType = response.headers.get('content-type') || '';
+    const disposition = response.headers.get('content-disposition') || '';
+
+    if (contentType.includes('pdf')) detectedType = 'application/pdf';
+    else if (contentType.includes('html')) detectedType = 'text/html';
+    else if (contentType.includes('word') || contentType.includes('openxmlformats')) detectedType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+    else if (contentType.includes('text/plain')) detectedType = 'text/plain';
+    else detectedType = contentType.split(';')[0].trim();
+
+    // Extrai nome do arquivo do Content-Disposition
+    const nameMatch = disposition.match(/filename\*?=["']?(?:UTF-8'')?([^"';\n]+)/i);
+    if (nameMatch) detectedName = decodeURIComponent(nameMatch[1].trim().replace(/['"]/g, ''));
+
+    const arrayBuffer = await response.arrayBuffer();
+    fileBuffer = Buffer.from(arrayBuffer);
+
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return NextResponse.json({ error: `Erro ao baixar do Drive: ${msg.slice(0, 120)}` }, { status: 500 });
+  }
+
+  const name = detectedName.toLowerCase();
+  let extractedText = '';
+
+  // PDF → Claude native
+  if (detectedType === 'application/pdf' || name.endsWith('.pdf')) {
+    try {
+      type DocContent = { type: 'document'; source: { type: 'base64'; media_type: 'application/pdf'; data: string } };
+      type TextContent = { type: 'text'; text: string };
+      const docBlock: DocContent = {
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: fileBuffer.toString('base64') },
+      };
+      const textBlock: TextContent = {
+        type: 'text',
+        text: 'Extraia TODO o conteúdo textual deste documento, mantendo estrutura, títulos, listas e tabelas. Transcreva fielmente, sem resumir.',
+      };
+      const response = await client.messages.create({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 4000,
+        messages: [{ role: 'user', content: [docBlock, textBlock] }],
+      });
+      extractedText = response.content[0].type === 'text' ? response.content[0].text : '';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: `Falha na leitura do PDF: ${msg.slice(0, 150)}` }, { status: 422 });
+    }
+  }
+
+  // HTML → strip tags
+  else if (detectedType === 'text/html' || name.endsWith('.html') || name.endsWith('.htm')) {
+    const raw = fileBuffer.toString('utf-8');
+    extractedText = raw
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<\/?(h[1-6]|p|div|li|tr|td|br|hr)[^>]*>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&[a-z]+;/gi, ' ')
+      .replace(/\s{3,}/g, '\n\n').trim();
+  }
+
+  // DOCX → mammoth
+  else if (name.endsWith('.docx') || detectedType.includes('openxmlformats')) {
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const mammoth = require('mammoth');
+      const result = await mammoth.extractRawText({ buffer: fileBuffer });
+      extractedText = result.value || '';
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return NextResponse.json({ error: `Falha ao ler o Word: ${msg.slice(0, 120)}` }, { status: 422 });
+    }
+  }
+
+  // TXT
+  else if (detectedType === 'text/plain' || name.endsWith('.txt')) {
+    extractedText = fileBuffer.toString('utf-8');
+  }
+
+  // Imagem → Vision
+  else if (detectedType.startsWith('image/')) {
+    const imgType = detectedType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
+    const response = await client.messages.create({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 2000,
+      messages: [{ role: 'user', content: [
+        { type: 'image', source: { type: 'base64', media_type: imgType, data: fileBuffer.toString('base64') } },
+        { type: 'text', text: 'Extraia todo o texto visível.' },
+      ]}],
+    });
+    extractedText = response.content[0].type === 'text' ? response.content[0].text : '';
+  }
+
+  else {
+    return NextResponse.json({
+      error: `Tipo de arquivo não suportado: ${detectedType}. Suportados: PDF, Word, HTML, TXT, imagens.`,
+    }, { status: 415 });
+  }
+
+  if (!extractedText.trim()) {
+    return NextResponse.json({ error: 'Arquivo sem conteúdo textual extraível.' }, { status: 422 });
+  }
+
+  const truncated = extractedText.slice(0, 12000);
+  return NextResponse.json({
+    extractedText: truncated,
+    filename: detectedName,
+    fileType: detectedType,
+    charCount: extractedText.length,
+    truncated: extractedText.length > 12000,
+  });
+}
+
+// ── HELPER: resolve Google Drive share URL → download URL ─────────────────────
+function resolveGoogleDriveUrl(input: string): string | null {
+  // Remove espaços
+  const url = input.trim();
+
+  // Google Drive file: drive.google.com/file/d/FILE_ID/...
+  const fileMatch = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch) {
+    return `https://drive.google.com/uc?export=download&id=${fileMatch[1]}`;
+  }
+
+  // Google Docs: docs.google.com/document/d/ID/...
+  const docsMatch = url.match(/docs\.google\.com\/document\/d\/([a-zA-Z0-9_-]+)/);
+  if (docsMatch) {
+    return `https://docs.google.com/document/d/${docsMatch[1]}/export?format=pdf`;
+  }
+
+  // Google Slides: docs.google.com/presentation/d/ID/...
+  const slidesMatch = url.match(/docs\.google\.com\/presentation\/d\/([a-zA-Z0-9_-]+)/);
+  if (slidesMatch) {
+    return `https://docs.google.com/presentation/d/${slidesMatch[1]}/export/pdf`;
+  }
+
+  // Google Sheets: docs.google.com/spreadsheets/d/ID/...
+  const sheetsMatch = url.match(/docs\.google\.com\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+  if (sheetsMatch) {
+    return `https://docs.google.com/spreadsheets/d/${sheetsMatch[1]}/export?format=pdf`;
+  }
+
+  // URL com ?id=FILE_ID (link antigo de compartilhamento)
+  const idParam = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idParam) {
+    return `https://drive.google.com/uc?export=download&id=${idParam[1]}`;
+  }
+
+  // URL direta com open?id=
+  const openMatch = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (openMatch) {
+    return `https://drive.google.com/uc?export=download&id=${openMatch[1]}`;
+  }
+
+  return null;
 }
