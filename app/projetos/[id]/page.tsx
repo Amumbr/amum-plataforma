@@ -482,8 +482,9 @@ interface PendingFile {
   name: string;
   size: number;
   type: string;
-  status: 'extracting' | 'error';
+  status: 'extracting' | 'error' | 'manual';
   errorMsg?: string;
+  manualText?: string;
 }
 
 function StepDocuments({
@@ -548,13 +549,16 @@ function StepDocuments({
 
     } catch (err) {
       console.error('Upload error:', err);
+      const msg = err instanceof Error
+        ? err.message
+        : 'Falha na extração — verifique se o arquivo não está protegido por senha ou tente um formato diferente';
+      // Erros são persistentes — o usuário precisa ver e decidir o que fazer
       setPending(prev =>
         prev.map(p => p.id === docId
-          ? { ...p, status: 'error' as const, errorMsg: 'Falha na extração' }
+          ? { ...p, status: 'error' as const, errorMsg: msg }
           : p
         )
       );
-      setTimeout(() => setPending(prev => prev.filter(p => p.id !== docId)), 6000);
     }
   }
 
@@ -572,6 +576,47 @@ function StepDocuments({
     e.preventDefault();
     setDragging(false);
     if (e.dataTransfer.files.length > 0) handleFiles(e.dataTransfer.files);
+  }
+
+  function dismissError(docId: string) {
+    setPending(prev => prev.filter(p => p.id !== docId));
+  }
+
+  function switchToManual(docId: string) {
+    setPending(prev => prev.map(p => p.id === docId
+      ? { ...p, status: 'manual' as const, errorMsg: undefined, manualText: '' }
+      : p
+    ));
+  }
+
+  function updateManualText(docId: string, text: string) {
+    setPending(prev => prev.map(p => p.id === docId ? { ...p, manualText: text } : p));
+  }
+
+  function saveManualText(pf: PendingFile) {
+    if (!pf.manualText?.trim()) return;
+    const newDoc: ClientDocument = {
+      id: pf.id,
+      filename: pf.name,
+      fileType: pf.type || 'text/plain',
+      size: pf.size,
+      content: pf.manualText.slice(0, 8000),
+      createdAt: new Date().toISOString(),
+    };
+    setPending(prev => prev.filter(p => p.id !== pf.id));
+    setRecentSuccess(prev => [...prev, pf.id]);
+    setTimeout(() => setRecentSuccess(prev => prev.filter(id => id !== pf.id)), 4000);
+    const current = projectRef.current;
+    const updated = { ...current, documents: [...current.documents, newDoc] };
+    saveProject(updated);
+    onUpdate(updated);
+  }
+
+  async function retryFile(pf: PendingFile) {
+    // Cria um File sintético com o nome e tipo original para retentar
+    // O usuário precisará re-selecionar o arquivo (sem acesso ao File original)
+    // Por isso oferecemos o modo manual como alternativa
+    switchToManual(pf.id);
   }
 
   function handleRemoveDoc(docId: string) {
@@ -676,26 +721,74 @@ function StepDocuments({
           {showList && (
             <div className="doc-list">
 
-              {/* Arquivos em processamento */}
+              {/* Arquivos em processamento / erro / modo manual */}
               {pending.map(pf => (
-                <div
-                  key={pf.id}
-                  className={`doc-item doc-item--${pf.status}`}
-                >
-                  <span className="doc-item-icon doc-item-spinner">
-                    {pf.status === 'error' ? '⚠' : getFileIcon(pf.type, pf.name)}
-                  </span>
-                  <div className="doc-item-info">
-                    <span className="doc-item-name">{pf.name}</span>
-                    <span className="doc-item-meta doc-item-status">
-                      {pf.status === 'extracting' && (
-                        <span className="doc-extracting-label">⟳ Extraindo texto...</span>
-                      )}
-                      {pf.status === 'error' && (
-                        <span style={{ color: '#e05555' }}>{pf.errorMsg}</span>
-                      )}
+                <div key={pf.id} className={`doc-pending-item doc-pending--${pf.status}`}>
+                  {/* Linha principal */}
+                  <div className="doc-pending-row">
+                    <span className={`doc-item-icon${pf.status === 'extracting' ? ' doc-item-spinner' : ''}`}>
+                      {pf.status === 'extracting' && getFileIcon(pf.type, pf.name)}
+                      {pf.status === 'error' && '⚠'}
+                      {pf.status === 'manual' && '✏'}
                     </span>
+                    <div className="doc-item-info">
+                      <span className="doc-item-name">{pf.name}</span>
+                      <span className="doc-item-meta">
+                        {pf.status === 'extracting' && (
+                          <span className="doc-extracting-label">Extraindo texto...</span>
+                        )}
+                        {pf.status === 'error' && (
+                          <span style={{ color: '#e05555' }}>Falha — {pf.errorMsg}</span>
+                        )}
+                        {pf.status === 'manual' && (
+                          <span style={{ color: 'var(--gold-dim)' }}>Cole o texto do documento abaixo</span>
+                        )}
+                      </span>
+                    </div>
+                    {/* Ações de erro */}
+                    {pf.status === 'error' && (
+                      <div className="doc-error-actions">
+                        <button className="doc-error-btn" onClick={() => switchToManual(pf.id)}>
+                          Colar texto
+                        </button>
+                        <button className="doc-error-dismiss" onClick={() => dismissError(pf.id)}>
+                          ×
+                        </button>
+                      </div>
+                    )}
+                    {pf.status === 'manual' && (
+                      <button className="doc-error-dismiss" onClick={() => dismissError(pf.id)}>×</button>
+                    )}
                   </div>
+
+                  {/* Erro expandido */}
+                  {pf.status === 'error' && (
+                    <div className="doc-error-detail">
+                      <p>A extração automática falhou. Isso ocorre com PDFs protegidos por senha, imagens escaneadas sem OCR, ou arquivos muito grandes (&gt;4MB).</p>
+                      <p>Clique em <strong>Colar texto</strong> para incluir o conteúdo manualmente.</p>
+                    </div>
+                  )}
+
+                  {/* Modo manual: textarea */}
+                  {pf.status === 'manual' && (
+                    <div className="doc-manual-entry">
+                      <textarea
+                        className="textarea"
+                        rows={6}
+                        placeholder={`Cole aqui o conteúdo de "${pf.name}"...`}
+                        value={pf.manualText || ''}
+                        onChange={e => updateManualText(pf.id, e.target.value)}
+                      />
+                      <button
+                        className="btn-primary btn-small"
+                        style={{ marginTop: '8px' }}
+                        onClick={() => saveManualText(pf)}
+                        disabled={!pf.manualText?.trim()}
+                      >
+                        Incorporar à base
+                      </button>
+                    </div>
+                  )}
                 </div>
               ))}
 
