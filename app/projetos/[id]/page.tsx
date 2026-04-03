@@ -1266,7 +1266,7 @@ function ModuleDossie({
         setProgressSub(`${i + 1} de ${agenda.length}: ${item.tema}`);
 
         try {
-          const res = await fetch('/api/research', {
+          const res = await fetch('/api/openai-research', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -1766,7 +1766,7 @@ function ModuleSocial({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/research', {
+      const res = await fetch('/api/openai-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -1958,7 +1958,7 @@ function ModuleTrends({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/research', {
+      const res = await fetch('/api/openai-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -2122,7 +2122,7 @@ function ModuleNetnography({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch('/api/research', {
+      const res = await fetch('/api/openai-research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
