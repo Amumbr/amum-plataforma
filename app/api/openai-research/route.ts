@@ -76,15 +76,16 @@ function robustParseJSON(raw: string): object {
 }
 
 async function callOpenAIWithSearch(prompt: string): Promise<string> {
-  const response = await getClient().responses.create({
+  const response = await getClient().chat.completions.create({
     model: 'gpt-4o-search-preview',
-    tools: [{ type: 'web_search_preview' as const }],
-    input: `${AMUM_SYSTEM}\n\n${prompt}`,
+    web_search_options: {},
+    messages: [
+      { role: 'system', content: AMUM_SYSTEM },
+      { role: 'user', content: prompt },
+    ],
   });
 
-  // Extract text from output items — use output_text shorthand
-  const text = response.output_text || '';
-
+  const text = response.choices[0]?.message?.content || '';
   return sanitizeText(text);
 }
 

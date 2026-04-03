@@ -1279,7 +1279,8 @@ function ModuleDossie({
           const data = await res.json();
 
           if (data.error) {
-            errors.push(`"${item.tema}": ${data.error}`);
+            const detail = data.detail ? ` (${String(data.detail).slice(0, 120)})` : '';
+            errors.push(`"${item.tema}": ${data.error}${detail}`);
             // Continue to next item — don't abort the whole loop
             continue;
           }
