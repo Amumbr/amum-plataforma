@@ -280,6 +280,18 @@ DOCUMENTO:\n${content.slice(0, 3000)}`,
 
 // ─── STEP: PESQUISA SETORIAL ──────────────────────────────────────────────────
 
+const DIMENSOES_LABELS: Record<number, string> = {
+  1: 'Visão geral da marca', 2: 'Negócio e contexto', 3: 'Desafio central',
+  4: 'Valores e propósito declarado', 5: 'Para quem a marca existe',
+  6: 'Como a marca se apresenta hoje', 7: 'Intenção vs. percepção',
+  8: 'Identidade visual e códigos', 9: 'Comunicação do setor',
+  10: 'Concorrentes e referências', 11: 'Contradição do setor',
+  12: 'Contradição específica da marca', 13: 'Pressões externas',
+  14: 'O que não pode ser perdido', 15: 'O que precisa mudar',
+  16: 'Recursos e obstáculos reais', 17: 'Horizonte de 12 meses',
+  18: 'Síntese estratégica final',
+};
+
 function StepWebResearch({
   project,
   step,
@@ -290,7 +302,17 @@ function StepWebResearch({
   onUpdate: (p: Project) => void;
 }) {
   const [loading, setLoading] = useState('');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editBuf, setEditBuf] = useState<ResearchAgendaItem | null>(null);
+  const [customInstructions, setCustomInstructions] = useState('');
+  const [expandedResult, setExpandedResult] = useState<string | null>(null);
   const isDone = step.status === 'done' || step.status === 'skipped';
+
+  function saveAgenda(agenda: ResearchAgendaItem[]) {
+    const updated = { ...project, researchAgenda: agenda };
+    saveProject(updated);
+    onUpdate(updated);
+  }
 
   async function generateAgenda() {
     setLoading('agenda');
@@ -298,17 +320,45 @@ function StepWebResearch({
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate_agenda', projectContext: getProjectContext(project) }),
+        body: JSON.stringify({
+          action: 'generate_agenda',
+          projectContext: getProjectContext(project),
+          customInstructions: customInstructions.trim() || undefined,
+        }),
       });
       const data = await res.json();
-      if (data.agenda) {
-        const updated = { ...project, researchAgenda: data.agenda };
-        saveProject(updated);
-        onUpdate(updated);
-      }
+      if (data.agenda) saveAgenda(data.agenda);
     } finally {
       setLoading('');
     }
+  }
+
+  function addItem() {
+    const newItem: ResearchAgendaItem = {
+      id: `r${Date.now()}`,
+      tema: 'Novo tema',
+      objetivo: 'Descreva o que quer descobrir',
+      queries: ['query 1'],
+    };
+    saveAgenda([...project.researchAgenda, newItem]);
+    setEditingId(newItem.id);
+    setEditBuf(newItem);
+  }
+
+  function startEdit(item: ResearchAgendaItem) {
+    setEditingId(item.id);
+    setEditBuf({ ...item });
+  }
+
+  function saveEdit() {
+    if (!editBuf) return;
+    saveAgenda(project.researchAgenda.map(i => i.id === editBuf.id ? editBuf : i));
+    setEditingId(null);
+    setEditBuf(null);
+  }
+
+  function removeItem(id: string) {
+    saveAgenda(project.researchAgenda.filter(i => i.id !== id));
   }
 
   async function runResearch() {
@@ -346,74 +396,200 @@ function StepWebResearch({
     }
   }
 
-  function handleApprove() {
-    onUpdate(approveStep(project, step.id));
-  }
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
 
-  function handleSkip() {
-    onUpdate(skipStep(project, step.id));
-  }
+  const hasAgenda = project.researchAgenda.length > 0;
+  const hasResults = project.researchResults.length > 0;
 
   return (
     <div className="step-body">
-      {!isDone && (
-        <>
-          {project.researchAgenda.length === 0 && (
-            <>
-              <button className="btn-primary" onClick={generateAgenda} disabled={loading === 'agenda'}>
-                {loading === 'agenda' ? 'Gerando agenda...' : 'Gerar agenda de pesquisa'}
-              </button>
-              <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>
-                Pular pesquisa
-              </button>
-            </>
-          )}
 
-          {project.researchAgenda.length > 0 && project.researchResults.length === 0 && (
-            <>
-              <p className="step-label" style={{ marginBottom: '8px' }}>
-                Agenda gerada ({project.researchAgenda.length} temas)
-              </p>
-              {project.researchAgenda.map((item: ResearchAgendaItem) => (
-                <div key={item.id} className="card" style={{ marginBottom: '8px' }}>
-                  <p style={{ fontWeight: 600, color: 'var(--gold)' }}>{item.tema}</p>
-                  <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>{item.objetivo}</p>
-                </div>
-              ))}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <button className="btn-primary" onClick={runResearch} disabled={loading === 'research'}>
-                  {loading === 'research' ? 'Executando pesquisa...' : 'Executar pesquisa'}
-                </button>
-                <button className="btn-skip" onClick={handleSkip}>Pular</button>
-              </div>
-            </>
-          )}
-
-          {project.researchResults.length > 0 && (
-            <>
-              <p className="step-label" style={{ marginBottom: '8px' }}>
-                Pesquisa concluída ({project.researchResults.length} temas)
-              </p>
-              {project.researchResults.map((r: ResearchResult) => (
-                <div key={r.id} className="card" style={{ marginBottom: '8px' }}>
-                  <p style={{ fontWeight: 600, color: 'var(--gold)' }}>{r.tema}</p>
-                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '6px' }}>{r.sintese.slice(0, 250)}...</p>
-                </div>
-              ))}
-              <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
-                <button className="btn-approve" onClick={handleApprove}>Aprovar pesquisa e continuar</button>
-                <button className="btn-skip" onClick={handleSkip}>Pular</button>
-              </div>
-            </>
-          )}
-        </>
+      {/* ── FASE 1: sem agenda ── */}
+      {!hasAgenda && (
+        <div>
+          <p className="step-label" style={{ marginBottom: '8px' }}>Instruções adicionais (opcional)</p>
+          <textarea
+            className="textarea"
+            rows={3}
+            placeholder="Ex: priorizar contradição entre discurso de inovação e percepção de commodity; incluir benchmarks internacionais do setor..."
+            value={customInstructions}
+            onChange={e => setCustomInstructions(e.target.value)}
+            style={{ marginBottom: '12px' }}
+          />
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px' }}>
+            A agenda será gerada com base no framework de dossiê AMUM (18 dimensões), calibrada para este projeto.
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-primary" onClick={generateAgenda} disabled={loading === 'agenda'}>
+              {loading === 'agenda' ? 'Gerando agenda...' : 'Gerar agenda de pesquisa'}
+            </button>
+            <button className="btn-skip" onClick={handleSkip}>Pular pesquisa</button>
+          </div>
+        </div>
       )}
-      {isDone && (
-        <p className="step-done-msg">
-          {step.status === 'skipped'
-            ? 'Etapa pulada.'
-            : `${project.researchResults.length} temas pesquisados e aprovados.`}
-        </p>
+
+      {/* ── FASE 2: agenda gerada, editável ── */}
+      {hasAgenda && !hasResults && (
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+            <p className="step-label">{project.researchAgenda.length} temas — edite, adicione ou remova antes de executar</p>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button className="btn-small" onClick={addItem}>+ Adicionar tema</button>
+              <button className="btn-small" style={{ opacity: 0.6 }} onClick={() => saveAgenda([])}>Refazer</button>
+            </div>
+          </div>
+
+          {project.researchAgenda.map((item: ResearchAgendaItem) => (
+            <div key={item.id} className="card" style={{ marginBottom: '8px', position: 'relative' }}>
+              {editingId === item.id && editBuf ? (
+                // ── Modo edição ──
+                <div>
+                  <input
+                    className="input"
+                    style={{ marginBottom: '8px', fontWeight: 600 }}
+                    value={editBuf.tema}
+                    onChange={e => setEditBuf({ ...editBuf, tema: e.target.value })}
+                    placeholder="Nome do tema"
+                  />
+                  <textarea
+                    className="textarea"
+                    rows={2}
+                    style={{ marginBottom: '8px', fontSize: '13px' }}
+                    value={editBuf.objetivo}
+                    onChange={e => setEditBuf({ ...editBuf, objetivo: e.target.value })}
+                    placeholder="Objetivo — o que queremos descobrir"
+                  />
+                  <input
+                    className="input"
+                    style={{ fontSize: '12px' }}
+                    value={editBuf.queries.join(' | ')}
+                    onChange={e => setEditBuf({ ...editBuf, queries: e.target.value.split(' | ').map(q => q.trim()).filter(Boolean) })}
+                    placeholder="queries separadas por ' | '"
+                  />
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+                    <button className="btn-primary btn-small" onClick={saveEdit}>Salvar</button>
+                    <button className="btn-small" onClick={() => { setEditingId(null); setEditBuf(null); }}>Cancelar</button>
+                  </div>
+                </div>
+              ) : (
+                // ── Modo leitura ──
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontWeight: 600, color: 'var(--gold)' }}>
+                      {(item as ResearchAgendaItem & { dimensao?: number }).dimensao
+                        ? <span style={{ fontSize: '11px', opacity: 0.6, marginRight: '6px' }}>
+                            D{(item as ResearchAgendaItem & { dimensao?: number }).dimensao}
+                          </span>
+                        : null}
+                      {item.tema}
+                    </p>
+                    <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginTop: '4px' }}>{item.objetivo}</p>
+                    {item.queries.length > 0 && (
+                      <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '4px' }}>
+                        🔍 {item.queries.slice(0, 2).join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px', marginLeft: '12px', flexShrink: 0 }}>
+                    <button className="btn-small" style={{ fontSize: '11px' }} onClick={() => startEdit(item)}>Editar</button>
+                    <button className="btn-small" style={{ fontSize: '11px', opacity: 0.5 }} onClick={() => removeItem(item.id)}>✕</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+
+          <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+            <button className="btn-primary" onClick={runResearch} disabled={loading === 'research' || project.researchAgenda.length === 0}>
+              {loading === 'research' ? 'Executando pesquisa...' : `Executar pesquisa (${project.researchAgenda.length} temas)`}
+            </button>
+            <button className="btn-skip" onClick={handleSkip}>Pular</button>
+          </div>
+          {loading === 'research' && (
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '8px' }}>
+              Pesquisa com web search ativa — pode levar 1 a 2 minutos dependendo do número de temas.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* ── FASE 3: resultados ── */}
+      {hasResults && (
+        <div>
+          <p className="step-label" style={{ marginBottom: '12px' }}>
+            {project.researchResults.length} temas pesquisados
+          </p>
+
+          {project.researchResults.map((r: ResearchResult & {
+            fatos?: string[];
+            tensoes?: string[];
+            implicacoes?: string[];
+          }) => (
+            <div key={r.id} className="card" style={{ marginBottom: '10px' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', cursor: 'pointer', alignItems: 'center' }}
+                onClick={() => setExpandedResult(expandedResult === r.id ? null : r.id)}
+              >
+                <p style={{ fontWeight: 600, color: 'var(--gold)' }}>{r.tema}</p>
+                <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>
+                  {expandedResult === r.id ? '▲' : '▼'}
+                </span>
+              </div>
+
+              {expandedResult !== r.id && (
+                <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                  {r.sintese.slice(0, 200)}…
+                </p>
+              )}
+
+              {expandedResult === r.id && (
+                <div style={{ marginTop: '12px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-line' }}>
+                    {r.sintese}
+                  </p>
+                  {r.tensoes && r.tensoes.length > 0 && (
+                    <div style={{ marginTop: '12px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Tensões identificadas
+                      </p>
+                      {r.tensoes.map((t, i) => (
+                        <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>— {t}</p>
+                      ))}
+                    </div>
+                  )}
+                  {r.implicacoes && r.implicacoes.length > 0 && (
+                    <div style={{ marginTop: '12px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Implicações para o projeto
+                      </p>
+                      {r.implicacoes.map((imp, i) => (
+                        <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {imp}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {!isDone && (
+            <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+              <button className="btn-approve" onClick={handleApprove}>Aprovar pesquisa e continuar</button>
+              <button className="btn-skip" onClick={handleSkip}>Pular</button>
+            </div>
+          )}
+
+          {isDone && (
+            <p className="step-done-msg">
+              {step.status === 'skipped' ? 'Etapa pulada.' : `${project.researchResults.length} temas aprovados.`}
+            </p>
+          )}
+        </div>
+      )}
+
+      {isDone && !hasResults && (
+        <p className="step-done-msg">Etapa pulada.</p>
       )}
     </div>
   );
