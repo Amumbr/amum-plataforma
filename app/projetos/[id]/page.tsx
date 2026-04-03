@@ -8,6 +8,7 @@ import {
   saveProject,
   approveStep,
   skipStep,
+  reopenStep,
   getProjectContext,
   addIntel,
   STEP_DEFINITIONS,
@@ -926,6 +927,7 @@ export default function ProjetoPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
+  const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const p = getProject(id);
@@ -935,6 +937,21 @@ export default function ProjetoPage() {
 
   function handleUpdate(p: Project) {
     setProject({ ...p });
+  }
+
+  function toggleExpand(stepId: string) {
+    setExpandedSteps(prev => {
+      const next = new Set(prev);
+      if (next.has(stepId)) next.delete(stepId); else next.add(stepId);
+      return next;
+    });
+  }
+
+  function handleReopen(stepId: string) {
+    if (!project) return;
+    const updated = reopenStep(project, stepId);
+    setProject({ ...updated });
+    setExpandedSteps(prev => new Set(prev).add(stepId));
   }
 
   if (!project) {
@@ -996,7 +1013,9 @@ export default function ProjetoPage() {
                 {faseSteps.map((step, si) => {
                   const def = faseDef[si];
                   if (!def) return null;
-                  const isExpanded = step.status === 'active';
+                  const isActive = step.status === 'active';
+                  const isExpanded = isActive || expandedSteps.has(step.id);
+                  const isClickable = !isActive; // headers de steps não-ativos são clicáveis
 
                   return (
                     <div
@@ -1004,7 +1023,11 @@ export default function ProjetoPage() {
                       className={`workflow-step ${isExpanded ? 'workflow-step-active' : ''} ${step.status === 'done' ? 'workflow-step-done' : ''} ${step.status === 'skipped' ? 'workflow-step-skipped' : ''}`}
                     >
                       {/* Step header */}
-                      <div className="step-header">
+                      <div
+                        className="step-header"
+                        onClick={isClickable ? () => toggleExpand(step.id) : undefined}
+                        style={isClickable ? { cursor: 'pointer' } : undefined}
+                      >
                         <div className="step-icon-wrap">
                           {step.status === 'done' && <span className="step-icon-done">✓</span>}
                           {step.status === 'skipped' && <span className="step-icon-skipped">—</span>}
@@ -1017,7 +1040,23 @@ export default function ProjetoPage() {
                             <p className="step-narrativa">{def.narrativa}</p>
                           )}
                         </div>
-                        <StepBadge status={step.status} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <StepBadge status={step.status} />
+                          {(step.status === 'done' || step.status === 'skipped') && (
+                            <button
+                              className="btn-small"
+                              style={{ fontSize: '11px', opacity: 0.7 }}
+                              onClick={(e) => { e.stopPropagation(); handleReopen(step.id); }}
+                            >
+                              Reabrir
+                            </button>
+                          )}
+                          {isClickable && (
+                            <span style={{ color: 'var(--text-dim)', fontSize: '12px' }}>
+                              {isExpanded ? '▲' : '▼'}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
                       {/* Step content */}
@@ -1048,8 +1087,10 @@ export default function ProjetoPage() {
                       )}
 
                       {/* Steps done/skipped: mostrar resumo */}
-                      {(step.status === 'done' || step.status === 'skipped') && step.type === 'chat' && (
-                        <StepChat project={project} step={step} />
+                      {(step.status === 'done' || step.status === 'skipped') && step.type === 'chat' && !isExpanded && (
+                        <div style={{ padding: '0 16px 16px', color: 'var(--text-dim)', fontSize: '13px' }}>
+                          Chat disponível — clique no cabeçalho para expandir.
+                        </div>
                       )}
                     </div>
                   );
