@@ -477,6 +477,15 @@ function formatBytes(bytes: number): string {
 
 // ─── STEP: DOCUMENTOS DA EMPRESA ─────────────────────────────────────────────
 
+interface PendingFile {
+  id: string;
+  name: string;
+  size: number;
+  type: string;
+  status: 'extracting' | 'error';
+  errorMsg?: string;
+}
+
 function StepDocuments({
   project,
   step,
@@ -487,28 +496,36 @@ function StepDocuments({
   onUpdate: (p: Project) => void;
 }) {
   const [dragging, setDragging] = useState(false);
-  const [uploading, setUploading] = useState<Record<string, boolean>>({});
+  const [pending, setPending] = useState<PendingFile[]>([]);
+  const [recentSuccess, setRecentSuccess] = useState<string[]>([]); // IDs recém-incorporados
   const [synthesizing, setSynthesizing] = useState(false);
   const [synthesis, setSynthesis] = useState<DocumentSynthesis | null>(
     project.documentSynthesis || null
   );
   const [synthError, setSynthError] = useState('');
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const projectRef = React.useRef(project);
+  projectRef.current = project;
   const isDone = step.status === 'done' || step.status === 'skipped';
 
   const ACCEPTED_TYPES = '.pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.webp';
 
-  async function processFile(file: File) {
+  async function processFileSafe(file: File) {
     const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-    setUploading(prev => ({ ...prev, [docId]: true }));
+
+    setPending(prev => [...prev, {
+      id: docId,
+      name: file.name,
+      size: file.size,
+      type: file.type || 'application/octet-stream',
+      status: 'extracting',
+    }]);
 
     try {
       const formData = new FormData();
       formData.append('file', file);
-
       const res = await fetch('/api/documents', { method: 'POST', body: formData });
       const data = await res.json();
-
       if (data.error) throw new Error(data.error);
 
       const newDoc: ClientDocument = {
@@ -520,27 +537,34 @@ function StepDocuments({
         createdAt: new Date().toISOString(),
       };
 
-      const updated = {
-        ...project,
-        documents: [...project.documents, newDoc],
-      };
+      setPending(prev => prev.filter(p => p.id !== docId));
+      setRecentSuccess(prev => [...prev, docId]);
+      setTimeout(() => setRecentSuccess(prev => prev.filter(id => id !== docId)), 4000);
+
+      const current = projectRef.current;
+      const updated = { ...current, documents: [...current.documents, newDoc] };
       saveProject(updated);
       onUpdate(updated);
+
     } catch (err) {
       console.error('Upload error:', err);
-    } finally {
-      setUploading(prev => {
-        const next = { ...prev };
-        delete next[docId];
-        return next;
-      });
+      setPending(prev =>
+        prev.map(p => p.id === docId
+          ? { ...p, status: 'error' as const, errorMsg: 'Falha na extração' }
+          : p
+        )
+      );
+      setTimeout(() => setPending(prev => prev.filter(p => p.id !== docId)), 6000);
     }
   }
 
   async function handleFiles(files: FileList | File[]) {
     const arr = Array.from(files);
-    for (const file of arr) {
-      await processFile(file);
+    // Processa em paralelo (até 3 simultâneos para não sobrecarregar)
+    const chunks: File[][] = [];
+    for (let i = 0; i < arr.length; i += 3) chunks.push(arr.slice(i, i + 3));
+    for (const chunk of chunks) {
+      await Promise.all(chunk.map(f => processFileSafe(f)));
     }
   }
 
@@ -588,7 +612,6 @@ function StepDocuments({
         createdAt: new Date().toISOString(),
       };
       setSynthesis(newSynthesis);
-
       const updated = { ...project, documentSynthesis: newSynthesis };
       saveProject(updated);
       onUpdate(updated);
@@ -616,7 +639,9 @@ function StepDocuments({
     onUpdate(skipStep(project, step.id));
   }
 
-  const isUploading = Object.keys(uploading).length > 0;
+  const isUploading = pending.some(p => p.status === 'extracting');
+  const totalDocs = project.documents.length;
+  const showList = totalDocs > 0 || pending.length > 0;
 
   return (
     <div className="step-body">
@@ -624,7 +649,7 @@ function StepDocuments({
         <>
           {/* ── Drop Zone ── */}
           <div
-            className={`doc-dropzone${dragging ? ' doc-dropzone--active' : ''}`}
+            className={`doc-dropzone${dragging ? ' doc-dropzone--active' : ''}${isUploading ? ' doc-dropzone--busy' : ''}`}
             onDragOver={e => { e.preventDefault(); setDragging(true); }}
             onDragLeave={() => setDragging(false)}
             onDrop={handleDrop}
@@ -643,54 +668,108 @@ function StepDocuments({
               {dragging ? 'Solte para fazer upload' : 'Arraste arquivos ou clique para selecionar'}
             </p>
             <p className="doc-dropzone-hint">
-              PDF · Word · TXT · Imagens — múltiplos arquivos suportados
+              PDF · Word · TXT · Imagens — múltiplos arquivos simultâneos
             </p>
-            {isUploading && (
-              <p className="doc-dropzone-hint" style={{ color: 'var(--gold)', marginTop: '8px' }}>
-                Extraindo texto...
-              </p>
-            )}
           </div>
 
-          {/* ── File List ── */}
-          {project.documents.length > 0 && (
+          {/* ── Lista unificada: pending + incorporados ── */}
+          {showList && (
             <div className="doc-list">
-              <p className="step-label" style={{ marginBottom: '10px' }}>
-                {project.documents.length} documento{project.documents.length !== 1 ? 's' : ''} carregado{project.documents.length !== 1 ? 's' : ''}
-              </p>
-              {project.documents.map(doc => (
-                <div key={doc.id} className="doc-item">
-                  <span className="doc-item-icon">{getFileIcon(doc.fileType, doc.filename)}</span>
+
+              {/* Arquivos em processamento */}
+              {pending.map(pf => (
+                <div
+                  key={pf.id}
+                  className={`doc-item doc-item--${pf.status}`}
+                >
+                  <span className="doc-item-icon doc-item-spinner">
+                    {pf.status === 'error' ? '⚠' : getFileIcon(pf.type, pf.name)}
+                  </span>
                   <div className="doc-item-info">
-                    <span className="doc-item-name">{doc.filename}</span>
-                    <span className="doc-item-meta">
-                      {getFileTypeLabel(doc.fileType, doc.filename)}
-                      {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
-                      {doc.content ? ` · ${doc.content.length.toLocaleString()} chars extraídos` : ''}
+                    <span className="doc-item-name">{pf.name}</span>
+                    <span className="doc-item-meta doc-item-status">
+                      {pf.status === 'extracting' && (
+                        <span className="doc-extracting-label">⟳ Extraindo texto...</span>
+                      )}
+                      {pf.status === 'error' && (
+                        <span style={{ color: '#e05555' }}>{pf.errorMsg}</span>
+                      )}
                     </span>
                   </div>
-                  <button
-                    className="doc-item-remove"
-                    onClick={() => handleRemoveDoc(doc.id)}
-                    title="Remover documento"
-                  >
-                    ×
-                  </button>
                 </div>
               ))}
 
-              {/* ── Synthesize button ── */}
-              {!synthesis && (
+              {/* Arquivos incorporados */}
+              {project.documents.map(doc => {
+                const isNew = recentSuccess.includes(doc.id);
+                return (
+                  <div
+                    key={doc.id}
+                    className={`doc-item${isNew ? ' doc-item--success' : ''}`}
+                  >
+                    <span className="doc-item-icon">
+                      {isNew ? '✓' : getFileIcon(doc.fileType, doc.filename)}
+                    </span>
+                    <div className="doc-item-info">
+                      <span className="doc-item-name">{doc.filename}</span>
+                      <span className="doc-item-meta">
+                        {getFileTypeLabel(doc.fileType, doc.filename)}
+                        {doc.size ? ` · ${formatBytes(doc.size)}` : ''}
+                        {' · '}
+                        <span style={{ color: '#5a9e6f' }}>
+                          {doc.content
+                            ? `${doc.content.length.toLocaleString('pt-BR')} chars incorporados`
+                            : 'sem texto extraído'}
+                        </span>
+                      </span>
+                    </div>
+                    <button
+                      className="doc-item-remove"
+                      onClick={() => handleRemoveDoc(doc.id)}
+                      title="Remover documento"
+                    >
+                      ×
+                    </button>
+                  </div>
+                );
+              })}
+
+              {/* Status bar */}
+              {(totalDocs > 0 || isUploading) && (
+                <div className="doc-status-bar">
+                  {isUploading && (
+                    <span className="doc-status-extracting">
+                      Extraindo {pending.filter(p => p.status === 'extracting').length} arquivo(s)...
+                    </span>
+                  )}
+                  {!isUploading && totalDocs > 0 && (
+                    <span className="doc-status-done">
+                      ✓ {totalDocs} arquivo{totalDocs !== 1 ? 's' : ''} incorporado{totalDocs !== 1 ? 's' : ''} à base
+                    </span>
+                  )}
+                  <span className="doc-status-add" onClick={() => fileInputRef.current?.click()}>
+                    + Adicionar mais
+                  </span>
+                </div>
+              )}
+
+              {/* Botão de síntese */}
+              {!synthesis && !isUploading && totalDocs > 0 && (
                 <button
                   className="btn-primary"
-                  style={{ marginTop: '16px', width: '100%' }}
+                  style={{ marginTop: '12px', width: '100%' }}
                   onClick={handleSynthesize}
-                  disabled={synthesizing || isUploading}
+                  disabled={synthesizing}
                 >
                   {synthesizing
                     ? 'Gerando síntese estratégica...'
-                    : `Gerar Síntese Estratégica — ${project.documents.length} documento${project.documents.length !== 1 ? 's' : ''}`}
+                    : `Gerar Síntese Estratégica — ${totalDocs} documento${totalDocs !== 1 ? 's' : ''}`}
                 </button>
+              )}
+              {isUploading && totalDocs > 0 && !synthesis && (
+                <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '10px', textAlign: 'center' }}>
+                  Aguardando extração para gerar síntese...
+                </p>
               )}
               {synthError && (
                 <p style={{ color: '#e05555', marginTop: '8px', fontSize: '13px' }}>{synthError}</p>
@@ -698,7 +777,7 @@ function StepDocuments({
             </div>
           )}
 
-          {/* ── Synthesis Result ── */}
+          {/* ── Síntese ── */}
           {synthesis && synthesis.apresentacao && (
             <div className="doc-synthesis">
               <div className="doc-synthesis-header">
@@ -719,12 +798,10 @@ function StepDocuments({
                 <p className="doc-synth-label">Como a empresa se apresenta</p>
                 <p className="doc-synth-text">{synthesis.apresentacao}</p>
               </div>
-
               <div className="doc-synthesis-section">
                 <p className="doc-synth-label">Linguagem</p>
                 <p className="doc-synth-text">{synthesis.linguagem}</p>
               </div>
-
               <div className="doc-synthesis-grid">
                 <div className="doc-synth-card">
                   <p className="doc-synth-label">Arquétipo dominante</p>
@@ -739,14 +816,12 @@ function StepDocuments({
                   <p className="doc-synth-value">{synthesis.arquetipo?.sombra}</p>
                 </div>
               </div>
-
               <div className="doc-synthesis-section">
                 <p className="doc-synth-label">Tensões estruturais</p>
                 <ul className="doc-synth-list">
                   {synthesis.tensoes?.map((t, i) => <li key={i}>{t}</li>)}
                 </ul>
               </div>
-
               <div className="doc-synthesis-grid">
                 <div>
                   <p className="doc-synth-label">Signos que funcionam</p>
@@ -761,26 +836,22 @@ function StepDocuments({
                   </ul>
                 </div>
               </div>
-
               <div className="doc-synthesis-section" style={{ background: 'rgba(201,169,110,0.06)', borderLeft: '3px solid var(--gold)', padding: '14px 16px', borderRadius: '4px' }}>
                 <p className="doc-synth-label">Potência latente</p>
                 <p className="doc-synth-text">{synthesis.potencia_latente}</p>
               </div>
-
               <div className="doc-synthesis-section">
                 <p className="doc-synth-label">Hipóteses estratégicas</p>
                 <ul className="doc-synth-list">
                   {synthesis.hipoteses_estrategicas?.map((h, i) => <li key={i}>{h}</li>)}
                 </ul>
               </div>
-
               <div className="doc-synthesis-section">
                 <p className="doc-synth-label">Perguntas que os documentos levantam para as entrevistas</p>
                 <ul className="doc-synth-list doc-synth-list--questions">
                   {synthesis.perguntas_para_entrevista?.map((q, i) => <li key={i}>{q}</li>)}
                 </ul>
               </div>
-
               <div style={{ display: 'flex', gap: '8px', marginTop: '20px' }}>
                 <button className="btn-approve" onClick={handleApprove}>
                   Aprovar síntese e avançar
@@ -790,8 +861,8 @@ function StepDocuments({
             </div>
           )}
 
-          {/* Skip without docs */}
-          {project.documents.length === 0 && (
+          {/* Skip sem docs */}
+          {project.documents.length === 0 && pending.length === 0 && (
             <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>
               Pular — sem documentos disponíveis
             </button>
@@ -804,7 +875,7 @@ function StepDocuments({
           <p className="step-done-msg">
             {step.status === 'skipped'
               ? 'Etapa pulada.'
-              : `${project.documents.length} documento(s) processado(s). Síntese estratégica aprovada.`}
+              : `${project.documents.length} documento(s) incorporado(s). Síntese aprovada.`}
           </p>
           {synthesis && (
             <div style={{ marginTop: '12px', padding: '12px 14px', background: 'var(--surface)', borderRadius: '6px', borderLeft: '3px solid var(--gold)' }}>
