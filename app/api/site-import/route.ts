@@ -6,10 +6,10 @@ const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
 
 export async function POST(req: NextRequest) {
   try {
-    const { email, empresa } = await req.json();
+    const { email } = await req.json();
 
-    if (!email && !empresa) {
-      return NextResponse.json({ encontrado: false, erro: 'Informe email ou nome da empresa' });
+    if (!email) {
+      return NextResponse.json({ encontrado: false, erro: 'Informe o email do contato' });
     }
 
     if (!SERVICE_ROLE_KEY) {
@@ -21,68 +21,86 @@ export async function POST(req: NextRequest) {
 
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
-    // Tentativa 1: buscar por usuário (email)
-    let userData = null;
-    if (email) {
-      const { data: users } = await supabase
-        .from('users')
-        .select('*')
-        .ilike('email', email)
-        .limit(1);
-      if (users && users.length > 0) userData = users[0];
-    }
+    // 1. Buscar usuário pelo email em auth.users
+    const { data: authData, error: authError } = await supabase.auth.admin.listUsers();
+    if (authError) throw authError;
 
-    // Tentativa 2: buscar diagnóstico diretamente
-    let diagnosticoData = null;
-    if (email) {
-      // Tenta tabelas comuns de diagnóstico
-      for (const tableName of ['diagnostics', 'diagnostic_results', 'reports']) {
-        const { data } = await supabase
-          .from(tableName)
-          .select('*')
-          .or(email ? `email.ilike.${email}` : '')
-          .limit(5);
-        if (data && data.length > 0) {
-          diagnosticoData = data;
-          break;
-        }
-      }
-    }
+    const user = authData.users.find(
+      (u) => u.email?.toLowerCase() === email.toLowerCase()
+    );
 
-    if (empresa) {
-      for (const tableName of ['diagnostics', 'diagnostic_results', 'reports', 'orders']) {
-        const { data } = await supabase
-          .from(tableName)
-          .select('*')
-          .ilike('empresa', `%${empresa}%`)
-          .limit(5);
-        if (data && data.length > 0) {
-          diagnosticoData = diagnosticoData ? [...diagnosticoData, ...data] : data;
-          break;
-        }
-      }
-    }
-
-    if (!userData && !diagnosticoData) {
+    if (!user) {
       return NextResponse.json({
         encontrado: false,
-        mensagem: `Nenhum dado encontrado para ${email || empresa}. O cliente pode ainda não ter passado pelo diagnóstico do site.`,
+        mensagem: `Nenhum cadastro encontrado para ${email}. O cliente pode ainda não ter criado conta no site.`,
       });
     }
 
+    // 2. Buscar lead (jornada do cliente)
+    const { data: lead, error: leadError } = await supabase
+      .from('leads')
+      .select('*')
+      .eq('lead_id', user.id)
+      .single();
+
+    if (leadError && leadError.code !== 'PGRST116') {
+      console.error('lead fetch error:', leadError);
+    }
+
+    // 3. Buscar todos os reports do usuário
+    const { data: reports, error: reportsError } = await supabase
+      .from('reports')
+      .select('*')
+      .eq('lead_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (reportsError) {
+      console.error('reports fetch error:', reportsError);
+    }
+
+    // 4. Selecionar o relatório de diagnóstico entregue (o mais relevante)
+    const diagnostico = reports?.find(
+      (r) => r.type === 'diagnostico' && r.status === 'delivered'
+    );
+
+    // 5. Outros relatórios do funil (em ordem de profundidade)
+    const espelho = reports?.find(
+      (r) => r.type === 'espelho_simbolico' && r.status === 'delivered'
+    );
+    const mapaTensao = reports?.find(
+      (r) => r.type === 'mapa_tensao_cultural' && r.status === 'delivered'
+    );
+    const planoTravessia = reports?.find(
+      (r) => r.type === 'plano_travessia' && r.status === 'delivered'
+    );
+
     return NextResponse.json({
       encontrado: true,
-      email,
-      empresa,
-      diagnostico: diagnosticoData?.[0] || null,
-      relatorios: diagnosticoData || [],
-      usuario: userData,
+      email: user.email,
+      userId: user.id,
+      // Dados da jornada
+      faseAtual: lead?.current_phase || null,
+      jornadaCompleta: lead?.journey_completed || false,
+      brandContext: lead?.brand_context || null,
+      // Relatórios entregues
+      diagnostico: diagnostico?.client_report || null,
+      diagnosticoInterno: diagnostico?.internal_report || null,
+      respostasFormulario: diagnostico?.initial_answers || null,
+      espelho: espelho?.client_report || null,
+      mapaTensao: mapaTensao?.client_report || null,
+      planoTravessia: planoTravessia?.client_report || null,
+      // Lista completa para referência
+      todosReports: (reports || []).map((r) => ({
+        type: r.type,
+        status: r.status,
+        createdAt: r.created_at,
+      })),
     });
   } catch (err) {
     console.error('site-import error:', err);
     return NextResponse.json({
       encontrado: false,
-      erro: 'Erro ao consultar o banco de dados. Verifique as credenciais Supabase.',
+      erro: 'Erro ao consultar banco. Verifique as credenciais Supabase.',
     });
   }
 }
