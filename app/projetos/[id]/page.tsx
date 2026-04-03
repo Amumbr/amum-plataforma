@@ -454,6 +454,7 @@ function getFileIcon(fileType: string, filename: string): string {
   if (name.endsWith('.pdf') || fileType === 'application/pdf') return '📄';
   if (name.endsWith('.docx') || name.endsWith('.doc')) return '📝';
   if (name.endsWith('.txt') || name.endsWith('.md')) return '📃';
+  if (name.endsWith('.html') || name.endsWith('.htm')) return '🌐';
   if (fileType.startsWith('image/')) return '🖼';
   return '📎';
 }
@@ -464,6 +465,7 @@ function getFileTypeLabel(fileType: string, filename: string): string {
   if (name.endsWith('.docx') || name.endsWith('.doc')) return 'Word';
   if (name.endsWith('.txt')) return 'TXT';
   if (name.endsWith('.md')) return 'Markdown';
+  if (name.endsWith('.html') || name.endsWith('.htm')) return 'HTML';
   if (fileType.startsWith('image/')) return 'Imagem';
   return 'Arquivo';
 }
@@ -509,10 +511,13 @@ function StepDocuments({
   projectRef.current = project;
   const isDone = step.status === 'done' || step.status === 'skipped';
 
-  const ACCEPTED_TYPES = '.pdf,.docx,.doc,.txt,.md,.png,.jpg,.jpeg,.webp';
+  const ACCEPTED_TYPES = '.pdf,.docx,.doc,.txt,.md,.html,.htm,.png,.jpg,.jpeg,.webp';
 
   async function processFileSafe(file: File) {
     const docId = `doc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const nameLower = file.name.toLowerCase();
+    const isHtml = nameLower.endsWith('.html') || nameLower.endsWith('.htm') || file.type === 'text/html';
+    const isPdf = nameLower.endsWith('.pdf') || file.type === 'application/pdf';
 
     setPending(prev => [...prev, {
       id: docId,
@@ -523,39 +528,75 @@ function StepDocuments({
     }]);
 
     try {
-      // Lê o arquivo como base64 no cliente — sem limite de payload multipart
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => {
-          const result = reader.result as string;
-          // Remove o prefixo "data:...;base64,"
-          resolve(result.split(',')[1] || result);
-        };
-        reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
-        reader.readAsDataURL(file);
-      });
+      let extractedText = '';
 
-      const res = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'extract',
-          filename: file.name,
-          fileType: file.type || 'application/octet-stream',
-          size: file.size,
-          base64,
-        }),
-      });
+      // ── HTML: extração 100% no browser, sem API ───────────────────────────
+      if (isHtml) {
+        const rawHtml = await file.text();
+        // Usa DOMParser nativo do browser para extração limpa
+        const parser = new DOMParser();
+        const dom = parser.parseFromString(rawHtml, 'text/html');
+        // Remove scripts, estilos e elementos não-textuais
+        dom.querySelectorAll('script, style, noscript, svg, canvas, [aria-hidden="true"]').forEach(el => el.remove());
+        // innerText respeita display:none, textContent não — usamos textContent para garantir
+        extractedText = (dom.body?.textContent || '')
+          .replace(/\s{3,}/g, '\n\n')
+          .trim();
+        if (!extractedText) throw new Error('HTML sem conteúdo textual. Cole o texto manualmente.');
+      }
 
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
+      // ── PDF/DOCX/Imagem: verifica tamanho antes de enviar ────────────────
+      else {
+        // Limite conservador: 3.5MB de arquivo original (~4.7MB base64 < 4.5MB Vercel limit)
+        const MAX_BYTES = isPdf ? 3.5 * 1024 * 1024 : 6 * 1024 * 1024;
+        if (file.size > MAX_BYTES) {
+          throw new Error(
+            `Arquivo muito grande (${(file.size / 1024 / 1024).toFixed(1)}MB). ` +
+            `Limite: ${isPdf ? '3.5MB para PDF' : '6MB'}. Compacte o arquivo ou use "Colar texto".`
+          );
+        }
+
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1] || '');
+          reader.onerror = () => reject(new Error('Falha ao ler o arquivo'));
+          reader.readAsDataURL(file);
+        });
+
+        const res = await fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'extract',
+            filename: file.name,
+            fileType: file.type || 'application/octet-stream',
+            size: file.size,
+            base64,
+          }),
+        });
+
+        // Lê como texto primeiro para evitar JSON.parse de resposta HTML de erro
+        const responseText = await res.text();
+        let data: { extractedText?: string; error?: string; charCount?: number };
+        try {
+          data = JSON.parse(responseText);
+        } catch {
+          // Servidor retornou não-JSON: limite de payload, timeout, ou erro de infra
+          if (res.status === 413 || res.status === 0) {
+            throw new Error('Arquivo excede o limite do servidor. Use "Colar texto" para incluir o conteúdo.');
+          }
+          throw new Error(`Erro no servidor (${res.status}). Tente novamente ou use "Colar texto".`);
+        }
+        if (data.error) throw new Error(data.error);
+        extractedText = data.extractedText || '';
+      }
 
       const newDoc: ClientDocument = {
         id: docId,
         filename: file.name,
         fileType: file.type || 'application/octet-stream',
         size: file.size,
-        content: data.extractedText || '',
+        content: extractedText.slice(0, 12000),
         createdAt: new Date().toISOString(),
       };
 
@@ -570,10 +611,7 @@ function StepDocuments({
 
     } catch (err) {
       console.error('Upload error:', err);
-      const msg = err instanceof Error
-        ? err.message
-        : 'Falha na extração — verifique se o arquivo não está protegido por senha ou tente um formato diferente';
-      // Erros são persistentes — o usuário precisa ver e decidir o que fazer
+      const msg = err instanceof Error ? err.message : 'Falha na extração';
       setPending(prev =>
         prev.map(p => p.id === docId
           ? { ...p, status: 'error' as const, errorMsg: msg }
@@ -734,7 +772,7 @@ function StepDocuments({
               {dragging ? 'Solte para fazer upload' : 'Arraste arquivos ou clique para selecionar'}
             </p>
             <p className="doc-dropzone-hint">
-              PDF · Word · TXT · Imagens — múltiplos arquivos simultâneos
+              PDF · Word · TXT · HTML · Imagens — múltiplos arquivos simultâneos
             </p>
           </div>
 
@@ -785,7 +823,7 @@ function StepDocuments({
                   {/* Erro expandido */}
                   {pf.status === 'error' && (
                     <div className="doc-error-detail">
-                      <p>A extração automática falhou. Isso ocorre com PDFs protegidos por senha, imagens escaneadas sem OCR, ou arquivos muito grandes (&gt;4MB).</p>
+                      <p>A extração automática falhou. Isso ocorre com PDFs protegidos por senha, PDFs escaneados sem camada de texto, ou arquivos maiores que 3.5MB.</p>
                       <p>Clique em <strong>Colar texto</strong> para incluir o conteúdo manualmente.</p>
                     </div>
                   )}

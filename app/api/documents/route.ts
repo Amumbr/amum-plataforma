@@ -69,6 +69,34 @@ async function handleBase64(body: {
     extractedText = Buffer.from(base64, 'base64').toString('utf-8');
   }
 
+  // HTML — relatórios do site AMUM e outros documentos web
+  else if (
+    fileType === 'text/html' ||
+    name.endsWith('.html') ||
+    name.endsWith('.htm')
+  ) {
+    const raw = Buffer.from(base64, 'base64').toString('utf-8');
+    // Remove scripts, estilos e tags; decodifica entidades HTML comuns
+    extractedText = raw
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<\/?(h[1-6]|p|div|section|article|header|footer|li|tr|td|th|br|hr)[^>]*>/gi, '\n')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/&nbsp;/g, ' ')
+      .replace(/&amp;/g, '&')
+      .replace(/&lt;/g, '<')
+      .replace(/&gt;/g, '>')
+      .replace(/&quot;/g, '"')
+      .replace(/&#39;/g, "'")
+      .replace(/&[a-z]+;/gi, ' ')
+      .replace(/[ \t]+/g, ' ')
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (!extractedText.trim()) {
+      return NextResponse.json({ error: 'HTML sem conteúdo textual identificável.' }, { status: 422 });
+    }
+  }
+
   // Imagem → Claude Vision
   else if (fileType.startsWith('image/') || /\.(png|jpg|jpeg|webp)$/.test(name)) {
     const imgType = (fileType.startsWith('image/') ? fileType : 'image/jpeg') as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
