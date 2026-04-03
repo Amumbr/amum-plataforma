@@ -9,6 +9,7 @@ import {
   approveStep,
   skipStep,
   reopenStep,
+  updateStepData,
   getProjectContext,
   addIntel,
   STEP_DEFINITIONS,
@@ -34,6 +35,230 @@ function StepBadge({ status }: { status: WorkflowStep['status'] }) {
   };
   const { label, cls } = map[status];
   return <span className={`step-badge ${cls}`}>{label}</span>;
+}
+
+// ─── SHARED: HELPERS ──────────────────────────────────────────────────────────
+
+function getStepNotes(step: WorkflowStep): string {
+  return (step.data?.userNotes as string) || '';
+}
+
+function getStepChatHistory(step: WorkflowStep): { role: 'user' | 'assistant'; content: string }[] {
+  return (step.data?.chatHistory as { role: 'user' | 'assistant'; content: string }[]) || [];
+}
+
+function buildStepContext(step: WorkflowStep, project: Project): string {
+  const notes = getStepNotes(step);
+  const parts: string[] = [];
+
+  if (notes) parts.push(`NOTAS DO ESTRATEGISTA:\n${notes}`);
+
+  switch (step.type) {
+    case 'documents':
+      if (project.documentSynthesis?.apresentacao) {
+        const s = project.documentSynthesis;
+        parts.push(
+          `SÍNTESE DOCUMENTAL:\n${s.apresentacao}\nArquétipo dominante: ${s.arquetipo?.dominante}\nTensões: ${s.tensoes?.join('; ')}\nPotência latente: ${s.potencia_latente}`
+        );
+      }
+      break;
+    case 'web_research':
+      if (project.researchResults.length > 0) {
+        parts.push(`PESQUISA SETORIAL (${project.researchResults.length} dimensões aprovadas):`);
+        project.researchResults.slice(0, 6).forEach(r => {
+          parts.push(`[${r.tema}]: ${r.sintese.slice(0, 350)}`);
+        });
+      }
+      break;
+    case 'scripts':
+      if (project.interviewScripts.length > 0) {
+        parts.push(`ROTEIROS GERADOS para: ${project.interviewScripts.map(s => s.publico).join(', ')}`);
+        project.interviewScripts.forEach(s => {
+          parts.push(`Roteiro ${s.publico} (${s.duracao}) — ${s.blocos?.length || 0} blocos`);
+        });
+      }
+      break;
+    case 'transcripts':
+      if (project.transcripts.length > 0) {
+        parts.push(`TRANSCRIÇÕES PROCESSADAS (${project.transcripts.length}):`);
+        project.transcripts.forEach(t => {
+          parts.push(`[${t.publico || t.filename}]: ${t.synthesis.slice(0, 350)}`);
+          if (t.keyQuotes.length > 0) parts.push(`  Citação: "${t.keyQuotes[0].citacao}"`);
+        });
+      }
+      break;
+    case 'deep_analysis':
+      if (project.deepAnalysis.status === 'done') {
+        const da = project.deepAnalysis;
+        parts.push(
+          `ANÁLISE DE DECIFRAÇÃO:\nArquétipo: ${da.arquetipo}\nTensão central: ${da.tensaoCentral}\nTerritório recomendado: ${da.territorioRecomendado}\nNarrativa-núcleo: ${da.narrativaNucleo}\nGaps: ${da.gapsPrincipais.join('; ')}`
+        );
+      }
+      break;
+    case 'chat':
+      parts.push(`Espaço de co-criação — fase ${step.id}. Contexto completo disponível.`);
+      break;
+  }
+
+  return parts.join('\n\n');
+}
+
+// ─── SHARED: STEP NOTES ───────────────────────────────────────────────────────
+
+function StepNotes({
+  step,
+  project,
+  onUpdate,
+  placeholder = 'Adicione contexto, correções de rota, hipóteses ou qualquer informação relevante para esta etapa...',
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onUpdate: (p: Project) => void;
+  placeholder?: string;
+}) {
+  const [notes, setNotes] = useState(getStepNotes(step));
+  const [dirty, setDirty] = useState(false);
+
+  function handleSave() {
+    const updated = updateStepData(project, step.id, { userNotes: notes });
+    onUpdate(updated);
+    setDirty(false);
+  }
+
+  return (
+    <div className="step-notes-block">
+      <p className="step-notes-label">
+        <span>✏</span> Observações do estrategista
+        {!dirty && notes && <span className="step-notes-saved"> — salvo</span>}
+      </p>
+      <textarea
+        className="textarea step-notes-textarea"
+        value={notes}
+        onChange={e => { setNotes(e.target.value); setDirty(true); }}
+        placeholder={placeholder}
+        rows={3}
+      />
+      {dirty && (
+        <button
+          className="btn-small"
+          style={{ marginTop: '6px', background: 'var(--surface-2)', border: '1px solid var(--border)', color: 'var(--text-secondary)' }}
+          onClick={handleSave}
+        >
+          Salvar observações
+        </button>
+      )}
+    </div>
+  );
+}
+
+// ─── SHARED: STEP INLINE CHAT ─────────────────────────────────────────────────
+
+function StepInlineChat({
+  step,
+  project,
+  onUpdate,
+  stepLabel,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onUpdate: (p: Project) => void;
+  stepLabel: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [messages, setMessages] = React.useState(getStepChatHistory(step));
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const messagesEndRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    if (open) messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages, open]);
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: 'user' as const, content: input };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput('');
+    setLoading(true);
+
+    const stepCtx = buildStepContext(step, project);
+    const fullContext = getProjectContext(project) + (stepCtx ? `\n\n${stepCtx}` : '');
+
+    try {
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectContext: fullContext, messages: newMessages }),
+      });
+      const data = await res.json();
+      const allMessages = [...newMessages, { role: 'assistant' as const, content: data.text }];
+      setMessages(allMessages);
+      const updated = updateStepData(project, step.id, { chatHistory: allMessages });
+      onUpdate(updated);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="step-inline-chat">
+      <button className="step-chat-toggle" onClick={() => setOpen(!open)}>
+        <span className="step-chat-toggle-label">
+          <span className="step-chat-icon">💬</span>
+          Chat com IA — {stepLabel}
+        </span>
+        <span className="step-chat-meta">
+          {messages.length > 0 && <span className="step-chat-count">{messages.length} msg</span>}
+          <span className="step-chat-chevron">{open ? '▲' : '▼'}</span>
+        </span>
+      </button>
+
+      {open && (
+        <div className="step-chat-body">
+          {messages.length === 0 && (
+            <p className="step-chat-empty">
+              Faça perguntas sobre a análise, tensione hipóteses, peça alternativas ou corrija a direção — a IA tem o contexto completo desta etapa.
+            </p>
+          )}
+          {messages.length > 0 && (
+            <div className="chat-messages step-chat-messages">
+              {messages.map((m, i) => (
+                <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>
+                  <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
+                </div>
+              ))}
+              {loading && (
+                <div className="chat-msg chat-msg-ai">
+                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Processando...</p>
+                </div>
+              )}
+              <div ref={messagesEndRef} />
+            </div>
+          )}
+          <div className="step-chat-input-row">
+            <textarea
+              className="textarea"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Escreva aqui... (Enter envia, Shift+Enter nova linha)"
+              rows={2}
+              style={{ flex: 1 }}
+            />
+            <button
+              className="btn-primary"
+              style={{ alignSelf: 'flex-end', padding: '8px 16px', minWidth: 'auto' }}
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+            >
+              →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ─── STEP: IMPORTAR SITE ─────────────────────────────────────────────────────
@@ -214,6 +439,8 @@ function StepImportSite({
             : 'Etapa aprovada.'}
         </p>
       )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Contexto adicional sobre o cliente, histórico de relacionamento, percepções anteriores..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Importação do site" />
     </div>
   );
 }
@@ -338,6 +565,7 @@ function StepDocuments({
     if (project.documents.length === 0) return;
     setSynthesizing(true);
     setSynthError('');
+    const notes = getStepNotes(step);
     try {
       const res = await fetch('/api/documents', {
         method: 'POST',
@@ -349,7 +577,7 @@ function StepDocuments({
             fileType: d.fileType,
             content: d.content,
           })),
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
         }),
       });
       const data = await res.json();
@@ -587,6 +815,8 @@ function StepDocuments({
           )}
         </div>
       )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Indique o que priorizar na análise, contexto sobre os documentos, ou informações que não estão nos arquivos..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Documentos da empresa" />
     </div>
   );
 }
@@ -629,13 +859,14 @@ function StepWebResearch({
 
   async function generateAgenda() {
     setLoading('agenda');
+    const notes = getStepNotes(step);
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'generate_agenda',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
           customInstructions: customInstructions.trim() || undefined,
         }),
       });
@@ -676,13 +907,14 @@ function StepWebResearch({
 
   async function runResearch() {
     setLoading('research');
+    const notes = getStepNotes(step);
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'run_research',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
           agenda: project.researchAgenda,
         }),
       });
@@ -904,6 +1136,8 @@ function StepWebResearch({
       {isDone && !hasResults && (
         <p className="step-done-msg">Etapa pulada.</p>
       )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Dimensões prioritárias, ângulos específicos do setor, concorrentes a monitorar, referências internacionais..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa setorial" />
     </div>
   );
 }
@@ -925,11 +1159,15 @@ function StepScripts({
 
   async function generateScripts() {
     setLoading(true);
+    const notes = getStepNotes(step);
     try {
       const res = await fetch('/api/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'generate_scripts', projectContext: getProjectContext(project) }),
+        body: JSON.stringify({
+          action: 'generate_scripts',
+          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
+        }),
       });
       const data = await res.json();
       if (data.scripts) {
@@ -1014,6 +1252,8 @@ function StepScripts({
             : `${project.interviewScripts.length} roteiro(s) aprovado(s).`}
         </p>
       )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Públicos prioritários, temas sensíveis a abordar, abordagem específica para algum entrevistado..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Roteiros de entrevista" />
     </div>
   );
 }
@@ -1039,6 +1279,7 @@ function StepTranscripts({
   async function handleProcess() {
     if (!raw.trim()) return;
     setLoading(true);
+    const notes = getStepNotes(step);
     try {
       const res = await fetch('/api/transcript', {
         method: 'POST',
@@ -1047,7 +1288,7 @@ function StepTranscripts({
           text: raw,
           filename: filename || 'transcrição',
           publico: publico || 'não especificado',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
         }),
       });
       const data = await res.json();
@@ -1184,6 +1425,8 @@ function StepTranscripts({
             : `${project.transcripts.length} transcrição(ões) aprovada(s).`}
         </p>
       )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Contexto das entrevistas, observações do campo, padrões que percebeu nas conversas mas que podem não estar nas transcrições..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Transcrições" />
     </div>
   );
 }
@@ -1205,13 +1448,17 @@ function StepDeepAnalysis({
 
   async function runAnalysis() {
     setLoading(true);
+    const notes = getStepNotes(step);
     const updated1 = { ...project, deepAnalysis: { ...project.deepAnalysis, status: 'running' as const } };
     onUpdate(updated1);
     try {
       const res = await fetch('/api/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'deep_analysis', projectContext: getProjectContext(project) }),
+        body: JSON.stringify({
+          action: 'deep_analysis',
+          projectContext: getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : ''),
+        }),
       });
       const data = await res.json();
       if (data.arquetipo) {
@@ -1303,6 +1550,8 @@ function StepDeepAnalysis({
           {step.status === 'skipped' ? 'Etapa pulada.' : 'Análise de Decifração aprovada.'}
         </p>
       )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Hipóteses sobre o arquétipo real, tensões que percebeu no campo, direções que quer explorar ou evitar na análise..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Análise de Decifração" />
     </div>
   );
 }
@@ -1312,11 +1561,15 @@ function StepDeepAnalysis({
 function StepChat({
   project,
   step,
+  onUpdate,
 }: {
   project: Project;
   step: WorkflowStep;
+  onUpdate: (p: Project) => void;
 }) {
-  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>(
+    getStepChatHistory(step)
+  );
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -1332,25 +1585,38 @@ function StepChat({
     ? 'Reconstrução'
     : 'Travessia';
 
+  const phaseHint = step.id === 'chat_decifração'
+    ? 'Mapa Simbólico, Análise de Gaps, Imersão de Liderança.'
+    : step.id === 'chat_reconstrucao'
+    ? 'Plataforma de Marca, Código Linguístico, Narrativa de Marca.'
+    : 'Plano de Travessia, Treinamento e Curadoria de Ativação.';
+
   async function sendMessage() {
     if (!input.trim() || loading) return;
+    const notes = getStepNotes(step);
     const userMsg = { role: 'user' as const, content: input };
     const newMessages = [...messages, userMsg];
     setMessages(newMessages);
     setInput('');
     setLoading(true);
+
+    const notesCtx = notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : '';
+
     try {
       const res = await fetch('/api/scripts', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'chat',
-          projectContext: getProjectContext(project),
+          projectContext: getProjectContext(project) + notesCtx,
           messages: newMessages,
         }),
       });
       const data = await res.json();
-      setMessages([...newMessages, { role: 'assistant', content: data.text }]);
+      const allMessages = [...newMessages, { role: 'assistant' as const, content: data.text }];
+      setMessages(allMessages);
+      const updated = updateStepData(project, step.id, { chatHistory: allMessages });
+      onUpdate(updated);
     } finally {
       setLoading(false);
     }
@@ -1365,33 +1631,60 @@ function StepChat({
       )}
       {(isActive || step.status === 'done') && (
         <>
+          {/* Notes above chat — gives the AI direction before the first message */}
+          <StepNotes
+            step={step}
+            project={project}
+            onUpdate={onUpdate}
+            placeholder={`Intenções para esta fase, entregáveis prioritários, restrições, direções que quer explorar... (${phaseHint})`}
+          />
+
+          <div className="step-chat-section-label">
+            <span>Co-criação — {label}</span>
+            {messages.length > 0 && (
+              <button
+                className="btn-small"
+                style={{ background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: '11px' }}
+                onClick={() => {
+                  setMessages([]);
+                  const updated = updateStepData(project, step.id, { chatHistory: [] });
+                  onUpdate(updated);
+                }}
+              >
+                Limpar histórico
+              </button>
+            )}
+          </div>
+
           {messages.length === 0 && (
-            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
-              Espaço de co-criação para entregáveis de {label}. Comece pedindo um entregável específico ou faça uma pergunta estratégica.
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px', lineHeight: 1.6 }}>
+              Espaço de co-criação com IA para entregáveis de {label}. A IA tem contexto completo do projeto e das suas notas acima. Comece com um pedido específico ou uma pergunta estratégica.
             </p>
           )}
+
           {messages.length > 0 && (
             <div className="chat-messages">
               {messages.map((m, i) => (
                 <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>
-                  <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap' }}>{m.content}</p>
+                  <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
                 </div>
               ))}
               {loading && (
                 <div className="chat-msg chat-msg-ai">
-                  <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>Processando...</p>
+                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Processando...</p>
                 </div>
               )}
               <div ref={messagesEndRef} />
             </div>
           )}
+
           <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
             <textarea
               className="textarea"
               value={input}
               onChange={e => setInput(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
-              placeholder="Faça uma pergunta ou solicite um entregável..."
+              placeholder="Escreva aqui... (Enter envia, Shift+Enter nova linha)"
               rows={3}
               style={{ flex: 1 }}
             />
@@ -1399,9 +1692,9 @@ function StepChat({
               className="btn-primary"
               onClick={sendMessage}
               disabled={!input.trim() || loading}
-              style={{ alignSelf: 'flex-end' }}
+              style={{ alignSelf: 'flex-end', padding: '8px 16px', minWidth: 'auto' }}
             >
-              Enviar
+              →
             </button>
           </div>
         </>
@@ -1570,7 +1863,7 @@ export default function ProjetoPage() {
                             <StepDeepAnalysis project={project} step={step} onUpdate={handleUpdate} />
                           )}
                           {step.type === 'chat' && (
-                            <StepChat project={project} step={step} />
+                            <StepChat project={project} step={step} onUpdate={handleUpdate} />
                           )}
                         </>
                       )}

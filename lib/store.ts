@@ -407,6 +407,19 @@ export function reopenStep(project: Project, stepId: string): Project {
   return updated;
 }
 
+export function updateStepData(
+  project: Project,
+  stepId: string,
+  data: Record<string, unknown>
+): Project {
+  const steps = project.workflowSteps.map(s =>
+    s.id === stepId ? { ...s, data: { ...(s.data || {}), ...data } } : s
+  );
+  const updated = { ...project, workflowSteps: steps };
+  saveProject(updated);
+  return updated;
+}
+
 export function addIntel(
   projectId: string,
   item: Omit<IntelItem, 'id' | 'createdAt' | 'read'>
