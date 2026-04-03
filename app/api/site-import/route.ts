@@ -8,7 +8,7 @@ export async function POST(req: NextRequest) {
   try {
     const { email } = await req.json();
 
-    if (!email) {
+    if (!email?.trim()) {
       return NextResponse.json({ encontrado: false, erro: 'Informe o email do contato' });
     }
 
@@ -19,89 +19,83 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // 1. Buscar usuário via REST direto (mais confiável em server-side do que SDK admin)
-    const usersRes = await fetch(
-      `${SUPABASE_URL}/auth/v1/admin/users?page=1&per_page=1000`,
-      {
-        headers: {
-          apikey: SERVICE_ROLE_KEY,
-          Authorization: `Bearer ${SERVICE_ROLE_KEY}`,
-        },
-      }
-    );
-
-    if (!usersRes.ok) {
-      const errBody = await usersRes.text();
-      console.error('auth/admin/users error:', usersRes.status, errBody);
-      return NextResponse.json({
-        encontrado: false,
-        erro: `Erro na consulta de usuários: ${usersRes.status}`,
-      });
-    }
-
-    const usersData = await usersRes.json();
-    const users: Array<{ id: string; email: string }> = usersData.users ?? [];
-
-    const user = users.find(
-      (u) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-
-    if (!user) {
-      return NextResponse.json({
-        encontrado: false,
-        mensagem: `Nenhum cadastro encontrado para ${email}. O cliente pode ainda não ter criado conta no site.`,
-      });
-    }
-
-    // 2. Buscar lead e reports via SDK (tabelas públicas — funciona com service role)
     const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
     });
 
-    const { data: lead } = await supabase
+    // 1. Buscar lead diretamente pelo email (sem precisar de auth.users)
+    const { data: lead, error: leadError } = await supabase
       .from('leads')
       .select('*')
-      .eq('lead_id', user.id)
+      .ilike('email', email.trim())
       .single();
 
-    const { data: reports } = await supabase
-      .from('reports')
-      .select('*')
-      .eq('lead_id', user.id)
-      .order('created_at', { ascending: false });
+    if (leadError || !lead) {
+      console.log('lead not found for:', email, leadError?.message);
+      return NextResponse.json({
+        encontrado: false,
+        mensagem: `Nenhum cadastro encontrado para ${email}. O cliente pode ainda não ter passado pelo diagnóstico do site.`,
+      });
+    }
 
-    const diagnostico = reports?.find(
-      (r) => r.type === 'diagnostico' && r.status === 'delivered'
-    );
-    const espelho = reports?.find(
-      (r) => r.type === 'espelho_simbolico' && r.status === 'delivered'
-    );
-    const mapaTensao = reports?.find(
-      (r) => r.type === 'mapa_tensao_cultural' && r.status === 'delivered'
-    );
-    const planoTravessia = reports?.find(
-      (r) => r.type === 'plano_travessia' && r.status === 'delivered'
-    );
+    // 2. Buscar case do lead (onde ficam brand_context e commercial_score)
+    const { data: caso } = await supabase
+      .from('cases')
+      .select('*')
+      .eq('lead_id', lead.id)
+      .single();
+
+    // 3. Buscar todos os reports via lead_id (campo denormalizado nos reports)
+    const { data: reports, error: reportsError } = await supabase
+      .from('reports')
+      .select('id, type, status, delivered_at, created_at, initial_answers, followup_answers, final_client, final_internal')
+      .eq('lead_id', lead.id)
+      .order('created_at', { ascending: true });
+
+    if (reportsError) {
+      console.error('reports error:', reportsError.message);
+    }
+
+    // 4. Separar por tipo — apenas relatórios entregues
+    const delivered = (reports ?? []).filter(r => r.status === 'delivered');
+    const diagnostico = delivered.find(r => r.type === 'diagnostico');
+    const espelho = delivered.find(r => r.type === 'espelho_simbolico');
+    const mapaTensao = delivered.find(r => r.type === 'mapa_tensao_cultural');
+    const planoTravessia = delivered.find(r => r.type === 'plano_travessia');
 
     return NextResponse.json({
       encontrado: true,
-      email: user.email,
-      userId: user.id,
-      faseAtual: lead?.current_phase ?? null,
-      jornadaCompleta: lead?.journey_completed ?? false,
-      brandContext: lead?.brand_context ?? null,
-      diagnostico: diagnostico?.client_report ?? null,
-      diagnosticoInterno: diagnostico?.internal_report ?? null,
+      // Dados do lead
+      email: lead.email,
+      leadId: lead.id,
+      nome: lead.name,
+      empresa: lead.company_name,
+      setor: lead.industry,
+      faixaFuncionarios: lead.employee_range,
+      faixaFaturamento: lead.revenue_range,
+      scoreProntidao: lead.readiness_score,
+      scoreMetodoFit: lead.method_fit_score,
+      // Dados do case (jornada acumulada)
+      caseId: caso?.id ?? null,
+      faseAtual: caso?.current_phase ?? null,
+      jornadaCompleta: caso?.journey_completed ?? false,
+      brandContext: caso?.brand_context ?? null,
+      commercialScore: caso?.commercial_score ?? null,
+      // Relatórios entregues
+      diagnostico: diagnostico?.final_client ?? null,
+      diagnosticoInterno: diagnostico?.final_internal ?? null,
       respostasFormulario: diagnostico?.initial_answers ?? null,
-      espelho: espelho?.client_report ?? null,
-      mapaTensao: mapaTensao?.client_report ?? null,
-      planoTravessia: planoTravessia?.client_report ?? null,
-      todosReports: (reports ?? []).map((r) => ({
+      espelho: espelho?.final_client ?? null,
+      mapaTensao: mapaTensao?.final_client ?? null,
+      planoTravessia: planoTravessia?.final_client ?? null,
+      // Histórico completo
+      todosReports: (reports ?? []).map(r => ({
         type: r.type,
         status: r.status,
-        createdAt: r.created_at,
+        deliveredAt: r.delivered_at,
       })),
     });
+
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.error('site-import error:', msg);

@@ -105,14 +105,82 @@ function StepImportSite({
             <div className="ai-output" style={{ marginTop: '12px' }}>
               {result.encontrado ? (
                 <>
-                  <p style={{ color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>
-                    ✓ Dados encontrados para {result.email}
+                  <p style={{ color: 'var(--gold)', fontWeight: 600, marginBottom: '12px' }}>
+                    ✓ Dados encontrados — {result.empresa || result.email}
                   </p>
-                  {result.diagnostico && (
-                    <pre style={{ fontSize: '12px', overflowX: 'auto', whiteSpace: 'pre-wrap' }}>
-                      {JSON.stringify(result.diagnostico, null, 2)}
-                    </pre>
+
+                  {/* Identidade */}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', marginBottom: '12px' }}>
+                    {[
+                      ['Empresa', result.empresa],
+                      ['Setor', result.setor],
+                      ['Fase atual', result.faseAtual],
+                      ['Jornada completa', result.jornadaCompleta ? 'Sim' : 'Não'],
+                      ['Score prontidão', result.scoreProntidao != null ? `${result.scoreProntidao}/100` : null],
+                      ['Score fit AMUM', result.scoreMetodoFit != null ? `${result.scoreMetodoFit}/100` : null],
+                    ].filter(([, v]) => v).map(([k, v]) => (
+                      <div key={k as string} style={{ fontSize: '12px' }}>
+                        <span style={{ color: 'var(--text-dim)' }}>{k}: </span>
+                        <span style={{ color: 'var(--text-secondary)' }}>{v as string}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Relatórios disponíveis */}
+                  {(result.todosReports?.length ?? 0) > 0 && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                        Relatórios no funil
+                      </p>
+                      {(result.todosReports ?? []).map((r: { type: string; status: string; deliveredAt?: string }) => (
+                        <p key={r.type} style={{ fontSize: '12px', color: r.status === 'delivered' ? 'var(--text-secondary)' : 'var(--text-dim)', marginBottom: '3px' }}>
+                          {r.status === 'delivered' ? '✓' : '○'} {r.type.replace(/_/g, ' ')}
+                          {r.status === 'delivered' && r.deliveredAt
+                            ? ` — entregue ${new Date(r.deliveredAt).toLocaleDateString('pt-BR')}`
+                            : ` — ${r.status}`}
+                        </p>
+                      ))}
+                    </div>
                   )}
+
+                  {/* brand_context acumulado */}
+                  {result.brandContext && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                        Brand context acumulado
+                      </p>
+                      {Object.entries(result.brandContext as Record<string, unknown>)
+                        .filter(([, v]) => v && (typeof v === 'string' || Array.isArray(v)))
+                        .slice(0, 8)
+                        .map(([k, v]) => (
+                          <p key={k} style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '4px' }}>
+                            <span style={{ color: 'var(--text-dim)' }}>{k}: </span>
+                            {Array.isArray(v) ? (v as string[]).join(', ') : v as string}
+                          </p>
+                        ))}
+                    </div>
+                  )}
+
+                  {/* commercial_score */}
+                  {result.commercialScore && (
+                    <div style={{ marginBottom: '12px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '6px' }}>
+                        Score comercial
+                      </p>
+                      {[
+                        ['Maturidade', result.commercialScore.maturity],
+                        ['Capacidade de investimento', result.commercialScore.investment_capacity],
+                        ['Prontidão', result.commercialScore.readiness != null ? `${result.commercialScore.readiness}/100` : null],
+                        ['Fit método', result.commercialScore.method_fit != null ? `${result.commercialScore.method_fit}/100` : null],
+                        ['Prioridade comercial', result.commercialScore.commercial_priority],
+                      ].filter(([, v]) => v).map(([k, v]) => (
+                        <p key={k as string} style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '3px' }}>
+                          <span style={{ color: 'var(--text-dim)' }}>{k}: </span>{v as string}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
                     <button className="btn-approve" onClick={handleApprove}>Aprovar e continuar</button>
                     <button className="btn-skip" onClick={handleSkip}>Pular esta etapa</button>

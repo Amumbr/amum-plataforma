@@ -179,13 +179,43 @@ export const STEP_DEFINITIONS: {
 // ─── PROJETO ──────────────────────────────────────────────────────────────────
 
 export interface SiteImportData {
-  email?: string;
-  empresa?: string;
-  diagnostico?: Record<string, unknown>;
-  relatorios?: unknown[];
   encontrado: boolean;
   mensagem?: string;
   erro?: string;
+  // Lead
+  email?: string;
+  leadId?: string;
+  nome?: string;
+  empresa?: string;
+  setor?: string;
+  faixaFuncionarios?: string;
+  faixaFaturamento?: string;
+  scoreProntidao?: number;
+  scoreMetodoFit?: number;
+  // Case
+  caseId?: string;
+  faseAtual?: string;
+  jornadaCompleta?: boolean;
+  brandContext?: Record<string, unknown>;
+  commercialScore?: {
+    maturity?: string;
+    maturity_score?: number;
+    investment_capacity?: string;
+    readiness?: number;
+    method_fit?: number;
+    commercial_priority?: string;
+    opportunities?: unknown[];
+    recommended_services?: string[];
+    summary?: string;
+  };
+  // Relatórios
+  diagnostico?: Record<string, unknown>;
+  diagnosticoInterno?: Record<string, unknown>;
+  respostasFormulario?: Record<string, unknown>;
+  espelho?: Record<string, unknown>;
+  mapaTensao?: Record<string, unknown>;
+  planoTravessia?: Record<string, unknown>;
+  todosReports?: { type: string; status: string; deliveredAt?: string }[];
 }
 
 export interface Project {
@@ -380,7 +410,24 @@ export function getProjectContext(project: Project): string {
   parts.push(`STATUS: ${project.status}`);
 
   if (project.siteImport?.encontrado) {
-    parts.push(`\nDIAGNÓSTICO DO SITE (dados do cliente):\n${JSON.stringify(project.siteImport.diagnostico, null, 2)}`);
+    const si = project.siteImport;
+    parts.push(`\nDADOS DO SITE AMUM (pré-qualificação do cliente):`);
+    if (si.empresa) parts.push(`Empresa: ${si.empresa}`);
+    if (si.setor) parts.push(`Setor (declarado): ${si.setor}`);
+    if (si.faseAtual) parts.push(`Fase atual na jornada digital: ${si.faseAtual}`);
+    if (si.jornadaCompleta) parts.push(`Jornada digital completa: sim`);
+    if (si.scoreProntidao != null) parts.push(`Score de prontidão (IA): ${si.scoreProntidao}/100`);
+    if (si.scoreMetodoFit != null) parts.push(`Score de fit com metodologia AMUM: ${si.scoreMetodoFit}/100`);
+    if (si.brandContext) parts.push(`Brand context acumulado:\n${JSON.stringify(si.brandContext, null, 2)}`);
+    if (si.commercialScore) {
+      const cs = si.commercialScore;
+      parts.push(`Score comercial: maturidade=${cs.maturity}, investimento=${cs.investment_capacity}, prontidão=${cs.readiness}/100, fit=${cs.method_fit}/100, prioridade=${cs.commercial_priority}`);
+      if (cs.summary) parts.push(`Resumo comercial: ${cs.summary}`);
+    }
+    if (si.diagnostico) parts.push(`Diagnóstico entregue ao cliente:\n${JSON.stringify(si.diagnostico, null, 2)}`);
+    if (si.espelho) parts.push(`Espelho Simbólico:\n${JSON.stringify(si.espelho, null, 2)}`);
+    if (si.mapaTensao) parts.push(`Mapa de Tensão Cultural:\n${JSON.stringify(si.mapaTensao, null, 2)}`);
+    if (si.planoTravessia) parts.push(`Plano de Travessia:\n${JSON.stringify(si.planoTravessia, null, 2)}`);
   }
 
   if (project.documents.length > 0) {
