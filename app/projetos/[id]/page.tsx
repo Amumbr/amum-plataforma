@@ -3260,23 +3260,37 @@ function StepResearchReport({
     if (!file) return;
     setUploading(true);
     try {
-      const formData = new FormData();
-      formData.append('file', file);
-      const res = await fetch('/api/documents', { method: 'POST', body: formData });
-      const data = await res.json();
-      const content = data.text || data.content || '';
-      if (!content) return;
+      // Ler como base64
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = () => reject(new Error('Falha na leitura'));
+        reader.readAsDataURL(file);
+      });
 
-      // Generate summary
+      const extractRes = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract', filename: file.name, fileType: file.type, size: file.size, base64 }),
+      });
+      const extractData = await extractRes.json();
+      const fileContent = extractData.extractedText || '';
+      if (!fileContent) {
+        alert(extractData.error || 'Não foi possível extrair o texto do arquivo.');
+        return;
+      }
+
+      // Gerar resumo estratégico
       const summaryRes = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          messages: [{ role: 'user', content: `Faça um resumo estratégico conciso (máximo 200 palavras) do seguinte documento, destacando os dados e insights mais relevantes para um projeto de branding:\n\n${content.slice(0, 4000)}` }],
+          messages: [{ role: 'user', content: `Faça um resumo estratégico conciso (máximo 200 palavras) do seguinte documento, destacando os dados e insights mais relevantes para um projeto de branding:\n\n${fileContent.slice(0, 4000)}` }],
         }),
       });
       const summaryData = await summaryRes.json();
-      const resumo = summaryData.content || summaryData.message || content.slice(0, 300);
+      const resumo = summaryData.text || fileContent.slice(0, 300);
+      const content = fileContent;
 
       const newFile = {
         id: `ir_${Date.now()}`,
