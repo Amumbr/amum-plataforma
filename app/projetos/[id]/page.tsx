@@ -4198,6 +4198,1420 @@ function StepDeepAnalysis({
   );
 }
 
+// ─── STEP: TOUCHPOINT AUDIT ───────────────────────────────────────────────────
+
+function StepTouchpointAudit({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const audit = project.touchpointAudit;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'touchpoint_audit', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.touchpoints) {
+        const updated = { ...project, touchpointAudit: data };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {audit ? `${audit.touchpoints.length} touchpoints mapeados · ${audit.quickWins.length} quick wins` : 'Auditoria aprovada'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!audit ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Gera inventário completo de touchpoints com score de peso/coerência e quick wins.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando inventário...' : 'Gerar Auditoria de Touchpoints'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      {['Touchpoint','Canal','Peso','Coerência','Quick Win','Observação'].map(h => (
+                        <th key={h} style={{ textAlign: 'left', padding: '8px', color: 'var(--text-muted)', fontWeight: 500 }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audit.touchpoints.map((tp) => (
+                      <tr key={tp.id} style={{ borderBottom: '1px solid var(--border-subtle)' }}>
+                        <td style={{ padding: '8px', fontWeight: 500 }}>{tp.touchpoint}</td>
+                        <td style={{ padding: '8px', color: 'var(--text-muted)' }}>{tp.canal}</td>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>
+                          <span style={{ color: tp.peso >= 4 ? 'var(--gold)' : 'var(--text-muted)' }}>{tp.peso}/5</span>
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>
+                          <span style={{ color: tp.scoreCoerencia <= 2 ? '#e05252' : tp.scoreCoerencia >= 4 ? '#52c47a' : 'var(--text-muted)' }}>
+                            {tp.scoreCoerencia}/5
+                          </span>
+                        </td>
+                        <td style={{ padding: '8px', textAlign: 'center' }}>{tp.quickWin ? '⚡' : '—'}</td>
+                        <td style={{ padding: '8px', color: 'var(--text-muted)', maxWidth: '200px', fontSize: '12px' }}>{tp.observacao}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              {audit.quickWins.length > 0 && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>QUICK WINS PRIORITÁRIOS</p>
+                  {audit.quickWins.map((qw, i) => (
+                    <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>⚡ {qw}</p>
+                  ))}
+                </div>
+              )}
+              {audit.analise && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '8px' }}>ANÁLISE ESTRATÉGICA</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{audit.analise}</p>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar e continuar</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!audit && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular esta etapa</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: INCOHERENCE MAP ─────────────────────────────────────────────────────
+
+function StepIncoherenceMap({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const imap = project.incoherenceMap;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'incoherence_map', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.items) {
+        const updated = { ...project, incoherenceMap: data };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const colStyle: React.CSSProperties = { flex: 1, minWidth: 0 };
+  const colHeader: React.CSSProperties = { fontSize: '11px', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px', textTransform: 'uppercase' as const };
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {imap ? `${imap.items.length} dimensões mapeadas · Gate 1 validado` : 'Mapa aprovado'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!imap ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Cruza o que a marca declara ser, o que ela faz e o que ela comunica — revelando os gaps que estruturam o reposicionamento.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando mapa...' : 'Gerar Mapa de Incoerências'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {imap.items.map((item, i) => (
+                <div key={i} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)', marginBottom: '12px' }}>{item.dimensao}</p>
+                  <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                    <div style={colStyle}>
+                      <p style={{ ...colHeader, color: '#4a9eff' }}>É (declara)</p>
+                      <p style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>{item.eDeclara}</p>
+                    </div>
+                    <div style={colStyle}>
+                      <p style={{ ...colHeader, color: '#52c47a' }}>Faz</p>
+                      <p style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>{item.eFaz}</p>
+                    </div>
+                    <div style={colStyle}>
+                      <p style={{ ...colHeader, color: '#e0a52a' }}>Fala</p>
+                      <p style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>{item.eFala}</p>
+                    </div>
+                  </div>
+                  {item.discrepancia && (
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '4px' }}>
+                      <strong style={{ color: 'var(--text)' }}>Gap: </strong>{item.discrepancia}
+                    </p>
+                  )}
+                  {item.risco && (
+                    <p style={{ fontSize: '12px', color: '#e05252' }}>
+                      <strong>Risco: </strong>{item.risco}
+                    </p>
+                  )}
+                </div>
+              ))}
+              {imap.implicacoesEstrategicas?.length > 0 && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 600, marginBottom: '8px' }}>IMPLICAÇÕES ESTRATÉGICAS · GATE 1</p>
+                  {imap.implicacoesEstrategicas.map((impl, i) => (
+                    <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>→ {impl}</p>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Liderança reconhece — Aprovar Gate 1</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!imap && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular esta etapa</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: POSITIONING THESIS ──────────────────────────────────────────────────
+
+function StepPositioningThesis({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const thesis = project.positioningThesis;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'positioning_thesis', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.afirmacaoCentral) {
+        const updated = { ...project, positioningThesis: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          {thesis && <p style={{ fontSize: '14px', color: 'var(--text)', fontStyle: 'italic', marginBottom: '12px' }}>"{thesis.afirmacaoCentral}"</p>}
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!thesis ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Não apenas "para onde vamos" — mas "o que deixamos de ser e fazer". Trade-offs explícitos são obrigatórios.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando tese...' : 'Gerar Tese de Posicionamento'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px' }}>AFIRMAÇÃO CENTRAL</p>
+                <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, fontWeight: 500 }}>{thesis.afirmacaoCentral}</p>
+              </div>
+              {thesis.tradeoffs?.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Trade-offs</p>
+                  {thesis.tradeoffs.map((t, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '8px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '11px', color: '#e05252', fontWeight: 600, marginBottom: '2px' }}>ABANDONA</p>
+                        <p style={{ fontSize: '13px', color: 'var(--text)' }}>{t.abandona}</p>
+                      </div>
+                      <div style={{ padding: '0 8px', color: 'var(--text-dim)', alignSelf: 'center' }}>→</div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '11px', color: '#52c47a', fontWeight: 600, marginBottom: '2px' }}>GANHA</p>
+                        <p style={{ fontSize: '13px', color: 'var(--text)' }}>{t.ganha}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {thesis.justificativa && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '6px' }}>JUSTIFICATIVA</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{thesis.justificativa}</p>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Trade-offs aceitos — Aprovar</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!thesis && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: BRAND ARCHITECTURE ──────────────────────────────────────────────────
+
+function StepBrandArchitecture({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const arch = project.brandArchitecture;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'brand_architecture', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.portfolioMap || data.brandToOperating) {
+        const updated = { ...project, brandArchitecture: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const prioColor = (p: string) => p === 'alta' ? '#e05252' : p === 'media' ? '#e0a52a' : 'var(--text-muted)';
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {arch ? `${arch.brandToOperating?.length || 0} funções mapeadas` : 'Arquitetura aprovada'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!arch ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Como o posicionamento se traduz em decisões por função — portfólio, nomenclatura e brand-to-operating model.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando arquitetura...' : 'Gerar Arquitetura de Marca'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {arch.portfolioMap && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '6px' }}>MAPA DE PORTFÓLIO</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{arch.portfolioMap}</p>
+                </div>
+              )}
+              {arch.nomenclaturaRegras && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '6px' }}>REGRAS DE NOMENCLATURA</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{arch.nomenclaturaRegras}</p>
+                </div>
+              )}
+              {arch.brandToOperating?.length > 0 && (
+                <div style={{ marginBottom: '16px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>BRAND-TO-OPERATING MODEL</p>
+                  {arch.brandToOperating.map((b, i) => (
+                    <div key={i} style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px', marginBottom: '8px', display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                      <div style={{ minWidth: '120px' }}>
+                        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)' }}>{b.funcao}</p>
+                        <p style={{ fontSize: '11px', color: prioColor(b.prioridade), marginTop: '2px' }}>{b.prioridade}</p>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text)', lineHeight: 1.5 }}>{b.implicacao}</p>
+                        {b.responsavel && <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>Owner: {b.responsavel}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Owners nomeados — Aprovar Gate 2</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!arch && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: ODS MATRIX ──────────────────────────────────────────────────────────
+
+function StepODSMatrix({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const matrix = project.odsMatrix;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'ods_matrix', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.items) {
+        const updated = { ...project, odsMatrix: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {matrix ? `${matrix.items.length} ODS selecionados com iniciativas verificáveis` : 'Matriz aprovada'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!matrix ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                ODS como comprometimento operacional — não linguagem cosmética. Iniciativas concretas, indicadores verificáveis, owners e cadência.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando matriz...' : 'Gerar Matriz ODS'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {matrix.items.map((item, i) => (
+                <div key={i} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '13px', fontWeight: 700, color: 'var(--gold)', marginBottom: '12px' }}>{item.ods}</p>
+                  {item.iniciativas.map((ini, j) => (
+                    <div key={j} style={{ background: 'var(--card-bg)', borderRadius: '6px', padding: '10px 12px', marginBottom: '6px' }}>
+                      <p style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px' }}>{ini.descricao}</p>
+                      <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}><strong>Indicador:</strong> {ini.indicador}</p>
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}><strong>Owner:</strong> {ini.owner}</p>
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}><strong>Cadência:</strong> {ini.cadencia}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Matriz ODS</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!matrix && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: BRAND PLATFORM ─────────────────────────────────────────────────────
+
+function StepBrandPlatform({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const bp = project.brandPlatform;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'brand_platform', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.proposito) {
+        const updated = { ...project, brandPlatform: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() {
+    const updated = project.brandPlatform
+      ? { ...project, brandPlatform: { ...project.brandPlatform, aprovadoEm: new Date().toISOString() } }
+      : project;
+    saveProject(updated);
+    onUpdate(approveStep(updated, step.id));
+  }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const fieldStyle: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' };
+  const labelStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '6px', textTransform: 'uppercase' as const };
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          {bp && <p style={{ fontSize: '13px', color: 'var(--text)', fontStyle: 'italic', marginBottom: '4px' }}>"{bp.essencia}"</p>}
+          <p style={{ color: 'var(--text-muted)', fontSize: '12px', marginBottom: '12px' }}>
+            {bp?.aprovadoEm ? `Assinada em ${new Date(bp.aprovadoEm).toLocaleDateString('pt-BR')}` : 'Plataforma aprovada · Gate 3'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!bp ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Documento-mãe: propósito, essência, posicionamento, promessa e valores com comportamentos operacionais.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando plataforma...' : 'Gerar Plataforma de Marca'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={fieldStyle}><p style={labelStyle}>Propósito</p><p style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.6 }}>{bp.proposito}</p></div>
+              <div style={fieldStyle}><p style={labelStyle}>Essência</p><p style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.6 }}>{bp.essencia}</p></div>
+              <div style={fieldStyle}><p style={labelStyle}>Posicionamento</p><p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{bp.posicionamento}</p></div>
+              <div style={fieldStyle}><p style={labelStyle}>Promessa</p><p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{bp.promessa}</p></div>
+              {bp.valores?.length > 0 && (
+                <div style={fieldStyle}>
+                  <p style={labelStyle}>Valores e comportamentos operacionais</p>
+                  {bp.valores.map((v, i) => (
+                    <div key={i} style={{ marginBottom: '12px' }}>
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '6px' }}>{v.valor}</p>
+                      {v.comportamentos.map((c, j) => (
+                        <p key={j} style={{ fontSize: '12px', color: 'var(--text-muted)', paddingLeft: '12px', marginBottom: '3px' }}>• {c}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Plataforma assinada — Aprovar Gate 3</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!bp && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: LINGUISTIC CODE ─────────────────────────────────────────────────────
+
+function StepLinguisticCode({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const lc = project.linguisticCode;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'linguistic_code', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.tomDeVoz) {
+        const updated = { ...project, linguisticCode: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const sectionStyle: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' };
+  const labelStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px', textTransform: 'uppercase' as const };
+  const tag = (txt: string, color = 'var(--text-muted)') => (
+    <span style={{ display: 'inline-block', padding: '3px 10px', borderRadius: '100px', border: `1px solid ${color}`, color, fontSize: '12px', margin: '3px' }}>{txt}</span>
+  );
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          {lc && <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Tom de voz: {lc.tomDeVoz.adjetivos.join(' · ')}</p>}
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!lc ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Tradução do posicionamento em linguagem operacional: tom, vocabulário, padrões de frase, exemplos e QA checklist.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando código...' : 'Gerar Código Linguístico'}
+              </button>
+            </div>
+          ) : (
+            <>
+              <div style={sectionStyle}>
+                <p style={labelStyle}>Tom de Voz</p>
+                <div style={{ marginBottom: '8px' }}>
+                  <p style={{ fontSize: '11px', color: '#52c47a', marginBottom: '4px', fontWeight: 600 }}>A marca é:</p>
+                  {lc.tomDeVoz.adjetivos.map((a, i) => <React.Fragment key={i}>{tag(a, '#52c47a')}</React.Fragment>)}
+                </div>
+                <div>
+                  <p style={{ fontSize: '11px', color: '#e05252', marginBottom: '4px', fontWeight: 600 }}>A marca NÃO é:</p>
+                  {lc.tomDeVoz.antiAdjetivos.map((a, i) => <React.Fragment key={i}>{tag(a, '#e05252')}</React.Fragment>)}
+                </div>
+              </div>
+              {lc.vocabularioPreferencial?.length > 0 && (
+                <div style={sectionStyle}>
+                  <p style={labelStyle}>Vocabulário Preferencial</p>
+                  {lc.vocabularioPreferencial.map((v, i) => <React.Fragment key={i}>{tag(v, '#4a9eff')}</React.Fragment>)}
+                  {lc.vocabularioProibido?.length > 0 && (
+                    <>
+                      <p style={{ fontSize: '11px', color: '#e05252', fontWeight: 600, margin: '10px 0 4px', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Proibido:</p>
+                      {lc.vocabularioProibido.map((v, i) => <React.Fragment key={i}>{tag(v, '#e05252')}</React.Fragment>)}
+                    </>
+                  )}
+                </div>
+              )}
+              {lc.exemplosAplicacao?.length > 0 && (
+                <div style={sectionStyle}>
+                  <p style={labelStyle}>Exemplos por Contexto</p>
+                  {lc.exemplosAplicacao.map((ex, i) => (
+                    <div key={i} style={{ marginBottom: '10px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '3px' }}>{ex.contexto}</p>
+                      <p style={{ fontSize: '13px', color: 'var(--text)', fontStyle: 'italic', paddingLeft: '8px', borderLeft: '2px solid var(--gold)' }}>"{ex.exemplo}"</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {lc.qaChecklist?.length > 0 && (
+                <div style={sectionStyle}>
+                  <p style={labelStyle}>QA Checklist</p>
+                  {lc.qaChecklist.map((q, i) => (
+                    <p key={i} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>☐ {q}</p>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Código Linguístico</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!lc && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: BRAND NARRATIVE ────────────────────────────────────────────────────
+
+function StepBrandNarrative({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const [editMode, setEditMode] = React.useState(false);
+  const [draft, setDraft] = React.useState('');
+  const narrative = project.brandNarrative;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'brand_narrative', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.manifesto) {
+        const updated = { ...project, brandNarrative: { manifesto: data.manifesto, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+        setDraft(data.manifesto);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() {
+    const updated = project.brandNarrative
+      ? { ...project, brandNarrative: { ...project.brandNarrative, versaoAprovada: project.brandNarrative.manifesto } }
+      : project;
+    saveProject(updated);
+    onUpdate(approveStep(updated, step.id));
+  }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  function saveDraft() {
+    if (!project.brandNarrative) return;
+    const updated = { ...project, brandNarrative: { ...project.brandNarrative, manifesto: draft } };
+    saveProject(updated); onUpdate(updated); setEditMode(false);
+  }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Manifesto aprovado</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!narrative ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                O texto que ancora toda a comunicação — narrativa com força real, tensão e direção. Gerado a partir da Plataforma aprovada.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Escrevendo manifesto...' : 'Gerar Narrativa de Marca'}
+              </button>
+            </div>
+          ) : editMode ? (
+            <>
+              <textarea
+                value={draft}
+                onChange={e => setDraft(e.target.value)}
+                style={{ width: '100%', minHeight: '320px', background: 'var(--card-bg)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '16px', color: 'var(--text)', fontSize: '14px', lineHeight: 1.7, resize: 'vertical', fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: '12px' }}
+              />
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={saveDraft}>Salvar edições</button>
+                <button className="btn-skip" onClick={() => setEditMode(false)}>Cancelar</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
+                {narrative.manifesto.split('\n\n').map((p, i) => (
+                  <p key={i} style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.7, marginBottom: '16px' }}>{p}</p>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar versão final</button>
+                <button className="btn-skip" onClick={() => { setDraft(narrative.manifesto); setEditMode(true); }}>Editar</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!narrative && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: MESSAGE LIBRARY ────────────────────────────────────────────────────
+
+function StepMessageLibrary({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const library = project.messageLibrary;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'message_library', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.items) {
+        const updated = { ...project, messageLibrary: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {library ? `${library.items.length} públicos com afirmações e provas` : 'Biblioteca aprovada'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!library ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Sistema de narrativa verificável por público — afirmações centrais com provas concretas, não aspiração vazia.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando biblioteca...' : 'Gerar Biblioteca de Mensagens'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {library.items.map((item, i) => (
+                <div key={i} style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px', textTransform: 'uppercase' }}>{item.publico}</p>
+                  <p style={{ fontSize: '14px', color: 'var(--text)', fontWeight: 500, lineHeight: 1.5, marginBottom: '10px' }}>{item.afirmacaoCentral}</p>
+                  {item.provas.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '6px' }}>PROVAS</p>
+                      {item.provas.map((prova, j) => (
+                        <p key={j} style={{ fontSize: '12px', color: 'var(--text-muted)', paddingLeft: '10px', borderLeft: '2px solid var(--border)', marginBottom: '4px' }}>{prova}</p>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Biblioteca</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!library && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: VISUAL DIRECTION ───────────────────────────────────────────────────
+
+function StepVisualDirection({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const vd = project.visualDirection;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'visual_direction', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.principiosSimbolicos) {
+        const updated = { ...project, visualDirection: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const sectionStyle: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' };
+  const labelStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px', textTransform: 'uppercase' as const };
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Direção visual aprovada</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!vd ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Princípios simbólicos, paleta, tipografia e moodboard — diretrizes estratégicas que orientam qualquer designer que toque na marca.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando direção...' : 'Gerar Direção Visual'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {vd.principiosSimbolicos?.length > 0 && (
+                <div style={sectionStyle}>
+                  <p style={labelStyle}>Princípios Simbólicos</p>
+                  {vd.principiosSimbolicos.map((p, i) => (
+                    <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px', paddingLeft: '8px', borderLeft: '2px solid var(--gold)' }}>→ {p}</p>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
+                {vd.paleta && (
+                  <div style={{ ...sectionStyle, flex: 1 }}>
+                    <p style={labelStyle}>Paleta</p>
+                    <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd.paleta}</p>
+                  </div>
+                )}
+                {vd.tipografia && (
+                  <div style={{ ...sectionStyle, flex: 1 }}>
+                    <p style={labelStyle}>Tipografia</p>
+                    <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd.tipografia}</p>
+                  </div>
+                )}
+              </div>
+              {vd.moodboardReferencias?.length > 0 && (
+                <div style={sectionStyle}>
+                  <p style={labelStyle}>Referências Moodboard</p>
+                  {vd.moodboardReferencias.map((r, i) => (
+                    <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>• {r}</p>
+                  ))}
+                </div>
+              )}
+              {vd.diretrizes && (
+                <div style={sectionStyle}>
+                  <p style={labelStyle}>Diretrizes para o Designer</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{vd.diretrizes}</p>
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Direção Visual</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!vd && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: ROLLOUT PLAN ───────────────────────────────────────────────────────
+
+function StepRolloutPlan({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const plan = project.rolloutPlan;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'rollout_plan', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.ondas) {
+        const updated = { ...project, rolloutPlan: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const ondaColors = ['#4a9eff', '#52c47a', '#e0a52a'];
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>
+            {plan ? `${plan.ondas.length} ondas de rollout definidas` : 'Plano aprovado'}
+          </p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!plan ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Reposicionamento por ondas — Interno → Parceiros → Mercado. Cada onda com touchpoints, responsáveis, timeline e critério de conclusão.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando plano...' : 'Gerar Plano de Rollout'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {plan.ondas.map((onda, i) => (
+                <div key={i} style={{ border: `1px solid ${ondaColors[i] || 'var(--border)'}`, borderRadius: '8px', padding: '16px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                    <p style={{ fontSize: '14px', fontWeight: 700, color: ondaColors[i] || 'var(--text)' }}>{onda.onda}</p>
+                    <span style={{ fontSize: '12px', color: 'var(--text-muted)', background: 'var(--card-bg)', padding: '3px 10px', borderRadius: '100px' }}>{onda.timeline}</span>
+                  </div>
+                  {onda.touchpoints?.length > 0 && (
+                    <div style={{ marginBottom: '8px' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>TOUCHPOINTS</p>
+                      {onda.touchpoints.map((t, j) => <p key={j} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '2px' }}>• {t}</p>)}
+                    </div>
+                  )}
+                  {onda.responsaveis?.length > 0 && (
+                    <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                      <strong>Responsáveis:</strong> {onda.responsaveis.join(', ')}
+                    </p>
+                  )}
+                  {onda.criteriosConclusao?.length > 0 && (
+                    <div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '4px' }}>CRITÉRIOS DE CONCLUSÃO</p>
+                      {onda.criteriosConclusao.map((c, j) => <p key={j} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '2px' }}>✓ {c}</p>)}
+                    </div>
+                  )}
+                </div>
+              ))}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Plano de Rollout · Gate 4</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!plan && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: ENABLEMENT KIT ─────────────────────────────────────────────────────
+
+function StepEnablementKit({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const kit = project.enablementKit;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'enablement_kit', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.faqs || data.templates) {
+        const updated = { ...project, enablementKit: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Kit de habilitação aprovado</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!kit ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                FAQs, templates, trilha de adoção por área e checklist de QA — o que permite aplicar a marca sem o estrategista na sala.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando kit...' : 'Gerar Kit de Habilitação'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {kit.faqs?.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>FAQs DE APLICAÇÃO</p>
+                  {kit.faqs.map((f, i) => (
+                    <div key={i} style={{ marginBottom: '12px' }}>
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>Q: {f.pergunta}</p>
+                      <p style={{ fontSize: '13px', color: 'var(--text-muted)', paddingLeft: '8px' }}>A: {f.resposta}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {kit.checklistQA?.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px' }}>QA CHECKLIST DE LINGUAGEM</p>
+                  {kit.checklistQA.map((q, i) => (
+                    <p key={i} style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px' }}>☐ {q}</p>
+                  ))}
+                </div>
+              )}
+              {kit.trilhaAdocao?.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>TRILHA DE ADOÇÃO POR ÁREA</p>
+                  {kit.trilhaAdocao.map((area, i) => (
+                    <div key={i} style={{ marginBottom: '10px' }}>
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>{area.area}</p>
+                      {area.passos.map((p, j) => (
+                        <p key={j} style={{ fontSize: '12px', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '2px' }}>{j + 1}. {p}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Kit de Habilitação</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!kit && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: TRAINING DESIGN ────────────────────────────────────────────────────
+
+function StepTrainingDesign({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const [loading, setLoading] = React.useState(false);
+  const td = project.trainingDesign;
+
+  async function handleGenerate() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'training_design', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.formatos || data.agenda) {
+        const updated = { ...project, trainingDesign: { ...data, createdAt: new Date().toISOString() } };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setLoading(false); }
+  }
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Programa de treinamento aprovado</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!td ? (
+            <div style={{ textAlign: 'center', padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Objetivos por público, formatos, agenda e materiais — o que transforma posicionamento em comportamento real.
+              </p>
+              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                {loading ? 'Gerando programa...' : 'Gerar Programa de Treinamento'}
+              </button>
+            </div>
+          ) : (
+            <>
+              {td.objetivosPorPublico?.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>OBJETIVOS POR PÚBLICO</p>
+                  {td.objetivosPorPublico.map((item, i) => (
+                    <div key={i} style={{ marginBottom: '10px' }}>
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>{item.publico}</p>
+                      {item.objetivos.map((o, j) => (
+                        <p key={j} style={{ fontSize: '12px', color: 'var(--text-muted)', paddingLeft: '10px', marginBottom: '2px' }}>• {o}</p>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              )}
+              {td.agenda?.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>AGENDA</p>
+                  {td.agenda.map((bloco, i) => (
+                    <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '8px 0', borderBottom: i < td.agenda.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                      <span style={{ minWidth: '40px', fontSize: '12px', color: 'var(--text-muted)' }}>{bloco.duracao}</span>
+                      <div>
+                        <p style={{ fontSize: '13px', color: 'var(--text)' }}>{bloco.bloco}</p>
+                        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{bloco.formato}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Programa de Treinamento</button>
+                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Regenerando...' : 'Regenerar'}
+                </button>
+              </div>
+            </>
+          )}
+          {!td && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: COHERENCE MONITOR (Fase 5) ────────────────────────────────────────
+
+function StepCoherenceMonitor({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const monitor = project.coherenceMonitor;
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  const scoreColor = (s: number) => s >= 8 ? '#52c47a' : s >= 5 ? '#e0a52a' : '#e05252';
+  const tendenciaIcon = (t: string) => t === 'subindo' ? '↑' : t === 'caindo' ? '↓' : '→';
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Monitor ativo · Gate 5</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <>
+          {!monitor ? (
+            <div style={{ padding: '24px 0' }}>
+              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+                Painel trimestral de coerência de marca — scorecard com tendências e plano corretivo. Configure o primeiro trimestre de monitoramento.
+              </p>
+              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                  O monitor de coerência é configurado manualmente após o primeiro ciclo de aplicação do reposicionamento. Aprovação aqui significa que a cadência e os owners foram definidos — Gate 5.
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Sistema de gestão ativo — Aprovar Gate 5</button>
+                <button className="btn-skip" onClick={handleSkip}>Pular</button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))', gap: '8px', marginBottom: '16px' }}>
+                {monitor.scores.map((s, i) => (
+                  <div key={i} style={{ border: `1px solid ${scoreColor(s.score)}`, borderRadius: '8px', padding: '12px' }}>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '6px' }}>{s.dimensao}</p>
+                    <p style={{ fontSize: '22px', fontWeight: 700, color: scoreColor(s.score) }}>
+                      {s.score} <span style={{ fontSize: '14px' }}>{tendenciaIcon(s.tendencia)}</span>
+                    </p>
+                    {s.planoCorretivo && <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{s.planoCorretivo}</p>}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className="btn-approve" onClick={handleApprove}>Aprovar Gate 5</button>
+              </div>
+            </>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: COMPLIANCE AUDIT (Fase 5) ─────────────────────────────────────────
+
+function StepComplianceAudit({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const audit = project.complianceAudit;
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Auditoria de compliance registrada</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <div style={{ padding: '24px 0' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+            Auditoria de aderência por touchpoint — amostragem, % de conformidade por área, backlog priorizado. Realizada com dados reais após aplicação.
+          </p>
+          {!audit && (
+            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                Auditoria realizada com amostragem real de materiais produzidos após o reposicionamento. Configure após o primeiro ciclo completo de aplicação (mínimo 60 dias pós-rollout).
+              </p>
+            </div>
+          )}
+          {audit && (
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '12px' }}>
+                Média geral: <span style={{ color: audit.mediaGeral >= 70 ? '#52c47a' : '#e05252' }}>{audit.mediaGeral}%</span>
+              </p>
+              {audit.itens.map((item, i) => (
+                <div key={i} style={{ border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px', marginBottom: '6px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                    <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)' }}>{item.touchpoint}</p>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: item.percentualConformidade >= 70 ? '#52c47a' : '#e05252' }}>
+                      {item.percentualConformidade}%
+                    </span>
+                  </div>
+                  {item.backlogCorrecoes.length > 0 && (
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Correções: {item.backlogCorrecoes.join(' · ')}</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-approve" onClick={handleApprove}>Registrar auditoria como concluída</button>
+            <button className="btn-skip" onClick={handleSkip}>Pular</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STEP: ANNUAL REVIEW (Fase 5) ─────────────────────────────────────────────
+
+function StepAnnualReview({
+  project, step, onUpdate,
+}: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
+  const review = project.annualReview;
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+  function handleReopen() { onUpdate(reopenStep(project, step.id)); }
+
+  return (
+    <div style={{ padding: '0 16px 24px' }}>
+      {step.status === 'done' ? (
+        <div>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Revisão anual aprovada e registrada</p>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+        </div>
+      ) : (
+        <div style={{ padding: '24px 0' }}>
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
+            Business case anual da marca — KPIs conectados a resultados de negócio, análise de ROI e recomendações para o conselho.
+          </p>
+          {!review ? (
+            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
+                A revisão anual é realizada com dados reais de performance — 12 meses após o início do rollout. Gera o documento executivo para conselho e finanças que transforma branding de custo em investimento com evidência.
+              </p>
+            </div>
+          ) : (
+            <div style={{ marginBottom: '16px' }}>
+              {review.kpisMarca?.length > 0 && (
+                <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
+                  <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>KPIs DE MARCA</p>
+                  {review.kpisMarca.map((kpi, i) => (
+                    <div key={i} style={{ marginBottom: '8px', padding: '8px', background: 'var(--card-bg)', borderRadius: '6px' }}>
+                      <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px' }}>{kpi.indicador}</p>
+                      <div style={{ display: 'flex', gap: '16px' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Meta: {kpi.meta}</p>
+                        <p style={{ fontSize: '12px', color: 'var(--text-muted)' }}>Realizado: {kpi.realizado}</p>
+                      </div>
+                      <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '4px' }}>{kpi.conexaoNegocio}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-approve" onClick={handleApprove}>Revisão anual concluída</button>
+            <button className="btn-skip" onClick={handleSkip}>Pular</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── STEP: CHAT ───────────────────────────────────────────────────────────────
 
 function StepChat({
@@ -4531,8 +5945,56 @@ export default function ProjetoPage() {
                           {step.type === 'transcripts' && (
                             <StepTranscripts project={project} step={step} onUpdate={handleUpdate} />
                           )}
+                          {step.type === 'touchpoint_audit' && (
+                            <StepTouchpointAudit project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'incoherence_map' && (
+                            <StepIncoherenceMap project={project} step={step} onUpdate={handleUpdate} />
+                          )}
                           {step.type === 'deep_analysis' && (
                             <StepDeepAnalysis project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'positioning_thesis' && (
+                            <StepPositioningThesis project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'brand_architecture' && (
+                            <StepBrandArchitecture project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'ods_matrix' && (
+                            <StepODSMatrix project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'brand_platform' && (
+                            <StepBrandPlatform project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'linguistic_code' && (
+                            <StepLinguisticCode project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'brand_narrative' && (
+                            <StepBrandNarrative project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'message_library' && (
+                            <StepMessageLibrary project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'visual_direction' && (
+                            <StepVisualDirection project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'rollout_plan' && (
+                            <StepRolloutPlan project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'enablement_kit' && (
+                            <StepEnablementKit project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'training_design' && (
+                            <StepTrainingDesign project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'coherence_monitor' && (
+                            <StepCoherenceMonitor project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'compliance_audit' && (
+                            <StepComplianceAudit project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'annual_review' && (
+                            <StepAnnualReview project={project} step={step} onUpdate={handleUpdate} />
                           )}
                           {step.type === 'chat' && (
                             <StepChat project={project} step={step} onUpdate={handleUpdate} />

@@ -280,11 +280,211 @@ export interface DriveFile {
   savedAt: string;
 }
 
+// ─── FASE 1 — NOVOS STEPS ─────────────────────────────────────────────────────
+
+export interface TouchpointItem {
+  id: string;
+  touchpoint: string;
+  canal: 'digital' | 'fisico' | 'relacional' | 'outro';
+  peso: number;            // 1–5: impacto percebido
+  scoreCoerencia: number;  // 1–5: coerência atual com posicionamento declarado
+  observacao: string;
+  quickWin: boolean;
+}
+
+export interface TouchpointAudit {
+  touchpoints: TouchpointItem[];
+  quickWins: string[];
+  analise: string;
+  createdAt: string;
+}
+
+export interface IncoherenceItem {
+  dimensao: string;
+  eDeclara: string;        // o que a marca declara ser (docs, plataforma)
+  eFaz: string;            // o que ela faz (touchpoint_audit, brand_audit)
+  eFala: string;           // o que ela comunica (social, web)
+  discrepancia: string;
+  risco: string;
+}
+
+export interface IncoherenceMap {
+  items: IncoherenceItem[];
+  implicacoesEstrategicas: string[];
+  analise: string;
+  createdAt: string;
+}
+
+// ─── FASE 2 — NOVOS STEPS ─────────────────────────────────────────────────────
+
+export interface PositioningThesis {
+  afirmacaoCentral: string;
+  tradeoffs: { abandona: string; ganha: string }[];
+  justificativa: string;
+  createdAt: string;
+}
+
+export interface BrandArchitectureItem {
+  funcao: string;          // produto, RH, vendas, atendimento…
+  implicacao: string;
+  responsavel: string;
+  prioridade: 'alta' | 'media' | 'baixa';
+}
+
+export interface BrandArchitecture {
+  portfolioMap: string;
+  nomenclaturaRegras: string;
+  brandToOperating: BrandArchitectureItem[];
+  analise: string;
+  createdAt: string;
+}
+
+export interface ODSIniciativa {
+  descricao: string;
+  indicador: string;
+  owner: string;
+  cadencia: string;
+}
+
+export interface ODSItem {
+  ods: string;             // ex: 'ODS 8 — Trabalho Decente e Crescimento Econômico'
+  iniciativas: ODSIniciativa[];
+}
+
+export interface ODSMatrix {
+  items: ODSItem[];
+  createdAt: string;
+}
+
+// ─── FASE 3 — NOVOS STEPS ─────────────────────────────────────────────────────
+
+export interface BrandPlatform {
+  proposito: string;       // por que existimos além do lucro
+  essencia: string;        // a ideia central que nos define
+  posicionamento: string;  // onde e para quem
+  promessa: string;        // o que entregamos consistentemente
+  valores: { valor: string; comportamentos: string[] }[];
+  aprovadoEm?: string;
+  createdAt: string;
+}
+
+export interface LinguisticCode {
+  tomDeVoz: { adjetivos: string[]; antiAdjetivos: string[] };
+  vocabularioPreferencial: string[];
+  vocabularioProibido: string[];
+  padroesConstrutivos: string[];
+  exemplosAplicacao: { contexto: string; exemplo: string }[];
+  qaChecklist: string[];
+  createdAt: string;
+}
+
+export interface BrandNarrative {
+  manifesto: string;
+  versaoAprovada?: string;
+  createdAt: string;
+}
+
+export interface MessageLibraryItem {
+  publico: string;         // cliente, investidor, time, parceiro
+  afirmacaoCentral: string;
+  provas: string[];
+}
+
+export interface MessageLibrary {
+  items: MessageLibraryItem[];
+  createdAt: string;
+}
+
+export interface VisualDirection {
+  principiosSimbolicos: string[];
+  paleta: string;
+  tipografia: string;
+  elementosGraficos: string[];
+  moodboardReferencias: string[];
+  diretrizes: string;
+  createdAt: string;
+}
+
+// ─── FASE 4 — NOVOS STEPS ─────────────────────────────────────────────────────
+
+export interface RolloutWave {
+  onda: string;            // 'Onda 1 — Interno', etc.
+  touchpoints: string[];
+  responsaveis: string[];
+  timeline: string;
+  criteriosConclusao: string[];
+}
+
+export interface RolloutPlan {
+  ondas: RolloutWave[];
+  createdAt: string;
+}
+
+export interface EnablementKit {
+  faqs: { pergunta: string; resposta: string }[];
+  templates: { nome: string; descricao: string }[];
+  trilhaAdocao: { area: string; passos: string[] }[];
+  checklistQA: string[];
+  createdAt: string;
+}
+
+export interface TrainingDesign {
+  objetivosPorPublico: { publico: string; objetivos: string[] }[];
+  formatos: string[];
+  agenda: { bloco: string; duracao: string; formato: string }[];
+  materiaisNecessarios: string[];
+  createdAt: string;
+}
+
+// ─── FASE 5 — NOVOS STEPS ─────────────────────────────────────────────────────
+
+export interface CoherenceScore {
+  dimensao: string;
+  score: number;           // 1–10
+  tendencia: 'subindo' | 'estavel' | 'caindo';
+  planoCorretivo?: string;
+}
+
+export interface CoherenceMonitor {
+  trimestre: string;
+  scores: CoherenceScore[];
+  analise: string;
+  historicoTrimestres: { trimestre: string; mediaGeral: number }[];
+  cadencia: string;
+  owners: string[];
+  createdAt: string;
+}
+
+export interface ComplianceAuditItem {
+  touchpoint: string;
+  percentualConformidade: number;
+  backlogCorrecoes: string[];
+  responsavel: string;
+}
+
+export interface ComplianceAudit {
+  data: string;
+  itens: ComplianceAuditItem[];
+  mediaGeral: number;
+  historico: { data: string; mediaGeral: number }[];
+  createdAt: string;
+}
+
+export interface AnnualReview {
+  anoReferencia: string;
+  kpisMarca: { indicador: string; meta: string; realizado: string; conexaoNegocio: string }[];
+  analiseROI: string;
+  recomendacoes: string[];
+  documentoExecutivo: string;
+  createdAt: string;
+}
+
 // ─── WORKFLOW ─────────────────────────────────────────────────────────────────
 
 export type StepStatus = 'pending' | 'active' | 'done' | 'skipped';
 
 export type StepType =
+  // Fase 1 — Escuta
   | 'import'
   | 'documents'
   | 'web_research'
@@ -294,7 +494,28 @@ export type StepType =
   | 'interview_scripts'
   | 'scripts'
   | 'transcripts'
+  | 'touchpoint_audit'
+  | 'incoherence_map'
+  // Fase 2 — Decifração
   | 'deep_analysis'
+  | 'positioning_thesis'
+  | 'brand_architecture'
+  | 'ods_matrix'
+  // Fase 3 — Reconstrução
+  | 'brand_platform'
+  | 'linguistic_code'
+  | 'brand_narrative'
+  | 'message_library'
+  | 'visual_direction'
+  // Fase 4 — Travessia
+  | 'rollout_plan'
+  | 'enablement_kit'
+  | 'training_design'
+  // Fase 5 — Regeneração
+  | 'coherence_monitor'
+  | 'compliance_audit'
+  | 'annual_review'
+  // Genérico
   | 'chat';
 
 export interface WorkflowStep {
@@ -313,6 +534,7 @@ export const STEP_DEFINITIONS: {
   label: string;
   narrativa: string;
 }[] = [
+  // ── FASE 1 — ESCUTA ──────────────────────────────────────────────────────────
   {
     id: 'import_site',
     type: 'import',
@@ -378,12 +600,53 @@ export const STEP_DEFINITIONS: {
       'Cada entrevista processada vira inteligência estruturada: citações-chave, arquétipos presentes, gaps entre discurso e percepção, alertas. O acúmulo alimenta a análise de Decifração.',
   },
   {
+    id: 'touchpoint_audit',
+    type: 'touchpoint_audit',
+    fase: 1,
+    label: 'Auditoria de Touchpoints',
+    narrativa:
+      'Inventário completo dos pontos de contato da marca com score de peso/impacto percebido. Cruza canais digitais, físicos e relacionais para identificar onde a experiência está falhando — e os quick wins de maior retorno antes do reposicionamento formal.',
+  },
+  {
+    id: 'incoherence_map',
+    type: 'incoherence_map',
+    fase: 1,
+    label: 'Mapa de Incoerências',
+    narrativa:
+      'O mapa É/Faz/Fala — cruzamento entre o que a marca declara ser, o que ela efetivamente faz e o que ela comunica. As discrepâncias identificadas aqui são o material bruto da tese de reposicionamento. Gate 1: liderança reconhece a realidade descrita nos achados.',
+  },
+  // ── FASE 2 — DECIFRAÇÃO ───────────────────────────────────────────────────────
+  {
     id: 'deep_analysis',
     type: 'deep_analysis',
     fase: 2,
     label: 'Análise de Decifração',
     narrativa:
       'Com todos os dados da Escuta aprovados, o sistema cruza as informações e produz a análise estratégica completa: arquétipo real vs. aspirado, territórios disponíveis, gaps estruturais, narrativa-núcleo.',
+  },
+  {
+    id: 'positioning_thesis',
+    type: 'positioning_thesis',
+    fase: 2,
+    label: 'Tese de Posicionamento',
+    narrativa:
+      'Não apenas "para onde vamos" — mas "o que deixamos de ser e fazer". A tese de reposicionamento com trade-offs explícitos é o documento mais honesto do processo. Afirmação central + 3 a 5 trade-offs nomeados. Editável inline. Aprovação formal.',
+  },
+  {
+    id: 'brand_architecture',
+    type: 'brand_architecture',
+    fase: 2,
+    label: 'Arquitetura de Marca',
+    narrativa:
+      'Como o posicionamento se traduz em decisões por função — produto, RH, vendas, atendimento, comunicação. Mapa de portfólio + regras de nomenclatura + brand-to-operating model com RACI simplificado. Gate 2: trade-offs aceitos; owners de ODS e linguagem nomeados.',
+  },
+  {
+    id: 'ods_matrix',
+    type: 'ods_matrix',
+    fase: 2,
+    label: 'Matriz ODS',
+    narrativa:
+      'ODS como comprometimento operacional — não como linguagem cosmética. Cada ODS selecionado ancorado em iniciativas concretas com indicadores verificáveis, owners e cadência de revisão. O sistema que impede ESG decorativo.',
   },
   {
     id: 'chat_decifração',
@@ -393,6 +656,47 @@ export const STEP_DEFINITIONS: {
     narrativa:
       'Espaço de co-criação para Mapa Simbólico, Análise de Gaps e Imersão de Liderança. A IA opera com contexto completo — tudo que foi aprovado até aqui está disponível.',
   },
+  // ── FASE 3 — RECONSTRUÇÃO ─────────────────────────────────────────────────────
+  {
+    id: 'brand_platform',
+    type: 'brand_platform',
+    fase: 3,
+    label: 'Plataforma de Marca',
+    narrativa:
+      'O documento-mãe de todo o processo: propósito, essência, posicionamento, promessa e valores com comportamentos operacionais. Cada campo gerado por IA e editável pelo estrategista. Aprovação formal libera todos os steps seguintes. Gate 3: plataforma assinada.',
+  },
+  {
+    id: 'linguistic_code',
+    type: 'linguistic_code',
+    fase: 3,
+    label: 'Código Linguístico',
+    narrativa:
+      'Tom de voz com adjetivos e anti-adjetivos, vocabulário preferencial e proibido, padrões de construção de frase, exemplos por contexto (site, redes, proposta, email) e QA checklist integrado. A tradução do posicionamento em linguagem operacional.',
+  },
+  {
+    id: 'brand_narrative',
+    type: 'brand_narrative',
+    fase: 3,
+    label: 'Narrativa de Marca',
+    narrativa:
+      'Manifesto da marca — o texto longo que ancora toda a comunicação subsequente. Gerado a partir da plataforma aprovada, editável inline com campo de versão aprovada. Alimenta a Biblioteca de Mensagens e o Plano de Rollout.',
+  },
+  {
+    id: 'message_library',
+    type: 'message_library',
+    fase: 3,
+    label: 'Biblioteca de Mensagens',
+    narrativa:
+      'Sistema de narrativa verificável — não manifesto solto. Afirmações centrais por público (cliente, investidor, time, parceiro) com provas concretas por afirmação. Substitui "nós somos apaixonados" por evidências que sustentam a promessa.',
+  },
+  {
+    id: 'visual_direction',
+    type: 'visual_direction',
+    fase: 3,
+    label: 'Direção Visual',
+    narrativa:
+      'Princípios simbólicos, paleta, tipografia, elementos gráficos e moodboard referencial. Não substitui o trabalho de design — documenta as diretrizes estratégicas que orientam qualquer designer que toque na marca daqui em diante.',
+  },
   {
     id: 'chat_reconstrucao',
     type: 'chat',
@@ -401,6 +705,31 @@ export const STEP_DEFINITIONS: {
     narrativa:
       'Co-criação da Plataforma de Marca, Código Linguístico e Narrativa de Marca. A IA tensiona, nomeia e lapida junto com o estrategista.',
   },
+  // ── FASE 4 — TRAVESSIA ────────────────────────────────────────────────────────
+  {
+    id: 'rollout_plan',
+    type: 'rollout_plan',
+    fase: 4,
+    label: 'Plano de Rollout',
+    narrativa:
+      'Reposicionamento por ondas: Onda 1 (interno), Onda 2 (parceiros e fornecedores), Onda 3 (mercado). Cada onda tem touchpoints, responsáveis, timeline e critério de conclusão. Rollout sem sequência é ruído — não mudança.',
+  },
+  {
+    id: 'enablement_kit',
+    type: 'enablement_kit',
+    fase: 4,
+    label: 'Kit de Habilitação',
+    narrativa:
+      'FAQs respondidos, templates prontos para uso, trilha de adoção por área, checklist de QA de linguagem. Gerado a partir da plataforma e do código linguístico. O que permite que a marca seja aplicada consistentemente sem o estrategista na sala.',
+  },
+  {
+    id: 'training_design',
+    type: 'training_design',
+    fase: 4,
+    label: 'Desenho do Treinamento',
+    narrativa:
+      'Programa de treinamento interno com objetivos por público, formatos (workshop, trilha, certificação), agenda e materiais necessários. A IA sugere a estrutura; o estrategista edita e aprova. Gate 4: rollout em andamento; cadência de monitoramento definida.',
+  },
   {
     id: 'chat_travessia',
     type: 'chat',
@@ -408,6 +737,31 @@ export const STEP_DEFINITIONS: {
     label: 'Co-criação — Travessia',
     narrativa:
       'Plano de Travessia, treinamento de time e curadoria de ativação. Com a plataforma aprovada, o trabalho passa para implementação real.',
+  },
+  // ── FASE 5 — REGENERAÇÃO ──────────────────────────────────────────────────────
+  {
+    id: 'coherence_monitor',
+    type: 'coherence_monitor',
+    fase: 5,
+    label: 'Monitor de Coerência',
+    narrativa:
+      'Painel trimestral: scorecard que cruza uso de marca, aderência linguística, experiência em touchpoints e ODS. Dashboard com tendências e plano corretivo. O sistema de marca que se autoavalia — não depende de uma nova contratação para saber se está funcionando.',
+  },
+  {
+    id: 'compliance_audit',
+    type: 'compliance_audit',
+    fase: 5,
+    label: 'Auditoria de Compliance',
+    narrativa:
+      'Auditoria de aderência por touchpoint: amostragem, percentual de conformidade por área, backlog priorizado de correções. Relatório com histórico de auditorias anteriores. Gate 5: sistema de gestão de marca operando com cadência e dono.',
+  },
+  {
+    id: 'annual_review',
+    type: 'annual_review',
+    fase: 5,
+    label: 'Revisão Anual',
+    narrativa:
+      'Business case da marca: KPIs conectados a resultados de negócio, análise de ROI e recomendações de realocação de prioridades. Documento executivo para conselho e finanças. O que transforma branding de custo em investimento com evidência.',
   },
 ];
 
@@ -491,6 +845,27 @@ export interface Project {
   interviewScripts: InterviewScript[];
   transcripts: TranscriptAnalysis[];
   deepAnalysis: DeepAnalysis;
+  // Fase 2 — Novos
+  positioningThesis?: PositioningThesis;
+  brandArchitecture?: BrandArchitecture;
+  odsMatrix?: ODSMatrix;
+  // Fase 3 — Novos
+  brandPlatform?: BrandPlatform;
+  linguisticCode?: LinguisticCode;
+  brandNarrative?: BrandNarrative;
+  messageLibrary?: MessageLibrary;
+  visualDirection?: VisualDirection;
+  // Fase 1 — Novos
+  touchpointAudit?: TouchpointAudit;
+  incoherenceMap?: IncoherenceMap;
+  // Fase 4 — Novos
+  rolloutPlan?: RolloutPlan;
+  enablementKit?: EnablementKit;
+  trainingDesign?: TrainingDesign;
+  // Fase 5 — Novos
+  coherenceMonitor?: CoherenceMonitor;
+  complianceAudit?: ComplianceAudit;
+  annualReview?: AnnualReview;
   deliverables: Deliverable[];
   driveFiles: DriveFile[];
   intel: IntelItem[];
@@ -798,6 +1173,80 @@ export function getProjectContext(project: Project): string {
     parts.push(`Tensão central: ${project.deepAnalysis.tensaoCentral}`);
     parts.push(`Território: ${project.deepAnalysis.territorioRecomendado}`);
     parts.push(`Narrativa-núcleo: ${project.deepAnalysis.narrativaNucleo}`);
+  }
+
+  if (project.touchpointAudit) {
+    const ta = project.touchpointAudit;
+    parts.push(`\nAUDITORIA DE TOUCHPOINTS (${ta.touchpoints.length} pontos):`);
+    ta.touchpoints.slice(0, 8).forEach(t => {
+      parts.push(`- ${t.touchpoint} (${t.canal}): peso ${t.peso}/5, coerência ${t.scoreCoerencia}/5${t.quickWin ? ' [quick win]' : ''}`);
+    });
+    if (ta.quickWins.length) parts.push(`Quick wins: ${ta.quickWins.join(', ')}`);
+    if (ta.analise) parts.push(`Análise: ${ta.analise.slice(0, 400)}`);
+  }
+
+  if (project.incoherenceMap) {
+    const im = project.incoherenceMap;
+    parts.push(`\nMAPA DE INCOERÊNCIAS (${im.items.length} dimensões):`);
+    im.items.slice(0, 5).forEach(i => {
+      parts.push(`- ${i.dimensao}: declara "${i.eDeclara.slice(0, 100)}" | faz "${i.eFaz.slice(0, 100)}" | fala "${i.eFala.slice(0, 100)}"`);
+      if (i.risco) parts.push(`  Risco: ${i.risco}`);
+    });
+    if (im.implicacoesEstrategicas.length) parts.push(`Implicações: ${im.implicacoesEstrategicas.join(' | ')}`);
+  }
+
+  if (project.positioningThesis) {
+    const pt = project.positioningThesis;
+    parts.push(`\nTESE DE POSICIONAMENTO:`);
+    parts.push(`Afirmação central: ${pt.afirmacaoCentral}`);
+    pt.tradeoffs.forEach(t => parts.push(`  Trade-off: abandona "${t.abandona}" → ganha "${t.ganha}"`));
+  }
+
+  if (project.brandArchitecture) {
+    const ba = project.brandArchitecture;
+    parts.push(`\nARQUITETURA DE MARCA:`);
+    parts.push(`Portfólio: ${ba.portfolioMap.slice(0, 300)}`);
+    parts.push(`Nomenclatura: ${ba.nomenclaturaRegras.slice(0, 200)}`);
+    ba.brandToOperating.slice(0, 4).forEach(b => {
+      parts.push(`  ${b.funcao}: ${b.implicacao.slice(0, 150)} (owner: ${b.responsavel})`);
+    });
+  }
+
+  if (project.odsMatrix) {
+    const om = project.odsMatrix;
+    parts.push(`\nMATRIZ ODS (${om.items.length} ODS selecionados):`);
+    om.items.forEach(o => {
+      parts.push(`- ${o.ods}: ${o.iniciativas.length} iniciativas`);
+    });
+  }
+
+  if (project.brandPlatform) {
+    const bp = project.brandPlatform;
+    parts.push(`\nPLATAFORMA DE MARCA APROVADA:`);
+    parts.push(`Propósito: ${bp.proposito}`);
+    parts.push(`Essência: ${bp.essencia}`);
+    parts.push(`Posicionamento: ${bp.posicionamento}`);
+    parts.push(`Promessa: ${bp.promessa}`);
+    if (bp.valores.length) parts.push(`Valores: ${bp.valores.map(v => v.valor).join(', ')}`);
+  }
+
+  if (project.linguisticCode) {
+    const lc = project.linguisticCode;
+    parts.push(`\nCÓDIGO LINGUÍSTICO:`);
+    parts.push(`Tom de voz: ${lc.tomDeVoz.adjetivos.join(', ')} (anti: ${lc.tomDeVoz.antiAdjetivos.join(', ')})`);
+    if (lc.vocabularioPreferencial.length) parts.push(`Vocabulário preferencial: ${lc.vocabularioPreferencial.join(', ')}`);
+    if (lc.vocabularioProibido.length) parts.push(`Vocabulário proibido: ${lc.vocabularioProibido.join(', ')}`);
+  }
+
+  if (project.brandNarrative?.versaoAprovada) {
+    parts.push(`\nNARRATIVA DE MARCA (aprovada):\n${project.brandNarrative.versaoAprovada.slice(0, 600)}`);
+  }
+
+  if (project.messageLibrary) {
+    parts.push(`\nBIBLIOTECA DE MENSAGENS (${project.messageLibrary.items.length} públicos):`);
+    project.messageLibrary.items.forEach(m => {
+      parts.push(`- ${m.publico}: ${m.afirmacaoCentral.slice(0, 200)}`);
+    });
   }
 
   if (project.intel.length > 0) {

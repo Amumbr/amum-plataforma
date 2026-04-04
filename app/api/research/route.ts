@@ -515,6 +515,404 @@ Gere entre 8 e 12 perguntas. Retorne APENAS o seguinte JSON e nada mais:
       catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
     }
 
+    // ── TOUCHPOINT AUDIT ─────────────────────────────────────────────────────────
+    if (action === 'touchpoint_audit') {
+      const prompt = `${ctx}
+
+Você é um consultor sênior de brand experience da AMUM.
+Com base em TODO o contexto do projeto acima, gere um inventário de pontos de contato da marca.
+
+Para cada touchpoint: identifique o canal (digital/fisico/relacional/outro), estime o peso de impacto percebido pelo público (1=marginal, 5=determinante), o score de coerência atual com o posicionamento declarado (1=incoerente, 5=totalmente coerente), uma observação analítica e se é um quick win (alta oportunidade de melhoria com baixo esforço).
+
+Identifique também os 3-5 quick wins prioritários e produza uma análise estratégica dos padrões identificados — onde a marca está mais inconsistente, onde está desperdiçando impacto, quais gaps revelam tensões estruturais.
+
+Retorne APENAS este JSON:
+{
+  "touchpoints": [
+    {"id":"tp1","touchpoint":"Site institucional","canal":"digital","peso":5,"scoreCoerencia":3,"observacao":"Análise aqui","quickWin":false},
+    {"id":"tp2","touchpoint":"Instagram","canal":"digital","peso":4,"scoreCoerencia":2,"observacao":"Análise aqui","quickWin":true}
+  ],
+  "quickWins": ["Quick win 1","Quick win 2"],
+  "analise": "Análise estratégica dos padrões — tensões, desperdícios, implicações"
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── INCOHERENCE MAP ───────────────────────────────────────────────────────────
+    if (action === 'incoherence_map') {
+      const prompt = `${ctx}
+
+Você é um estrategista sênior da AMUM especializado em leitura diagnóstica de marca.
+Produza o Mapa É/Faz/Fala — cruzamento entre o que a marca declara ser, o que ela efetivamente faz e o que ela comunica.
+
+Para cada dimensão identificada, aponte a discrepância e o risco estratégico que ela representa.
+Ao final, liste as implicações estratégicas mais críticas — o que essas incoerências revelam sobre o gap de posicionamento.
+
+Retorne APENAS este JSON:
+{
+  "items": [
+    {
+      "dimensao": "Propósito declarado",
+      "eDeclara": "O que a marca diz que é (fonte: documentos, plataforma)",
+      "eFaz": "O que ela realmente faz (fonte: touchpoints, auditoria)",
+      "eFala": "O que ela comunica (fonte: redes, site, materiais)",
+      "discrepancia": "O gap específico entre as três colunas",
+      "risco": "Implicação estratégica desta incoerência"
+    }
+  ],
+  "implicacoesEstrategicas": ["Implicação 1","Implicação 2","Implicação 3"],
+  "analise": "Leitura integrada das incoerências — o que elas dizem sobre o estado real da marca"
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── POSITIONING THESIS ────────────────────────────────────────────────────────
+    if (action === 'positioning_thesis') {
+      const prompt = `${ctx}
+
+Você é o estrategista principal da AMUM responsável pela tese de reposicionamento.
+Com base em TODO o contexto acumulado — Escuta aprovada, Análise de Decifração, Mapa de Incoerências — formule a tese de reposicionamento.
+
+A tese não é apenas "para onde vamos" — é "o que deixamos de ser e fazer". Trade-offs explícitos são obrigatórios.
+
+Retorne APENAS este JSON:
+{
+  "afirmacaoCentral": "A afirmação de posicionamento em 1-2 frases — precisa, não genérica, sem jargão inflado",
+  "tradeoffs": [
+    {"abandona": "O que deixamos de ser/fazer/comunicar","ganha": "O que ganhamos com esse abandono"},
+    {"abandona": "...","ganha": "..."},
+    {"abandona": "...","ganha": "..."}
+  ],
+  "justificativa": "Por que este posicionamento — a lógica estratégica que conecta os dados da Escuta à afirmação central"
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── BRAND ARCHITECTURE ────────────────────────────────────────────────────────
+    if (action === 'brand_architecture') {
+      const prompt = `${ctx}
+
+Você é um consultor de brand-to-operating model da AMUM.
+Com base na tese de posicionamento aprovada e todo o contexto, produza a arquitetura de marca.
+
+O brand-to-operating model mostra como o posicionamento se traduz em decisões por função de negócio — não é decorativo, é operacional.
+
+Retorne APENAS este JSON:
+{
+  "portfolioMap": "Descrição do portfólio atual e como ele se organiza após o reposicionamento",
+  "nomenclaturaRegras": "Regras de nomenclatura de produtos, serviços e linhas — o que muda, o que permanece",
+  "brandToOperating": [
+    {"funcao":"Produto/Serviço","implicacao":"Como o posicionamento altera decisões aqui","responsavel":"Owner sugerido","prioridade":"alta"},
+    {"funcao":"Recursos Humanos","implicacao":"Como o posicionamento altera contratação, cultura, comunicação interna","responsavel":"","prioridade":"media"},
+    {"funcao":"Vendas","implicacao":"Como o posicionamento altera pitch, proposta de valor, segmentação","responsavel":"","prioridade":"alta"},
+    {"funcao":"Atendimento","implicacao":"Como o posicionamento altera tom, processos, experiência do cliente","responsavel":"","prioridade":"alta"},
+    {"funcao":"Comunicação","implicacao":"Como o posicionamento altera canais, mensagens, frequência","responsavel":"","prioridade":"alta"}
+  ],
+  "analise": "Leitura estratégica das implicações cross-funcionais mais críticas"
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── ODS MATRIX ────────────────────────────────────────────────────────────────
+    if (action === 'ods_matrix') {
+      const prompt = `${ctx}
+
+Você é um especialista em ESG estratégico da AMUM. ODS como linguagem cosmética é um fracasso de posicionamento — sua função aqui é o oposto: ancorar o discurso em iniciativas verificáveis.
+
+Com base no contexto e na tese de posicionamento, selecione 3-5 ODS que tenham conexão real com o negócio e proponha iniciativas concretas para cada um.
+
+Retorne APENAS este JSON:
+{
+  "items": [
+    {
+      "ods": "ODS 8 — Trabalho Decente e Crescimento Econômico",
+      "iniciativas": [
+        {"descricao":"Iniciativa concreta e verificável","indicador":"Indicador mensurável","owner":"Área responsável","cadencia":"trimestral"},
+        {"descricao":"...","indicador":"...","owner":"...","cadencia":"anual"}
+      ]
+    }
+  ]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── BRAND PLATFORM ────────────────────────────────────────────────────────────
+    if (action === 'brand_platform') {
+      const prompt = `${ctx}
+
+Você é o estrategista principal da AMUM responsável pela Plataforma de Marca — o documento-mãe que ancora toda a Reconstrução.
+
+Com base em TODO o contexto aprovado (Escuta, Decifração, Tese de Posicionamento), produza a Plataforma de Marca completa.
+
+Cada campo deve ser preciso, não genérico. Propósito não é slogan — é a razão de existência que permanece quando o produto muda. Valores sem comportamentos operacionais são decoração.
+
+Retorne APENAS este JSON:
+{
+  "proposito": "Por que existimos além do lucro — a razão fundacional que orienta decisões difíceis",
+  "essencia": "A ideia central que nos define — o núcleo simbólico da marca em 3-8 palavras",
+  "posicionamento": "Para quem somos, em que categoria e por que diferente — sem jargão inflado",
+  "promessa": "O que entregamos consistentemente — verificável, não aspiracional vazio",
+  "valores": [
+    {"valor": "Nome do valor","comportamentos": ["Comportamento operacional 1","Comportamento operacional 2","Comportamento operacional 3"]},
+    {"valor": "Nome do valor","comportamentos": ["...","...","..."]},
+    {"valor": "Nome do valor","comportamentos": ["...","...","..."]}
+  ]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── LINGUISTIC CODE ───────────────────────────────────────────────────────────
+    if (action === 'linguistic_code') {
+      const prompt = `${ctx}
+
+Você é um especialista em código linguístico da AMUM — a tradução do posicionamento em linguagem operacional.
+
+Com base na Plataforma de Marca aprovada, produza o Código Linguístico completo. Anti-adjetivos são tão importantes quanto adjetivos — nomeie o que a marca NÃO é para evitar deriva. Exemplos de aplicação devem ser concretos, não ilustrativos vazios.
+
+Retorne APENAS este JSON:
+{
+  "tomDeVoz": {
+    "adjetivos": ["Adjetivo 1","Adjetivo 2","Adjetivo 3","Adjetivo 4","Adjetivo 5"],
+    "antiAdjetivos": ["Anti-adjetivo 1","Anti-adjetivo 2","Anti-adjetivo 3"]
+  },
+  "vocabularioPreferencial": ["palavra/expressão 1","palavra/expressão 2","palavra/expressão 3","palavra/expressão 4","palavra/expressão 5"],
+  "vocabularioProibido": ["palavra/expressão 1","palavra/expressão 2","palavra/expressão 3"],
+  "padroesConstrutivos": ["Padrão de frase 1 — ex: 'Frases diretas, sujeito + verbo + impacto'","Padrão 2","Padrão 3"],
+  "exemplosAplicacao": [
+    {"contexto":"Site institucional","exemplo":"Exemplo de frase no tom correto"},
+    {"contexto":"Redes sociais","exemplo":"Exemplo de post no tom correto"},
+    {"contexto":"Proposta comercial","exemplo":"Exemplo de abertura de proposta"},
+    {"contexto":"Email de relacionamento","exemplo":"Exemplo de abertura de email"}
+  ],
+  "qaChecklist": ["Critério de checagem 1","Critério 2","Critério 3","Critério 4","Critério 5"]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── BRAND NARRATIVE ───────────────────────────────────────────────────────────
+    if (action === 'brand_narrative') {
+      const prompt = `${ctx}
+
+Você é o redator estratégico da AMUM. Escreva o Manifesto de Marca — o texto longo que ancora toda a comunicação.
+
+O manifesto não é publicidade. É o texto que a liderança lê internamente para lembrar por que existe e para onde vai. Deve ter força narrativa real: tensão, resolução, direção. Sem clichês de propósito corporativo.
+
+Com base na Plataforma de Marca aprovada e todo o contexto, escreva o manifesto.
+
+Retorne APENAS este JSON:
+{
+  "manifesto": "O texto completo do manifesto — entre 300 e 600 palavras, com parágrafos separados por \\n\\n"
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── MESSAGE LIBRARY ───────────────────────────────────────────────────────────
+    if (action === 'message_library') {
+      const prompt = `${ctx}
+
+Você é um estrategista de mensagem da AMUM. A Biblioteca de Mensagens substitui "manifesto solto" por sistema de narrativa verificável.
+
+Para cada público estratégico, defina a afirmação central e as provas concretas que a sustentam — não aspiração, evidência.
+
+Retorne APENAS este JSON:
+{
+  "items": [
+    {
+      "publico": "Cliente/contratante",
+      "afirmacaoCentral": "O que queremos que este público acredite sobre nós — em 1 frase",
+      "provas": ["Prova concreta 1 — dado, case, comportamento verificável","Prova 2","Prova 3"]
+    },
+    {
+      "publico": "Investidor/financiador",
+      "afirmacaoCentral": "...",
+      "provas": ["...","...","..."]
+    },
+    {
+      "publico": "Time interno",
+      "afirmacaoCentral": "...",
+      "provas": ["...","...","..."]
+    },
+    {
+      "publico": "Parceiro/fornecedor",
+      "afirmacaoCentral": "...",
+      "provas": ["...","...","..."]
+    }
+  ]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── VISUAL DIRECTION ──────────────────────────────────────────────────────────
+    if (action === 'visual_direction') {
+      const prompt = `${ctx}
+
+Você é um diretor de estratégia visual da AMUM. Esta não é uma identidade visual — são as diretrizes estratégicas que orientam qualquer designer que toque na marca.
+
+Parta da Plataforma de Marca e do Código Linguístico aprovados. Cada princípio simbólico deve ter lógica estratégica, não preferência estética.
+
+Retorne APENAS este JSON:
+{
+  "principiosSimbolicos": ["Princípio 1 com justificativa estratégica","Princípio 2","Princípio 3"],
+  "paleta": "Descrição da direção de paleta — não códigos hex, mas lógica simbólica: quais campos semânticos, que sensação, por que",
+  "tipografia": "Direção tipográfica — personalidade, contraste, hierarquia desejada",
+  "elementosGraficos": ["Elemento gráfico/padrão que deve persistir ou ser evitado","...","..."],
+  "moodboardReferencias": ["Referência 1 com justificativa — marca, artista, estilo, período","Referência 2","Referência 3"],
+  "diretrizes": "Texto corrido com as diretrizes estratégicas para o designer — o que pode, o que não pode, o que deve ser sempre verificado"
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── ROLLOUT PLAN ──────────────────────────────────────────────────────────────
+    if (action === 'rollout_plan') {
+      const prompt = `${ctx}
+
+Você é o gestor de travessia da AMUM. O plano de rollout organiza o reposicionamento em ondas — rollout sem sequência é ruído, não mudança.
+
+Com base na Plataforma de Marca, Código Linguístico e Arquitetura de Marca aprovados, estruture o plano por ondas.
+
+Retorne APENAS este JSON:
+{
+  "ondas": [
+    {
+      "onda": "Onda 1 — Interno",
+      "touchpoints": ["Touchpoint 1","Touchpoint 2"],
+      "responsaveis": ["Área/pessoa responsável"],
+      "timeline": "Semanas 1-4",
+      "criteriosConclusao": ["Critério verificável de conclusão desta onda"]
+    },
+    {
+      "onda": "Onda 2 — Parceiros e Fornecedores",
+      "touchpoints": ["..."],
+      "responsaveis": ["..."],
+      "timeline": "Semanas 5-8",
+      "criteriosConclusao": ["..."]
+    },
+    {
+      "onda": "Onda 3 — Mercado",
+      "touchpoints": ["..."],
+      "responsaveis": ["..."],
+      "timeline": "Semanas 9-16",
+      "criteriosConclusao": ["..."]
+    }
+  ]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── ENABLEMENT KIT ────────────────────────────────────────────────────────────
+    if (action === 'enablement_kit') {
+      const prompt = `${ctx}
+
+Você é o especialista em habilitação da AMUM. O kit de habilitação é o que permite que a marca seja aplicada consistentemente sem o estrategista na sala.
+
+Retorne APENAS este JSON:
+{
+  "faqs": [
+    {"pergunta": "Pergunta frequente sobre aplicação da marca","resposta": "Resposta objetiva e operacional"},
+    {"pergunta": "...","resposta": "..."},
+    {"pergunta": "...","resposta": "..."}
+  ],
+  "templates": [
+    {"nome": "Nome do template","descricao": "Para que serve e onde usar"},
+    {"nome": "...","descricao": "..."}
+  ],
+  "trilhaAdocao": [
+    {"area": "Área/função","passos": ["Passo 1 concreto","Passo 2","Passo 3"]},
+    {"area": "...","passos": ["...","...","..."]}
+  ],
+  "checklistQA": ["Critério de verificação de linguagem 1","Critério 2","Critério 3","Critério 4","Critério 5"]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── TRAINING DESIGN ───────────────────────────────────────────────────────────
+    if (action === 'training_design') {
+      const prompt = `${ctx}
+
+Você é o designer instrucional da AMUM. O treinamento interno é o que garante que o reposicionamento vire comportamento — não apenas comunicação.
+
+Retorne APENAS este JSON:
+{
+  "objetivosPorPublico": [
+    {"publico": "Liderança executiva","objetivos": ["Objetivo 1","Objetivo 2"]},
+    {"publico": "Gestores de área","objetivos": ["...","..."]},
+    {"publico": "Time de atendimento/vendas","objetivos": ["...","..."]}
+  ],
+  "formatos": ["Workshop presencial","Trilha assíncrona","..."],
+  "agenda": [
+    {"bloco": "Bloco 1 — nome","duracao": "2h","formato": "Workshop"},
+    {"bloco": "...","duracao": "...","formato": "..."}
+  ],
+  "materiaisNecessarios": ["Material 1","Material 2","Material 3"]
+}`;
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
     return NextResponse.json({ error: 'Acao invalida' }, { status: 400 });
 
   } catch (err) {
