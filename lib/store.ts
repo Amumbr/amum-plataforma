@@ -83,7 +83,78 @@ export interface SocialMediaAnalysis {
   createdAt: string;
 }
 
-// ─── GOOGLE TRENDS ────────────────────────────────────────────────────────────
+// ─── AUDITORIA DE CANAIS DA MARCA ─────────────────────────────────────────────
+
+export interface BrandChannelResult {
+  url: string;
+  canal: string;
+  sintese: string;
+  temas: string[];
+  tomDeVoz: string;
+  frequencia: string;
+  engajamento: string;
+  pontoForte: string;
+  pontoFraco: string;
+  createdAt: string;
+}
+
+export interface BrandAuditSynthesis {
+  diagnostico: string;        // O que a marca está efetivamente comunicando
+  coerencia: string;          // É coerente com o que declara ser?
+  desperdicio: string[];      // Potencial não explorado
+  contradicoes: string[];     // Tensões internas detectadas
+  recomendacoes: string[];    // Direcionamentos estratégicos
+  createdAt: string;
+}
+
+// ─── PESQUISA DE REDES SOCIAIS ────────────────────────────────────────────────
+
+export interface SocialListeningResult {
+  url: string;
+  entidade: string;
+  posicionamento: string;
+  arquetipo: string;
+  temas: string[];
+  tomDeVoz: string;
+  frequencia: string;
+  pontoForte: string;
+  pontoFraco: string;
+  territorioOcupado: string;
+  createdAt: string;
+}
+
+export interface SocialResearchSynthesis {
+  territoriosOcupados: string[];
+  territoriosDisponiveis: string[];
+  comparativoComMarca: string;   // vs. brand audit — diferencial real
+  insights: string[];
+  oportunidades: string[];
+  alertas: string[];
+  createdAt: string;
+}
+
+// ─── PESQUISA INDEPENDENTE (upload pelo usuário) ───────────────────────────────
+
+export interface IndependentResearchFile {
+  id: string;
+  filename: string;
+  content: string;       // texto extraído
+  resumo: string;        // síntese gerada pelo Claude
+  uploadedAt: string;
+}
+
+// ─── ENTREVISTADOS ────────────────────────────────────────────────────────────
+
+export interface Interviewee {
+  id: string;
+  nome: string;
+  cargo: string;
+  minibio: string;
+  questions: string[];
+  generatedAt?: string;
+}
+
+// ─── GOOGLE TRENDS (legado — mantido para compatibilidade) ───────────────────
 
 export interface TrendsAnalysis {
   termosAnalisados: string[];
@@ -100,7 +171,7 @@ export interface TrendsAnalysis {
   createdAt: string;
 }
 
-// ─── NETNOGRAFIA ──────────────────────────────────────────────────────────────
+// ─── NETNOGRAFIA (legado — mantido para compatibilidade) ──────────────────────
 
 export interface NetnographySource {
   fonte: string;
@@ -217,6 +288,10 @@ export type StepType =
   | 'import'
   | 'documents'
   | 'web_research'
+  | 'brand_audit'
+  | 'social_research'
+  | 'research_report'
+  | 'interview_scripts'
   | 'scripts'
   | 'transcripts'
   | 'deep_analysis'
@@ -258,17 +333,41 @@ export const STEP_DEFINITIONS: {
     id: 'web_research',
     type: 'web_research',
     fase: 1,
-    label: 'Pesquisa profunda',
+    label: 'Pesquisa de Mercado',
     narrativa:
-      'Quatro módulos de inteligência para entrar nas entrevistas com máximo embasamento: dossiê de mercado (18 dimensões), análise de redes sociais da marca e dos concorrentes, Google Trends e pesquisa netnográfica — o que as pessoas realmente dizem fora dos canais oficiais.',
+      'Dossiê de inteligência setorial com 18 dimensões AMUM — lido pelas lentes de geopolítica, macroeconomia, marketing, comunicação, ESG e ODS. Fontes jornalísticas e relatórios especializados. Base para tudo que vem depois.',
   },
   {
-    id: 'scripts',
-    type: 'scripts',
+    id: 'brand_audit',
+    type: 'brand_audit',
     fase: 1,
-    label: 'Roteiros de entrevista',
+    label: 'Auditoria de Canais da Marca',
     narrativa:
-      'Roteiros gerados a partir de tudo que coletamos até aqui. Cada público exige uma abordagem diferente. Os roteiros são ponto de partida — o estrategista edita e aprova antes de usar.',
+      'Antes de olhar para fora, precisamos saber exatamente o que a marca está fazendo. Análise diagnóstica dos canais próprios — Instagram, LinkedIn, site, YouTube e o que for relevante. O que está sendo comunicado? É coerente com o que a marca declara ser? Onde há desperdício e potencial não explorado?',
+  },
+  {
+    id: 'social_research',
+    type: 'social_research',
+    fase: 1,
+    label: 'Pesquisa de Redes Sociais',
+    narrativa:
+      'Social listening estratégico do mercado — concorrentes, referências setoriais e atores relevantes. A síntese cruza com a Auditoria de Canais para mapear com precisão o território ocupado versus o território disponível.',
+  },
+  {
+    id: 'research_report',
+    type: 'research_report',
+    fase: 1,
+    label: 'Relatório Consolidado',
+    narrativa:
+      'Integração de toda a inteligência gerada nas pesquisas com os documentos e dados fornecidos pelo cliente. O estrategista pode incluir pesquisas independentes que serão analisadas e incorporadas ao relatório final antes da aprovação formal.',
+  },
+  {
+    id: 'interview_scripts',
+    type: 'interview_scripts',
+    fase: 1,
+    label: 'Roteiros de Entrevista',
+    narrativa:
+      'Com todo o contexto acumulado — pesquisas, documentos, diagnóstico do site — o sistema gera roteiros calibrados por entrevistado. Cargo e minibiografia determinam o ângulo e a profundidade de cada pergunta. Os roteiros são editáveis e o estrategista pode adicionar perguntas livremente.',
   },
   {
     id: 'transcripts',
@@ -371,10 +470,24 @@ export interface Project {
   researchAgenda: ResearchAgendaItem[];
   researchResults: ResearchResult[];
   researchDirectives?: ResearchDirectives;
+  researchSynthesis?: ResearchSynthesis;
+  // Auditoria de Canais da Marca (brand_audit)
+  brandAuditProfiles: string[];
+  brandAuditResults: BrandChannelResult[];
+  brandAuditSynthesis?: BrandAuditSynthesis;
+  // Pesquisa de Redes Sociais (social_research)
+  socialProfiles: string[];
+  socialListeningResults: SocialListeningResult[];
+  socialResearchSynthesis?: SocialResearchSynthesis;
+  // Relatório Consolidado (research_report)
+  independentResearch: IndependentResearchFile[];
+  consolidatedReport?: string;
+  // Roteiros de Entrevista (interview_scripts)
+  interviewees: Interviewee[];
+  // Legado (mantido para compatibilidade)
   socialMediaAnalysis?: SocialMediaAnalysis;
   trendsAnalysis?: TrendsAnalysis;
   netnographyAnalysis?: NetnographyAnalysis;
-  researchSynthesis?: ResearchSynthesis;
   interviewScripts: InterviewScript[];
   transcripts: TranscriptAnalysis[];
   deepAnalysis: DeepAnalysis;
@@ -411,6 +524,12 @@ const DOBRASIL_SEED: Project = {
   documents: [],
   researchAgenda: [],
   researchResults: [],
+  brandAuditProfiles: [],
+  brandAuditResults: [],
+  socialProfiles: [],
+  socialListeningResults: [],
+  independentResearch: [],
+  interviewees: [],
   interviewScripts: [],
   transcripts: [],
   deepAnalysis: {
@@ -615,34 +734,52 @@ export function getProjectContext(project: Project): string {
     if (comunidadesAtivas.length) parts.push(`Comunidades/espaços: ${comunidadesAtivas.join(', ')}`);
   }
 
-  if (project.socialMediaAnalysis) {
-    const s = project.socialMediaAnalysis;
-    parts.push(`\nANÁLISE DE REDES SOCIAIS:`);
-    parts.push(`Marca: ${s.marca.posicionamento}`);
-    parts.push(`Territórios ocupados pelos concorrentes: ${s.territoriosOcupados.join(', ')}`);
-    parts.push(`Territórios digitais disponíveis: ${s.territoriosVazios.join(', ')}`);
-    parts.push(`Insights: ${s.insights.slice(0, 3).join(' | ')}`);
+  if (project.brandAuditResults && project.brandAuditResults.length > 0) {
+    parts.push(`\nAUDITORIA DE CANAIS DA MARCA (${project.brandAuditResults.length} canais analisados):`);
+    project.brandAuditResults.forEach(r => {
+      parts.push(`- ${r.canal} (${r.url}): ${r.sintese.slice(0, 300)}`);
+    });
+    if (project.brandAuditSynthesis) {
+      const s = project.brandAuditSynthesis;
+      parts.push(`Diagnóstico dos canais: ${s.diagnostico.slice(0, 400)}`);
+      parts.push(`Coerência com posicionamento declarado: ${s.coerencia.slice(0, 200)}`);
+      if (s.contradicoes.length) parts.push(`Contradições internas: ${s.contradicoes.slice(0, 3).join(' | ')}`);
+    }
   }
 
-  if (project.trendsAnalysis) {
-    const t = project.trendsAnalysis;
-    parts.push(`\nGOOGLE TRENDS & BUSCAS:`);
-    parts.push(`Termos crescendo: ${t.termosCrescentes.join(', ')}`);
-    parts.push(`Termos em declínio: ${t.termosDeclinando.join(', ')}`);
-    parts.push(`Janelas de oportunidade: ${t.janelasDeOportunidade.join(' | ')}`);
+  if (project.socialListeningResults && project.socialListeningResults.length > 0) {
+    parts.push(`\nPESQUISA DE REDES SOCIAIS — MERCADO (${project.socialListeningResults.length} perfis):`);
+    project.socialListeningResults.forEach(r => {
+      parts.push(`- ${r.entidade}: ${r.posicionamento.slice(0, 200)}`);
+    });
+    if (project.socialResearchSynthesis) {
+      const s = project.socialResearchSynthesis;
+      parts.push(`Territórios ocupados: ${s.territoriosOcupados.join(', ')}`);
+      parts.push(`Territórios disponíveis: ${s.territoriosDisponiveis.join(', ')}`);
+      parts.push(`Diferencial em relação à concorrência: ${s.comparativoComMarca.slice(0, 300)}`);
+    }
   }
 
-  if (project.netnographyAnalysis) {
-    const n = project.netnographyAnalysis;
-    parts.push(`\nNETNOGRAFIA — DISCURSO DE RUA:`);
-    parts.push(`Discurso: ${n.discursoDeRua.slice(0, 300)}`);
-    parts.push(`Vocabulário da comunidade: ${n.vocabularioComunidade.join(', ')}`);
-    parts.push(`Contradições detectadas: ${n.contradicoes.slice(0, 3).join(' | ')}`);
-    parts.push(`Desejos não atendidos: ${n.desejos.slice(0, 3).join(' | ')}`);
+  if (project.consolidatedReport) {
+    parts.push(`\nRELATÓRIO CONSOLIDADO DE PESQUISA:\n${project.consolidatedReport.slice(0, 800)}`);
+  }
+
+  if (project.independentResearch && project.independentResearch.length > 0) {
+    parts.push(`\nPESQUISAS INDEPENDENTES INCLUÍDAS (${project.independentResearch.length}):`);
+    project.independentResearch.forEach(r => {
+      parts.push(`- ${r.filename}: ${r.resumo.slice(0, 300)}`);
+    });
+  }
+
+  if (project.interviewees && project.interviewees.length > 0) {
+    parts.push(`\nROTEIROS DE ENTREVISTA PREPARADOS:`);
+    project.interviewees.forEach(iv => {
+      parts.push(`- ${iv.nome} (${iv.cargo}): ${iv.questions.length} perguntas geradas`);
+    });
   }
 
   if (project.interviewScripts.length > 0) {
-    parts.push(`\nROTEIROS APROVADOS: ${project.interviewScripts.map(s => s.publico).join(', ')}`);
+    parts.push(`\nROTEIROS APROVADOS (legado): ${project.interviewScripts.map(s => s.publico).join(', ')}`);
   }
 
   if (project.transcripts.length > 0) {
@@ -751,6 +888,12 @@ export function createProject(fields: {
     documents: [],
     researchAgenda: [],
     researchResults: [],
+    brandAuditProfiles: [],
+    brandAuditResults: [],
+    socialProfiles: [],
+    socialListeningResults: [],
+    independentResearch: [],
+    interviewees: [],
     interviewScripts: [],
     transcripts: [],
     deepAnalysis: {

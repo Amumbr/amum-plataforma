@@ -29,6 +29,12 @@ import {
   TrendsAnalysis,
   NetnographyAnalysis,
   InterviewScript,
+  BrandChannelResult,
+  BrandAuditSynthesis,
+  SocialListeningResult,
+  SocialResearchSynthesis,
+  IndependentResearchFile,
+  Interviewee,
   PHASE_NAMES,
 } from '@/lib/store';
 import { fetchProjectFromSupabase } from '@/lib/db';
@@ -123,6 +129,41 @@ function buildStepContext(step: WorkflowStep, project: Project): string {
         parts.push(
           `SÍNTESE DOCUMENTAL:\n${s.apresentacao}\nArquétipo dominante: ${s.arquetipo?.dominante}\nTensões: ${s.tensoes?.join('; ')}\nPotência latente: ${s.potencia_latente}`
         );
+      }
+      break;
+    case 'brand_audit':
+      if (project.brandAuditResults && project.brandAuditResults.length > 0) {
+        parts.push(`AUDITORIA DE CANAIS (${project.brandAuditResults.length} canais):`);
+        project.brandAuditResults.forEach(r => {
+          parts.push(`- ${r.canal}: ${r.sintese?.slice(0, 300)}`);
+        });
+      }
+      if (project.brandAuditSynthesis) {
+        parts.push(`Diagnóstico: ${project.brandAuditSynthesis.diagnostico?.slice(0, 400)}`);
+      }
+      break;
+    case 'social_research':
+      if (project.socialListeningResults && project.socialListeningResults.length > 0) {
+        parts.push(`SOCIAL LISTENING (${project.socialListeningResults.length} perfis):`);
+        project.socialListeningResults.forEach(r => {
+          parts.push(`- ${r.entidade}: ${r.posicionamento?.slice(0, 200)}`);
+        });
+      }
+      if (project.socialResearchSynthesis) {
+        parts.push(`Territórios disponíveis: ${project.socialResearchSynthesis.territoriosDisponiveis?.join(', ')}`);
+      }
+      break;
+    case 'research_report':
+      if (project.consolidatedReport) {
+        parts.push(`RELATÓRIO CONSOLIDADO:\n${project.consolidatedReport.slice(0, 600)}`);
+      }
+      break;
+    case 'interview_scripts':
+      if (project.interviewees && project.interviewees.length > 0) {
+        parts.push(`ENTREVISTADOS (${project.interviewees.length}):`);
+        project.interviewees.forEach(iv => {
+          parts.push(`- ${iv.nome} (${iv.cargo}): ${iv.questions.length} perguntas`);
+        });
       }
       break;
     case 'web_research':
@@ -2614,148 +2655,1024 @@ function StepWebResearch({
   step: WorkflowStep;
   onUpdate: (p: Project) => void;
 }) {
-  const [activeModule, setActiveModule] = useState<string>('dossie');
   const isDone = step.status === 'done' || step.status === 'skipped';
 
   function handleApprove() { onUpdate(approveStep(project, step.id)); }
   function handleSkip() { onUpdate(skipStep(project, step.id)); }
 
-  const modules = [
-    {
-      id: 'dossie',
-      label: 'Dossiê de Mercado',
-      icon: '⊡',
-      desc: '18 dimensões estratégicas',
-      done: project.researchResults.length > 0,
-    },
-    {
-      id: 'social',
-      label: 'Redes Sociais',
-      icon: '◎',
-      desc: 'Marca e concorrentes',
-      done: !!project.socialMediaAnalysis,
-    },
-    {
-      id: 'trends',
-      label: 'Google Trends',
-      icon: '↗',
-      desc: 'Buscas e tendências',
-      done: !!project.trendsAnalysis,
-    },
-    {
-      id: 'netnografia',
-      label: 'Netnografia',
-      icon: '◉',
-      desc: 'Discurso de rua',
-      done: !!project.netnographyAnalysis,
-    },
-    {
-      id: 'sintese',
-      label: 'Síntese Geral',
-      icon: '◈',
-      desc: 'Relatório unificado',
-      done: !!project.researchSynthesis,
-    },
-  ];
-
-  const doneCount = modules.filter(m => m.done).length;
-  // Síntese disponível apenas quando pelo menos 2 módulos de pesquisa têm dados
-  const canSynthesize = [project.researchResults.length > 0, !!project.socialMediaAnalysis, !!project.trendsAnalysis, !!project.netnographyAnalysis].filter(Boolean).length >= 2;
-
   return (
     <div className="step-body">
+      <ModuleDossie project={project} step={step} onUpdate={onUpdate} />
 
-      {/* ── Tabs dos módulos ── */}
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {modules.map(mod => {
-          const isDisabled = mod.id === 'sintese' && !canSynthesize;
-          return (
-            <button
-              key={mod.id}
-              onClick={() => !isDisabled && setActiveModule(mod.id)}
-              title={isDisabled ? 'Execute ao menos 2 módulos de pesquisa antes de sintetizar' : undefined}
-              style={{
-                padding: '8px 14px',
-                borderRadius: '6px',
-                border: '1px solid',
-                borderColor: activeModule === mod.id ? 'var(--gold)' : mod.id === 'sintese' && canSynthesize && !mod.done ? 'rgba(201,169,110,0.4)' : 'var(--border)',
-                background: activeModule === mod.id ? 'rgba(201,169,110,0.1)' : 'transparent',
-                color: isDisabled ? 'var(--text-muted)' : activeModule === mod.id ? 'var(--gold)' : mod.done ? 'var(--text-secondary)' : mod.id === 'sintese' && canSynthesize ? 'var(--gold)' : 'var(--text-dim)',
-                fontSize: '13px',
-                cursor: isDisabled ? 'not-allowed' : 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                opacity: isDisabled ? 0.5 : 1,
-                transition: 'all 0.15s',
-              }}
-            >
-              <span>{mod.icon}</span>
-              <span>{mod.label}</span>
-              {mod.done && <span style={{ fontSize: '10px', color: '#6ab56a' }}>✓</span>}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* ── Cabeçalho do módulo ativo ── */}
-      <div style={{ marginBottom: '16px' }}>
-        <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-          {modules.find(m => m.id === activeModule)?.desc}
-          {doneCount > 0 && <span style={{ marginLeft: '12px', color: '#6ab56a' }}>{doneCount}/{modules.length} módulos concluídos</span>}
-        </p>
-      </div>
-
-      {/* ── Conteúdo do módulo ativo ── */}
-      <div>
-        {activeModule === 'dossie' && (
-          <ModuleDossie project={project} step={step} onUpdate={onUpdate} />
-        )}
-        {activeModule === 'social' && (
-          <ModuleSocial project={project} onUpdate={onUpdate} />
-        )}
-        {activeModule === 'trends' && (
-          <ModuleTrends project={project} onUpdate={onUpdate} />
-        )}
-        {activeModule === 'netnografia' && (
-          <ModuleNetnography project={project} onUpdate={onUpdate} />
-        )}
-        {activeModule === 'sintese' && (
-          <ModuleSynthesis project={project} onUpdate={onUpdate} />
-        )}
-      </div>
-
-      {/* ── Aprovação global ── */}
-      {!isDone && doneCount > 0 && (
+      {!isDone && project.researchResults.length > 0 && (
         <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px' }}>
-            {doneCount === modules.length
-              ? 'Todos os módulos concluídos. Pesquisa pronta para aprovação.'
-              : `${doneCount} de ${modules.length} módulos concluídos. Você pode aprovar agora ou completar os demais primeiro.`}
+            {project.researchResults.length} tema(s) pesquisados. Aprovar para avançar.
           </p>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn-approve" onClick={handleApprove}>
-              Aprovar pesquisa e continuar
-            </button>
+            <button className="btn-approve" onClick={handleApprove}>Aprovar Pesquisa de Mercado</button>
             <button className="btn-skip" onClick={handleSkip}>Pular</button>
           </div>
         </div>
       )}
+      {!isDone && project.researchResults.length === 0 && (
+        <div style={{ marginTop: '16px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular pesquisa de mercado</button>
+        </div>
+      )}
+      {isDone && (
+        <p className="step-done-msg" style={{ marginTop: '16px' }}>
+          {step.status === 'skipped' ? 'Etapa pulada.' : `Pesquisa de mercado aprovada — ${project.researchResults.length} tema(s).`}
+        </p>
+      )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Temas prioritários, ângulos específicos, fontes a priorizar..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa de Mercado" />
+    </div>
+  );
+}
 
-      {!isDone && doneCount === 0 && (
-        <div style={{ marginTop: '20px' }}>
-          <button className="btn-skip" onClick={handleSkip}>Pular pesquisa</button>
+// ─── STEP: AUDITORIA DE CANAIS DA MARCA ──────────────────────────────────────
+
+function StepBrandAudit({
+  project,
+  step,
+  onUpdate,
+}: {
+  project: Project;
+  step: WorkflowStep;
+  onUpdate: (p: Project) => void;
+}) {
+  const [profiles, setProfiles] = useState<string[]>(project.brandAuditProfiles || []);
+  const [newUrl, setNewUrl] = useState('');
+  const [running, setRunning] = useState(false);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const isDone = step.status === 'done' || step.status === 'skipped';
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+
+  function addUrl() {
+    const trimmed = newUrl.trim();
+    if (!trimmed || profiles.includes(trimmed)) return;
+    const updated = [...profiles, trimmed];
+    setProfiles(updated);
+    setNewUrl('');
+    const proj = { ...project, brandAuditProfiles: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  function removeUrl(url: string) {
+    const updated = profiles.filter(u => u !== url);
+    setProfiles(updated);
+    const proj = { ...project, brandAuditProfiles: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  async function runAudit() {
+    if (profiles.length === 0) return;
+    setRunning(true);
+    const results = [...(project.brandAuditResults || [])];
+    const ctx = getProjectContext(project);
+
+    for (let i = 0; i < profiles.length; i++) {
+      const url = profiles[i];
+      setCurrentUrl(url);
+      try {
+        const res = await fetch('/api/openai-research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'brand_channel_research', url, projectContext: ctx }),
+        });
+        const data = await res.json();
+        if (!data.error) {
+          const idx = results.findIndex(r => r.url === url);
+          if (idx >= 0) results[idx] = data;
+          else results.push(data);
+          const proj = { ...project, brandAuditResults: [...results] };
+          saveProject(proj);
+          onUpdate(proj);
+        }
+      } catch { /* continue */ }
+      if (i < profiles.length - 1) await new Promise(r => setTimeout(r, 4000));
+    }
+    setCurrentUrl('');
+    setRunning(false);
+  }
+
+  async function runSynthesis() {
+    setSynthesizing(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'brand_audit_synthesis',
+          projectContext: getProjectContext(project),
+          brandAuditResults: project.brandAuditResults,
+        }),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        const proj = { ...project, brandAuditSynthesis: data };
+        saveProject(proj);
+        onUpdate(proj);
+      }
+    } finally {
+      setSynthesizing(false);
+    }
+  }
+
+  return (
+    <div className="step-body">
+      {/* URL inputs */}
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+          Insira os endereços dos canais próprios da marca — Instagram, LinkedIn, site, YouTube, TikTok ou qualquer canal ativo.
+        </p>
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+          <input
+            className="input"
+            style={{ flex: 1, fontSize: '13px' }}
+            placeholder="https://instagram.com/nomemarca ou URL do canal"
+            value={newUrl}
+            onChange={e => setNewUrl(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && addUrl()}
+            disabled={isDone}
+          />
+          <button className="btn-primary" onClick={addUrl} disabled={!newUrl.trim() || isDone} style={{ whiteSpace: 'nowrap' }}>
+            + Adicionar
+          </button>
+        </div>
+        {profiles.length > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            {profiles.map(url => (
+              <div key={url} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+                <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{url}</span>
+                {project.brandAuditResults?.find(r => r.url === url) && (
+                  <span style={{ fontSize: '11px', color: '#6ab56a' }}>✓</span>
+                )}
+                {running && currentUrl === url && (
+                  <span style={{ fontSize: '11px', color: 'var(--gold)' }}>analisando…</span>
+                )}
+                {!isDone && (
+                  <button onClick={() => removeUrl(url)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>×</button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Actions */}
+      {!isDone && profiles.length > 0 && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '20px' }}>
+          <button className="btn-primary" onClick={runAudit} disabled={running || synthesizing}>
+            {running ? `Analisando: ${currentUrl.slice(0, 40)}…` : 'Analisar canais'}
+          </button>
         </div>
       )}
 
-      {isDone && (
-        <p className="step-done-msg" style={{ marginTop: '16px' }}>
-          {step.status === 'skipped' ? 'Etapa pulada.' : `Pesquisa aprovada — ${doneCount} módulo(s) executados.`}
-        </p>
+      {/* Results per channel */}
+      {project.brandAuditResults && project.brandAuditResults.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '10px' }}>
+            {project.brandAuditResults.length} canal(is) analisado(s)
+          </p>
+          {project.brandAuditResults.map((r) => (
+            <div key={r.url} className="card" style={{ marginBottom: '8px' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                onClick={() => setExpanded(expanded === r.url ? null : r.url)}
+              >
+                <div>
+                  <p style={{ fontWeight: 600, color: 'var(--gold)', fontSize: '14px' }}>{r.canal}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px', wordBreak: 'break-all' }}>{r.url}</p>
+                </div>
+                <span style={{ color: 'var(--text-dim)', flexShrink: 0 }}>{expanded === r.url ? '▲' : '▼'}</span>
+              </div>
+              {expanded === r.url && (
+                <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '10px' }}>{r.sintese}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px' }}>
+                    <div><span style={{ color: 'var(--text-dim)' }}>Tom:</span> <span style={{ color: 'var(--text-secondary)' }}>{r.tomDeVoz}</span></div>
+                    <div><span style={{ color: 'var(--text-dim)' }}>Frequência:</span> <span style={{ color: 'var(--text-secondary)' }}>{r.frequencia}</span></div>
+                    <div><span style={{ color: '#6ab56a' }}>✓ {r.pontoForte}</span></div>
+                    <div><span style={{ color: '#c97b7b' }}>✗ {r.pontoFraco}</span></div>
+                  </div>
+                  {r.temas && r.temas.length > 0 && (
+                    <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {r.temas.map((t, i) => (
+                        <span key={i} style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(201,169,110,0.1)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-dim)' }}>{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {/* Synthesis */}
+          {!project.brandAuditSynthesis && !isDone && (
+            <button className="btn-primary" onClick={runSynthesis} disabled={synthesizing} style={{ marginTop: '8px' }}>
+              {synthesizing ? 'Sintetizando análise diagnóstica…' : 'Gerar síntese diagnóstica'}
+            </button>
+          )}
+        </div>
       )}
 
-      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Concorrentes prioritários, plataformas a focar, ângulos específicos para a netnografia..." />
-      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa profunda" />
+      {/* Synthesis result */}
+      {project.brandAuditSynthesis && (
+        <div className="ai-output" style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', marginBottom: '8px', fontWeight: 600, letterSpacing: '0.05em' }}>
+            SÍNTESE DIAGNÓSTICA DOS CANAIS
+          </p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '12px' }}>
+            {project.brandAuditSynthesis.diagnostico}
+          </p>
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '8px', fontWeight: 600 }}>Coerência com posicionamento declarado</p>
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '12px' }}>
+            {project.brandAuditSynthesis.coerencia}
+          </p>
+          {project.brandAuditSynthesis.contradicoes?.length > 0 && (
+            <div style={{ marginBottom: '10px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px', fontWeight: 600 }}>Contradições detectadas</p>
+              {project.brandAuditSynthesis.contradicoes.map((c, i) => (
+                <p key={i} style={{ fontSize: '13px', color: '#c97b7b', marginBottom: '4px' }}>• {c}</p>
+              ))}
+            </div>
+          )}
+          {project.brandAuditSynthesis.recomendacoes?.length > 0 && (
+            <div>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '4px', fontWeight: 600 }}>Direcionamentos estratégicos</p>
+              {project.brandAuditSynthesis.recomendacoes.map((r, i) => (
+                <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '4px' }}>→ {r}</p>
+              ))}
+            </div>
+          )}
+          <DownloadButton title={`Auditoria de Canais — ${project.nome}`} content={JSON.stringify(project.brandAuditSynthesis, null, 2)} />
+        </div>
+      )}
+
+      {/* Approve */}
+      {!isDone && project.brandAuditSynthesis && (
+        <div style={{ display: 'flex', gap: '8px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+          <button className="btn-approve" onClick={handleApprove}>Aprovar Auditoria e continuar</button>
+          <button className="btn-skip" onClick={handleSkip}>Pular</button>
+        </div>
+      )}
+      {!isDone && !project.brandAuditSynthesis && (
+        <div style={{ marginTop: '16px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular auditoria de canais</button>
+        </div>
+      )}
+      {isDone && (
+        <p className="step-done-msg" style={{ marginTop: '16px' }}>
+          {step.status === 'skipped' ? 'Etapa pulada.' : `Auditoria aprovada — ${project.brandAuditResults?.length || 0} canal(is) analisado(s).`}
+        </p>
+      )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Canais prioritários, aspectos específicos a observar, comparação com período anterior..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Auditoria de Canais da Marca" />
+    </div>
+  );
+}
+
+// ─── STEP: PESQUISA DE REDES SOCIAIS ─────────────────────────────────────────
+
+function StepSocialResearch({
+  project,
+  step,
+  onUpdate,
+}: {
+  project: Project;
+  step: WorkflowStep;
+  onUpdate: (p: Project) => void;
+}) {
+  const [profiles, setProfiles] = useState<string[]>(project.socialProfiles || []);
+  const [newUrl, setNewUrl] = useState('');
+  const [running, setRunning] = useState(false);
+  const [synthesizing, setSynthesizing] = useState(false);
+  const [currentUrl, setCurrentUrl] = useState('');
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const isDone = step.status === 'done' || step.status === 'skipped';
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+
+  function addUrl() {
+    const trimmed = newUrl.trim();
+    if (!trimmed || profiles.includes(trimmed)) return;
+    const updated = [...profiles, trimmed];
+    setProfiles(updated);
+    setNewUrl('');
+    const proj = { ...project, socialProfiles: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  function removeUrl(url: string) {
+    const updated = profiles.filter(u => u !== url);
+    setProfiles(updated);
+    const proj = { ...project, socialProfiles: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  async function runListening() {
+    if (profiles.length === 0) return;
+    setRunning(true);
+    const results = [...(project.socialListeningResults || [])];
+    const ctx = getProjectContext(project);
+
+    for (let i = 0; i < profiles.length; i++) {
+      const url = profiles[i];
+      setCurrentUrl(url);
+      try {
+        const res = await fetch('/api/openai-research', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'social_listening_item', url, projectContext: ctx }),
+        });
+        const data = await res.json();
+        if (!data.error) {
+          const idx = results.findIndex(r => r.url === url);
+          if (idx >= 0) results[idx] = data;
+          else results.push(data);
+          const proj = { ...project, socialListeningResults: [...results] };
+          saveProject(proj);
+          onUpdate(proj);
+        }
+      } catch { /* continue */ }
+      if (i < profiles.length - 1) await new Promise(r => setTimeout(r, 4000));
+    }
+    setCurrentUrl('');
+    setRunning(false);
+  }
+
+  async function runSynthesis() {
+    setSynthesizing(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'social_expert_synthesis',
+          projectContext: getProjectContext(project),
+          socialListeningResults: project.socialListeningResults,
+          brandAuditSynthesis: project.brandAuditSynthesis,
+        }),
+      });
+      const data = await res.json();
+      if (!data.error) {
+        const proj = { ...project, socialResearchSynthesis: data };
+        saveProject(proj);
+        onUpdate(proj);
+      }
+    } finally {
+      setSynthesizing(false);
+    }
+  }
+
+  return (
+    <div className="step-body">
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+        Insira os endereços dos perfis de concorrentes, referências setoriais e marcas relevantes para o mercado deste cliente.
+      </p>
+
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+        <input
+          className="input"
+          style={{ flex: 1, fontSize: '13px' }}
+          placeholder="https://instagram.com/concorrente ou URL de perfil/homepage"
+          value={newUrl}
+          onChange={e => setNewUrl(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && addUrl()}
+          disabled={isDone}
+        />
+        <button className="btn-primary" onClick={addUrl} disabled={!newUrl.trim() || isDone} style={{ whiteSpace: 'nowrap' }}>
+          + Adicionar
+        </button>
+      </div>
+
+      {profiles.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '16px' }}>
+          {profiles.map(url => (
+            <div key={url} style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 12px', background: 'var(--surface)', borderRadius: '6px', border: '1px solid var(--border)' }}>
+              <span style={{ flex: 1, fontSize: '13px', color: 'var(--text-secondary)', wordBreak: 'break-all' }}>{url}</span>
+              {project.socialListeningResults?.find(r => r.url === url) && <span style={{ fontSize: '11px', color: '#6ab56a' }}>✓</span>}
+              {running && currentUrl === url && <span style={{ fontSize: '11px', color: 'var(--gold)' }}>analisando…</span>}
+              {!isDone && (
+                <button onClick={() => removeUrl(url)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', padding: '0 4px' }}>×</button>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {!isDone && profiles.length > 0 && (
+        <button className="btn-primary" onClick={runListening} disabled={running || synthesizing} style={{ marginBottom: '16px' }}>
+          {running ? `Analisando: ${currentUrl.slice(0, 40)}…` : 'Iniciar social listening'}
+        </button>
+      )}
+
+      {project.socialListeningResults && project.socialListeningResults.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '10px' }}>
+            {project.socialListeningResults.length} perfil(is) analisado(s)
+          </p>
+          {project.socialListeningResults.map(r => (
+            <div key={r.url} className="card" style={{ marginBottom: '8px' }}>
+              <div
+                style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }}
+                onClick={() => setExpanded(expanded === r.url ? null : r.url)}
+              >
+                <div>
+                  <p style={{ fontWeight: 600, color: 'var(--gold)', fontSize: '14px' }}>{r.entidade || r.url}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>{r.arquetipo}</p>
+                </div>
+                <span style={{ color: 'var(--text-dim)', flexShrink: 0 }}>{expanded === r.url ? '▲' : '▼'}</span>
+              </div>
+              {expanded === r.url && (
+                <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                  <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '10px' }}>{r.posicionamento}</p>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', fontSize: '12px', marginBottom: '8px' }}>
+                    <div><span style={{ color: '#6ab56a' }}>✓ {r.pontoForte}</span></div>
+                    <div><span style={{ color: '#c97b7b' }}>✗ {r.pontoFraco}</span></div>
+                  </div>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>Território: {r.territorioOcupado}</p>
+                  {r.temas && r.temas.length > 0 && (
+                    <div style={{ marginTop: '8px', display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                      {r.temas.map((t, i) => (
+                        <span key={i} style={{ fontSize: '11px', padding: '2px 8px', background: 'rgba(201,169,110,0.1)', border: '1px solid var(--border)', borderRadius: '4px', color: 'var(--text-dim)' }}>{t}</span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
+
+          {!project.socialResearchSynthesis && !isDone && (
+            <button className="btn-primary" onClick={runSynthesis} disabled={synthesizing} style={{ marginTop: '8px' }}>
+              {synthesizing ? 'Gerando análise estratégica…' : 'Gerar síntese estratégica'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {project.socialResearchSynthesis && (
+        <div className="ai-output" style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', marginBottom: '10px', fontWeight: 600, letterSpacing: '0.05em' }}>
+            ANÁLISE ESTRATÉGICA — SOCIAL RESEARCH
+          </p>
+          {project.socialResearchSynthesis.territoriosOcupados?.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 600, marginBottom: '6px' }}>Territórios ocupados pelo mercado</p>
+              {project.socialResearchSynthesis.territoriosOcupados.map((t, i) => (
+                <p key={i} style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '3px' }}>• {t}</p>
+              ))}
+            </div>
+          )}
+          {project.socialResearchSynthesis.territoriosDisponiveis?.length > 0 && (
+            <div style={{ marginBottom: '12px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 600, marginBottom: '6px' }}>Territórios disponíveis</p>
+              {project.socialResearchSynthesis.territoriosDisponiveis.map((t, i) => (
+                <p key={i} style={{ fontSize: '13px', color: '#6ab56a', marginBottom: '3px' }}>→ {t}</p>
+              ))}
+            </div>
+          )}
+          <p style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.7, marginBottom: '12px' }}>
+            {project.socialResearchSynthesis.comparativoComMarca}
+          </p>
+          {project.socialResearchSynthesis.oportunidades?.length > 0 && (
+            <div>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontWeight: 600, marginBottom: '4px' }}>Oportunidades identificadas</p>
+              {project.socialResearchSynthesis.oportunidades.map((o, i) => (
+                <p key={i} style={{ fontSize: '13px', color: 'var(--gold)', marginBottom: '4px' }}>◈ {o}</p>
+              ))}
+            </div>
+          )}
+          <DownloadButton title={`Social Research — ${project.nome}`} content={JSON.stringify(project.socialResearchSynthesis, null, 2)} />
+        </div>
+      )}
+
+      {!isDone && project.socialResearchSynthesis && (
+        <div style={{ display: 'flex', gap: '8px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+          <button className="btn-approve" onClick={handleApprove}>Aprovar Social Research e continuar</button>
+          <button className="btn-skip" onClick={handleSkip}>Pular</button>
+        </div>
+      )}
+      {!isDone && !project.socialResearchSynthesis && (
+        <div style={{ marginTop: '16px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular pesquisa de redes sociais</button>
+        </div>
+      )}
+      {isDone && (
+        <p className="step-done-msg" style={{ marginTop: '16px' }}>
+          {step.status === 'skipped' ? 'Etapa pulada.' : `Social Research aprovado — ${project.socialListeningResults?.length || 0} perfil(is) analisado(s).`}
+        </p>
+      )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Concorrentes prioritários, plataformas específicas, ângulos de comparação..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa de Redes Sociais" />
+    </div>
+  );
+}
+
+// ─── STEP: RELATÓRIO CONSOLIDADO ─────────────────────────────────────────────
+
+function StepResearchReport({
+  project,
+  step,
+  onUpdate,
+}: {
+  project: Project;
+  step: WorkflowStep;
+  onUpdate: (p: Project) => void;
+}) {
+  const [generating, setGenerating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const isDone = step.status === 'done' || step.status === 'skipped';
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+
+  async function generateReport() {
+    setGenerating(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'consolidate_report',
+          projectContext: getProjectContext(project),
+          independentResearch: project.independentResearch || [],
+        }),
+      });
+      const data = await res.json();
+      if (data.report) {
+        const proj = { ...project, consolidatedReport: data.report };
+        saveProject(proj);
+        onUpdate(proj);
+      }
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      const res = await fetch('/api/documents', { method: 'POST', body: formData });
+      const data = await res.json();
+      const content = data.text || data.content || '';
+      if (!content) return;
+
+      // Generate summary
+      const summaryRes = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: `Faça um resumo estratégico conciso (máximo 200 palavras) do seguinte documento, destacando os dados e insights mais relevantes para um projeto de branding:\n\n${content.slice(0, 4000)}` }],
+        }),
+      });
+      const summaryData = await summaryRes.json();
+      const resumo = summaryData.content || summaryData.message || content.slice(0, 300);
+
+      const newFile = {
+        id: `ir_${Date.now()}`,
+        filename: file.name,
+        content,
+        resumo,
+        uploadedAt: new Date().toISOString(),
+      };
+      const updated = [...(project.independentResearch || []), newFile];
+      const proj = { ...project, independentResearch: updated };
+      saveProject(proj);
+      onUpdate(proj);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function removeFile(id: string) {
+    const updated = (project.independentResearch || []).filter(f => f.id !== id);
+    const proj = { ...project, independentResearch: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  return (
+    <div className="step-body">
+      {/* Independent research uploads */}
+      <div style={{ marginBottom: '24px' }}>
+        <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+          Inclua pesquisas independentes realizadas fora da plataforma — relatórios, estudos de mercado, análises externas. Elas serão analisadas e incorporadas ao relatório final.
+        </p>
+        {!isDone && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".pdf,.docx,.txt,.doc"
+              onChange={handleFileUpload}
+              style={{ display: 'none' }}
+            />
+            <button
+              className="btn-primary"
+              onClick={() => fileRef.current?.click()}
+              disabled={uploading}
+            >
+              {uploading ? 'Processando arquivo…' : '+ Adicionar pesquisa independente'}
+            </button>
+          </div>
+        )}
+
+        {project.independentResearch && project.independentResearch.length > 0 && (
+          <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            {project.independentResearch.map(f => (
+              <div key={f.id} style={{ padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1 }}>
+                    <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>{f.filename}</p>
+                    <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.5 }}>{f.resumo}</p>
+                  </div>
+                  {!isDone && (
+                    <button onClick={() => removeFile(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', marginLeft: '8px', flexShrink: 0 }}>×</button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Generate report */}
+      {!isDone && (
+        <button className="btn-primary" onClick={generateReport} disabled={generating} style={{ marginBottom: '20px' }}>
+          {generating ? 'Gerando relatório consolidado…' : project.consolidatedReport ? 'Regenerar relatório' : 'Gerar relatório consolidado'}
+        </button>
+      )}
+
+      {/* Report display */}
+      {project.consolidatedReport && (
+        <div className="ai-output" style={{ marginBottom: '20px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', marginBottom: '10px', fontWeight: 600, letterSpacing: '0.05em' }}>
+            RELATÓRIO CONSOLIDADO DE PESQUISA
+          </p>
+          <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+            {project.consolidatedReport}
+          </div>
+          <div style={{ marginTop: '16px' }}>
+            <DownloadButton title={`Relatório Consolidado — ${project.nome}`} content={project.consolidatedReport} />
+          </div>
+        </div>
+      )}
+
+      {!isDone && project.consolidatedReport && (
+        <div style={{ display: 'flex', gap: '8px', paddingTop: '16px', borderTop: '1px solid var(--border)' }}>
+          <button className="btn-approve" onClick={handleApprove}>Aprovar relatório e continuar</button>
+          <button className="btn-skip" onClick={handleSkip}>Pular</button>
+        </div>
+      )}
+      {!isDone && !project.consolidatedReport && (
+        <div style={{ marginTop: '8px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular relatório consolidado</button>
+        </div>
+      )}
+      {isDone && (
+        <p className="step-done-msg" style={{ marginTop: '16px' }}>
+          {step.status === 'skipped' ? 'Etapa pulada.' : 'Relatório consolidado aprovado.'}
+        </p>
+      )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Ajustes no relatório, seções a reforçar, dados a incluir manualmente..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Relatório Consolidado" />
+    </div>
+  );
+}
+
+// ─── STEP: ROTEIROS DE ENTREVISTA ────────────────────────────────────────────
+
+function StepInterviewScripts({
+  project,
+  step,
+  onUpdate,
+}: {
+  project: Project;
+  step: WorkflowStep;
+  onUpdate: (p: Project) => void;
+}) {
+  const [showForm, setShowForm] = useState(false);
+  const [formNome, setFormNome] = useState('');
+  const [formCargo, setFormCargo] = useState('');
+  const [formBio, setFormBio] = useState('');
+  const [generating, setGenerating] = useState<string | null>(null);
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const [editingQ, setEditingQ] = useState<{ ivId: string; qi: number } | null>(null);
+  const [editText, setEditText] = useState('');
+  const [newQ, setNewQ] = useState<string>('');
+  const [addingTo, setAddingTo] = useState<string | null>(null);
+  const isDone = step.status === 'done' || step.status === 'skipped';
+
+  function handleApprove() { onUpdate(approveStep(project, step.id)); }
+  function handleSkip() { onUpdate(skipStep(project, step.id)); }
+
+  function addInterviewee() {
+    if (!formNome.trim() || !formCargo.trim()) return;
+    const iv: Interviewee = {
+      id: `iv_${Date.now()}`,
+      nome: formNome.trim(),
+      cargo: formCargo.trim(),
+      minibio: formBio.trim(),
+      questions: [],
+    };
+    const updated = [...(project.interviewees || []), iv];
+    const proj = { ...project, interviewees: updated };
+    saveProject(proj);
+    onUpdate(proj);
+    setFormNome(''); setFormCargo(''); setFormBio('');
+    setShowForm(false);
+    setExpanded(iv.id);
+  }
+
+  function removeInterviewee(id: string) {
+    const updated = (project.interviewees || []).filter(iv => iv.id !== id);
+    const proj = { ...project, interviewees: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  async function generateQuestions(iv: Interviewee) {
+    setGenerating(iv.id);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_interview_questions',
+          projectContext: getProjectContext(project),
+          interviewee: { nome: iv.nome, cargo: iv.cargo, minibio: iv.minibio },
+        }),
+      });
+      const data = await res.json();
+      if (data.perguntas) {
+        const updated = (project.interviewees || []).map(i =>
+          i.id === iv.id ? { ...i, questions: data.perguntas, generatedAt: new Date().toISOString() } : i
+        );
+        const proj = { ...project, interviewees: updated };
+        saveProject(proj);
+        onUpdate(proj);
+      }
+    } finally {
+      setGenerating(null);
+    }
+  }
+
+  function saveEdit(ivId: string, qi: number) {
+    const updated = (project.interviewees || []).map(iv => {
+      if (iv.id !== ivId) return iv;
+      const qs = [...iv.questions];
+      qs[qi] = editText;
+      return { ...iv, questions: qs };
+    });
+    const proj = { ...project, interviewees: updated };
+    saveProject(proj); onUpdate(proj);
+    setEditingQ(null); setEditText('');
+  }
+
+  function deleteQuestion(ivId: string, qi: number) {
+    const updated = (project.interviewees || []).map(iv => {
+      if (iv.id !== ivId) return iv;
+      const qs = iv.questions.filter((_, i) => i !== qi);
+      return { ...iv, questions: qs };
+    });
+    const proj = { ...project, interviewees: updated };
+    saveProject(proj); onUpdate(proj);
+  }
+
+  function addQuestion(ivId: string) {
+    if (!newQ.trim()) return;
+    const updated = (project.interviewees || []).map(iv => {
+      if (iv.id !== ivId) return iv;
+      return { ...iv, questions: [...iv.questions, newQ.trim()] };
+    });
+    const proj = { ...project, interviewees: updated };
+    saveProject(proj); onUpdate(proj);
+    setNewQ(''); setAddingTo(null);
+  }
+
+  return (
+    <div className="step-body">
+      <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+        Cadastre cada entrevistado com nome, cargo e minibiografia. Com base em todo o contexto das pesquisas, o sistema gerará perguntas calibradas para cada pessoa. As perguntas são editáveis e você pode adicionar novas livremente.
+      </p>
+
+      {/* Add interviewee form */}
+      {!isDone && !showForm && (
+        <button className="btn-primary" onClick={() => setShowForm(true)} style={{ marginBottom: '16px' }}>
+          + Adicionar entrevistado
+        </button>
+      )}
+
+      {showForm && (
+        <div style={{ padding: '16px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', marginBottom: '16px' }}>
+          <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--gold)', marginBottom: '12px' }}>Novo entrevistado</p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '10px' }}>
+            <input className="input" placeholder="Nome completo *" value={formNome} onChange={e => setFormNome(e.target.value)} style={{ fontSize: '13px' }} />
+            <input className="input" placeholder="Cargo / função *" value={formCargo} onChange={e => setFormCargo(e.target.value)} style={{ fontSize: '13px' }} />
+          </div>
+          <textarea
+            className="textarea"
+            placeholder="Minibiografia — trajetória, experiência anterior, contexto relevante para a entrevista (opcional mas recomendado)"
+            value={formBio}
+            onChange={e => setFormBio(e.target.value)}
+            rows={3}
+            style={{ fontSize: '13px', width: '100%', marginBottom: '10px', resize: 'vertical' }}
+          />
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-approve" onClick={addInterviewee} disabled={!formNome.trim() || !formCargo.trim()}>Adicionar</button>
+            <button className="btn-skip" onClick={() => { setShowForm(false); setFormNome(''); setFormCargo(''); setFormBio(''); }}>Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* Interviewees list */}
+      {(project.interviewees || []).map(iv => (
+        <div key={iv.id} className="card" style={{ marginBottom: '12px' }}>
+          {/* Header */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+            <div
+              style={{ cursor: 'pointer', flex: 1 }}
+              onClick={() => setExpanded(expanded === iv.id ? null : iv.id)}
+            >
+              <p style={{ fontWeight: 600, color: 'var(--gold)', fontSize: '14px' }}>{iv.nome}</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginTop: '2px' }}>
+                {iv.cargo}
+                {iv.questions.length > 0 && <span style={{ marginLeft: '8px', color: '#6ab56a' }}>• {iv.questions.length} perguntas</span>}
+              </p>
+            </div>
+            <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+              {!isDone && (
+                <button
+                  className="btn-primary"
+                  onClick={() => generateQuestions(iv)}
+                  disabled={generating === iv.id}
+                  style={{ fontSize: '12px', padding: '5px 10px' }}
+                >
+                  {generating === iv.id ? 'Gerando…' : iv.questions.length > 0 ? 'Regerar' : 'Gerar perguntas'}
+                </button>
+              )}
+              {!isDone && (
+                <button
+                  onClick={() => removeInterviewee(iv.id)}
+                  style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '16px', padding: '2px 6px' }}
+                >
+                  ×
+                </button>
+              )}
+              <button
+                onClick={() => setExpanded(expanded === iv.id ? null : iv.id)}
+                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', padding: '2px 6px' }}
+              >
+                {expanded === iv.id ? '▲' : '▼'}
+              </button>
+            </div>
+          </div>
+
+          {/* Expanded content */}
+          {expanded === iv.id && (
+            <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+              {iv.minibio && (
+                <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: '12px', lineHeight: 1.5 }}>
+                  {iv.minibio}
+                </p>
+              )}
+
+              {iv.questions.length === 0 && generating !== iv.id && (
+                <p style={{ fontSize: '13px', color: 'var(--text-dim)', fontStyle: 'italic' }}>
+                  Nenhuma pergunta gerada ainda. Clique em &quot;Gerar perguntas&quot; para iniciar.
+                </p>
+              )}
+              {generating === iv.id && (
+                <p style={{ fontSize: '13px', color: 'var(--gold)' }}>
+                  Gerando perguntas calibradas para {iv.cargo}…
+                </p>
+              )}
+
+              {iv.questions.length > 0 && (
+                <ol style={{ paddingLeft: '0', listStyle: 'none', margin: '0' }}>
+                  {iv.questions.map((q, qi) => (
+                    <li key={qi} style={{ marginBottom: '10px', display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                      <span style={{ fontSize: '12px', color: 'var(--text-dim)', minWidth: '18px', paddingTop: '2px' }}>{qi + 1}.</span>
+                      {editingQ?.ivId === iv.id && editingQ.qi === qi ? (
+                        <div style={{ flex: 1 }}>
+                          <textarea
+                            className="textarea"
+                            value={editText}
+                            onChange={e => setEditText(e.target.value)}
+                            rows={2}
+                            style={{ fontSize: '13px', width: '100%', marginBottom: '6px', resize: 'vertical' }}
+                            autoFocus
+                          />
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <button className="btn-approve" onClick={() => saveEdit(iv.id, qi)} style={{ fontSize: '12px', padding: '4px 10px' }}>Salvar</button>
+                            <button className="btn-skip" onClick={() => setEditingQ(null)} style={{ fontSize: '12px', padding: '4px 10px' }}>Cancelar</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <p style={{ flex: 1, fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.6 }}>{q}</p>
+                          {!isDone && (
+                            <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
+                              <button
+                                onClick={() => { setEditingQ({ ivId: iv.id, qi }); setEditText(q); }}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '12px', padding: '2px 6px' }}
+                                title="Editar"
+                              >✎</button>
+                              <button
+                                onClick={() => deleteQuestion(iv.id, qi)}
+                                style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '12px', padding: '2px 6px' }}
+                                title="Remover"
+                              >×</button>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ol>
+              )}
+
+              {/* Add custom question */}
+              {!isDone && (
+                <div style={{ marginTop: '10px' }}>
+                  {addingTo === iv.id ? (
+                    <div>
+                      <textarea
+                        className="textarea"
+                        placeholder="Escreva a pergunta..."
+                        value={newQ}
+                        onChange={e => setNewQ(e.target.value)}
+                        rows={2}
+                        style={{ fontSize: '13px', width: '100%', marginBottom: '6px', resize: 'vertical' }}
+                        autoFocus
+                      />
+                      <div style={{ display: 'flex', gap: '6px' }}>
+                        <button className="btn-approve" onClick={() => addQuestion(iv.id)} disabled={!newQ.trim()} style={{ fontSize: '12px', padding: '4px 10px' }}>Adicionar</button>
+                        <button className="btn-skip" onClick={() => { setAddingTo(null); setNewQ(''); }} style={{ fontSize: '12px', padding: '4px 10px' }}>Cancelar</button>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingTo(iv.id)}
+                      style={{ fontSize: '12px', color: 'var(--text-dim)', background: 'none', border: '1px dashed var(--border)', borderRadius: '4px', padding: '4px 10px', cursor: 'pointer' }}
+                    >
+                      + Adicionar pergunta manualmente
+                    </button>
+                  )}
+                </div>
+              )}
+
+              {iv.questions.length > 0 && (
+                <div style={{ marginTop: '12px' }}>
+                  <DownloadButton
+                    title={`Roteiro — ${iv.nome} (${iv.cargo})`}
+                    content={`ENTREVISTADO: ${iv.nome}\nCARGO: ${iv.cargo}\n${iv.minibio ? `PERFIL: ${iv.minibio}\n` : ''}\nROTEIRO DE ENTREVISTA:\n\n${iv.questions.map((q, i) => `${i + 1}. ${q}`).join('\n\n')}`}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      ))}
+
+      {/* Approve */}
+      {!isDone && (project.interviewees || []).some(iv => iv.questions.length > 0) && (
+        <div style={{ display: 'flex', gap: '8px', paddingTop: '16px', borderTop: '1px solid var(--border)', marginTop: '8px' }}>
+          <button className="btn-approve" onClick={handleApprove}>Aprovar roteiros e continuar</button>
+          <button className="btn-skip" onClick={handleSkip}>Pular</button>
+        </div>
+      )}
+      {!isDone && !(project.interviewees || []).some(iv => iv.questions.length > 0) && (
+        <div style={{ marginTop: '16px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular roteiros de entrevista</button>
+        </div>
+      )}
+      {isDone && (
+        <p className="step-done-msg" style={{ marginTop: '16px' }}>
+          {step.status === 'skipped' ? 'Etapa pulada.' : `Roteiros aprovados — ${(project.interviewees || []).length} entrevistado(s).`}
+        </p>
+      )}
+      <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Observações gerais sobre a condução das entrevistas, aspectos sensíveis, ordem sugerida..." />
+      <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Roteiros de Entrevista" />
     </div>
   );
 }
@@ -3499,6 +4416,18 @@ export default function ProjetoPage() {
                           )}
                           {step.type === 'web_research' && (
                             <StepWebResearch project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'brand_audit' && (
+                            <StepBrandAudit project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'social_research' && (
+                            <StepSocialResearch project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'research_report' && (
+                            <StepResearchReport project={project} step={step} onUpdate={handleUpdate} />
+                          )}
+                          {step.type === 'interview_scripts' && (
+                            <StepInterviewScripts project={project} step={step} onUpdate={handleUpdate} />
                           )}
                           {step.type === 'scripts' && (
                             <StepScripts project={project} step={step} onUpdate={handleUpdate} />

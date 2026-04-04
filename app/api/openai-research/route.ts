@@ -118,10 +118,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { action, projectContext, agenda } = await req.json();
+    const body = await req.json();
+    const { action, projectContext, agenda, url } = body;
     const ctx = projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : '';
 
-    // PESQUISA — item único do dossiê
+    // PESQUISA DE MERCADO — item único do dossiê com lentes ampliadas
     if (action === 'run_research_item') {
       const item = agenda as { id: string; dimensao?: number; tema: string; objetivo: string; queries: string[] };
 
@@ -130,11 +131,18 @@ OBJETIVO: ${item.objetivo}
 QUERIES SUGERIDAS: ${item.queries.join(' | ')}
 
 Pesquise este tema com profundidade usando web search. Faça múltiplas buscas para cobrir diferentes ângulos.
-Identifique fatos verificáveis, tensões, contradições e implicações estratégicas.
-Não repita o discurso institucional. Compare o que a marca diz vs. faz vs. como é percebida.
+Leia o tema pelas seguintes lentes obrigatórias:
+- GEOPOLÍTICA E MACROECONOMIA: quais forças externas pressionam este setor?
+- MARKETING E COMUNICAÇÃO: como o mercado se comunica, quais tendências de linguagem?
+- ESG E ODS: quais compromissos e pressões de sustentabilidade estão em jogo?
+- JORNALISMO E MÍDIA ESPECIALIZADA: o que a imprensa publicou nos últimos 12 meses?
+
+Priorize matérias jornalísticas, relatórios de consultorias e dados de mercado verificáveis.
+Identifique fatos verificáveis, tensões estruturais, contradições e implicações estratégicas.
+Não repita discurso institucional. Compare o que a marca diz vs. faz vs. como é percebida.
 
 Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"id":"${item.id}","tema":"${item.tema}","sintese":"síntese em 3-5 parágrafos densos","fatos":["fato1","fato2"],"tensoes":["tensão1"],"implicacoes":["implicação1"],"fontes":["fonte1"]}`;
+{"id":"${item.id}","tema":"${item.tema}","sintese":"síntese em 3-5 parágrafos densos","fatos":["fato1","fato2"],"tensoes":["tensão1"],"implicacoes":["implicação1"],"lentesGeopolitica":"análise geopolítica/macro em 2-3 frases","lentesESG":"análise ESG/ODS em 2-3 frases","midiaEspecializada":["manchete ou dado jornalístico 1","manchete 2"],"fontes":["fonte1"]}`;
 
       const text = await callOpenAIWithSearch(prompt);
       try {
@@ -144,35 +152,28 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
       }
     }
 
-    // ANÁLISE DE REDES SOCIAIS
-    if (action === 'social_analysis') {
-      const prompt = `${ctx}Você é um analista estratégico de branding. Analise a presença em redes sociais da marca e dos concorrentes no contexto.
+    // AUDITORIA DE CANAL — análise de um canal próprio da marca por URL
+    if (action === 'brand_channel_research') {
+      const channelUrl = url || '';
+      const prompt = `${ctx}CANAL A ANALISAR: ${channelUrl}
 
-Pesquise cada entidade no Instagram, LinkedIn, YouTube e plataformas relevantes do setor.
-Para cada perfil identifique: seguidores aproximados, frequência de postagem, temas recorrentes, tom de voz, formatos dominantes, engajamento, ponto forte, ponto fraco.
-Compare e mapeie territórios digitais ocupados vs. disponíveis.
-Baseie-se em dados reais — acesse os perfis e verifique o que está publicado.
+Você é um especialista sênior em marketing, comunicação e social media com 15 anos de experiência em branding estratégico.
+Acesse este canal/perfil/página e faça uma análise diagnóstica — o objetivo é entender o que a marca está EFETIVAMENTE comunicando, não o que ela diz que comunica.
 
-Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"marca":{"entidade":"nome","tipo":"marca","plataformas":[{"nome":"Instagram","handle":"@","seguidores":"X","frequencia":"X/semana","temasRecorrentes":["t1"],"tomDeVoz":"desc","formatosDominantes":["f1"],"engajamento":"desc","pontoForte":"","pontoFraco":""}],"posicionamento":"frase","arquetipo":""},"concorrentes":[{"entidade":"nome","tipo":"concorrente","plataformas":[],"posicionamento":"","arquetipo":""}],"comparativo":"2-3 parágrafos","territoriosOcupados":["t1"],"territoriosVazios":["t1"],"insights":["i1","i2","i3"]}`;
+Analise nos últimos 6 meses de conteúdo:
+- Posicionamento atual visível
+- Tom de voz dominante e variações
+- Temas recorrentes e ausências significativas
+- Frequência e consistência de publicação
+- Qualidade do engajamento (comentários, compartilhamentos — não apenas curtidas)
+- Ponto forte mais evidente
+- Ponto fraco mais crítico
+- Coerência com posicionamento declarado
 
-      const text = await callOpenAIWithSearch(prompt);
-      try {
-        return NextResponse.json({ ...robustParseJSON(text), createdAt: new Date().toISOString() });
-      } catch (e) {
-        return NextResponse.json({ error: 'Parse error', raw: text, detail: String(e) }, { status: 500 });
-      }
-    }
+Pergunta central: o que está sendo comunicado? É coerente com o que a marca declara ser? Onde há potencial desperdiçado?
 
-    // GOOGLE TRENDS / TENDÊNCIAS DE BUSCA
-    if (action === 'trends_analysis') {
-      const prompt = `${ctx}Você é um analista de branding especializado em tendências digitais. Pesquise tendências de busca para esta marca e setor.
-
-Investigue: volume e direção de busca dos termos da marca + setor + concorrentes nos últimos 12 meses, sazonalidade, termos emergentes, janelas de oportunidade, gaps de conteúdo.
-Use dados reais de fontes como Google Trends, relatórios de mercado, mídia especializada.
-
-Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"termosAnalisados":["t1","t2"],"tendencias":[{"termo":"","direcao":"crescendo","contexto":""}],"termosCrescentes":["t1"],"termosDeclinando":["t1"],"sazonalidade":"desc","janelasDeOportunidade":["j1"],"insights":["i1","i2"]}`;
+Retorne APENAS o seguinte JSON e nada mais:
+{"url":"${channelUrl}","canal":"Instagram|LinkedIn|YouTube|Site|TikTok|outro","sintese":"síntese diagnóstica em 3 parágrafos","temas":["t1","t2","t3"],"tomDeVoz":"descrição do tom dominante","frequencia":"X posts/semana ou X/mês","engajamento":"descrição qualitativa do engajamento","pontoForte":"o ponto mais forte observado","pontoFraco":"o ponto mais crítico observado"}`;
 
       const text = await callOpenAIWithSearch(prompt);
       try {
@@ -182,16 +183,25 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
       }
     }
 
-    // NETNOGRAFIA
-    if (action === 'netnography') {
-      const prompt = `${ctx}Você é um pesquisador netnográfico especializado em branding. Pesquise o discurso orgânico sobre esta marca e setor na internet.
+    // SOCIAL LISTENING — análise de perfil externo (concorrente/referência) por URL
+    if (action === 'social_listening_item') {
+      const listeningUrl = url || '';
+      const prompt = `${ctx}PERFIL A ANALISAR: ${listeningUrl}
 
-Investigue: Reddit, Twitter/X, LinkedIn (comentários orgânicos), YouTube (comentários), ReclameAqui, Google Reviews, Glassdoor, blogs especializados, portais do setor, fóruns.
-Para cada fonte identifique: elogios, críticas, desejos não atendidos, mitos, contradições entre discurso oficial e percepção real.
-Acesse fontes reais — cite o que as pessoas efetivamente dizem.
+Você é um especialista sênior em social media, marketing e comunicação de marca.
+Acesse este perfil e faça um social listening estratégico — o objetivo é mapear o território que este player está ocupando no espaço digital.
 
-Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
-{"fontes":[{"fonte":"nome","tipo":"forum|rede social|avaliacao|midia","tema":"","volume":"alto|medio|baixo","sentimento":"positivo|negativo|ambivalente|neutro","citacoes":["c1"],"sintese":"2-3 frases"}],"discursoDeRua":"2-3 parágrafos","vocabularioComunidade":["t1","t2"],"contradicoes":["c1"],"mitos":["m1"],"desejos":["d1","d2"],"oportunidades":["o1"],"alertas":["a1"]}`;
+Analise nos últimos 6 meses:
+- Posicionamento comunicado (o que eles dizem ser)
+- Arquétipo de marca dominante na comunicação
+- Temas mais recorrentes
+- Tom de voz e linguagem predominante
+- Frequência e formatos utilizados
+- Força e fraqueza estratégica principal
+- Qual território simbólico/digital este player ocupa
+
+Retorne APENAS o seguinte JSON e nada mais:
+{"url":"${listeningUrl}","entidade":"nome da marca/canal","posicionamento":"como se posicionam estrategicamente em 2-3 frases","arquetipo":"arquétipo dominante","temas":["t1","t2","t3"],"tomDeVoz":"descrição do tom","frequencia":"estimativa de frequência de publicação","pontoForte":"principal força estratégica","pontoFraco":"principal fraqueza estratégica","territorioOcupado":"qual espaço simbólico este player domina"}`;
 
       const text = await callOpenAIWithSearch(prompt);
       try {

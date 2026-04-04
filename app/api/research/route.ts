@@ -118,7 +118,8 @@ const WEB_SEARCH_TOOL = [{ type: 'web_search_20250305', name: 'web_search' }] as
 
 export async function POST(req: NextRequest) {
   try {
-    const { action, projectContext, agenda, customInstructions } = await req.json();
+    const body = await req.json();
+    const { action, projectContext, agenda, customInstructions } = body;
     const ctx = projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : '';
 
     // GERAR AGENDA
@@ -340,6 +341,174 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 
       const r = await client.messages.create({
         model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // SÍNTESE DE AUDITORIA DE CANAIS — especialista em marketing/social media
+    if (action === 'brand_audit_synthesis') {
+      const { brandAuditResults } = body as { brandAuditResults: unknown[] };
+      const resultsText = JSON.stringify(brandAuditResults || [], null, 2);
+      const prompt = `${ctx}
+RESULTADOS DA AUDITORIA DE CANAIS DA MARCA:
+${resultsText.slice(0, 6000)}
+
+Você é um especialista sênior em marketing, comunicação e social media com profundo conhecimento em branding estratégico.
+Seu olhar é diagnóstico e interno — você está analisando os canais da própria marca para entender o que ela está efetivamente comunicando.
+
+Com base nos dados coletados de cada canal, produza uma síntese diagnóstica estratégica que responda:
+
+1. DIAGNÓSTICO: O que a marca está efetivamente comunicando? (não o que declara — o que os dados mostram)
+2. COERÊNCIA: A comunicação atual é coerente com o posicionamento declarado pela marca? Onde há alinhamento e onde há ruptura?
+3. DESPERDÍCIO: Onde há potencial claro não explorado? Que oportunidades os dados revelam?
+4. CONTRADIÇÕES: Que tensões internas aparecem entre canais ou entre discurso e prática?
+5. RECOMENDAÇÕES: Quais direcionamentos estratégicos emergem dessa leitura?
+
+Seja preciso, crítico e útil. Evite elogios genéricos. Nomeie tensões com clareza.
+
+Retorne APENAS o seguinte JSON e nada mais:
+{"diagnostico":"o que a marca está realmente comunicando em 3-4 parágrafos densos","coerencia":"análise de coerência entre comunicação atual e posicionamento declarado em 2-3 parágrafos","desperdicio":["potencial não explorado 1","potencial não explorado 2","potencial não explorado 3"],"contradicoes":["contradição interna detectada 1","contradição 2"],"recomendacoes":["recomendação estratégica baseada nos dados 1","recomendação 2","recomendação 3","recomendação 4"]}`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // SÍNTESE DE SOCIAL RESEARCH — especialista cruzando brand audit + mercado
+    if (action === 'social_expert_synthesis') {
+      const { socialListeningResults, brandAuditSynthesis: bas } = body as { socialListeningResults: unknown[]; brandAuditSynthesis: unknown };
+      const listeningText = JSON.stringify(socialListeningResults || [], null, 2);
+      const auditText = bas ? JSON.stringify(bas, null, 2) : 'Não disponível';
+
+      const prompt = `${ctx}
+AUDITORIA DOS CANAIS DA PRÓPRIA MARCA (diagnóstico interno):
+${auditText.slice(0, 2000)}
+
+SOCIAL LISTENING DO MERCADO (concorrentes e referências):
+${listeningText.slice(0, 5000)}
+
+Você é um especialista sênior em social media, marketing e comunicação de marca.
+Seu olhar é comparativo e estratégico — você está mapeando o campo de disputa para identificar onde a marca pode avançar.
+
+Analise o conjunto e produza uma síntese estratégica que responda:
+
+1. TERRITÓRIOS OCUPADOS: quais espaços simbólicos e comunicacionais os players do mercado já dominam
+2. TERRITÓRIOS DISPONÍVEIS: quais espaços ainda não foram reivindicados por ninguém com consistência
+3. COMPARATIVO COM A MARCA: dado o que a auditoria interna revelou, onde a marca tem vantagem real vs. onde está em desvantagem
+4. INSIGHTS ESTRATÉGICOS: o que o cruzamento brand audit + mercado revela que nenhuma análise isolada mostraria
+5. OPORTUNIDADES DE POSICIONAMENTO: janelas concretas para a marca avançar no espaço digital
+6. ALERTAS: riscos ou movimentos do mercado que precisam de atenção imediata
+
+Retorne APENAS o seguinte JSON e nada mais:
+{"territoriosOcupados":["território dominado por players do mercado 1","território 2","território 3"],"territoriosDisponiveis":["território disponível 1","território 2","território 3"],"comparativoComMarca":"análise comparativa em 3-4 parágrafos — onde a marca tem vantagem real e onde está em desvantagem","insights":["insight que emerge do cruzamento brand audit + mercado 1","insight 2","insight 3","insight 4"],"oportunidades":["oportunidade concreta de posicionamento 1","oportunidade 2","oportunidade 3"],"alertas":["alerta estratégico 1","alerta 2"]}`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // RELATÓRIO CONSOLIDADO — integração de todas as pesquisas + pesquisas independentes
+    if (action === 'consolidate_report') {
+      const { independentResearch } = body as { independentResearch: { filename: string; content: string }[] };
+      const independentText = independentResearch?.length
+        ? independentResearch.map(r => `\n--- ${r.filename} ---\n${r.content.slice(0, 2000)}`).join('\n')
+        : '';
+
+      const prompt = `${ctx}${independentText ? `\nPESQUISAS INDEPENDENTES FORNECIDAS PELO USUÁRIO:\n${independentText.slice(0, 4000)}\n` : ''}
+
+Você é um estrategista sênior da AMUM. Produza o Relatório Consolidado de Pesquisa — o documento que fecha a fase de inteligência e prepara as entrevistas.
+
+Este relatório integra TODAS as camadas disponíveis:
+- Dados do cliente (site AMUM, documentos internos, diagnóstico digital)
+- Pesquisa de Mercado (dossiê setorial com lentes geopolítica/ESG/jornalismo)
+- Auditoria de Canais da Marca (diagnóstico interno dos canais próprios)
+- Pesquisa de Redes Sociais (social listening do mercado)
+- Pesquisas independentes fornecidas pelo usuário (se presentes)
+
+Princípios de integração:
+1. Contradições entre camadas são mais reveladoras que confirmações
+2. O que é confirmado por múltiplas fontes tem peso maior
+3. O atrito entre o que a marca declara e o que os dados externos mostram é a tensão estratégica real
+4. Pesquisas independentes devem ser incorporadas com identificação de fonte e grau de convergência com as demais
+
+Estruture o relatório em markdown com seções claras. Seja denso, preciso e estratégico.
+
+ESTRUTURA DO RELATÓRIO:
+# Relatório Consolidado de Pesquisa — [Nome do Projeto]
+## Panorama Integrado
+## Tensão Central
+## O Que a Marca Está Comunicando (Auditoria Interna)
+## O Que o Mercado Está Fazendo (Pesquisa de Redes Sociais)
+## Contexto Setorial Ampliado (Dossiê de Mercado)
+## Contradições Identificadas
+## Território Disponível
+## Janelas de Oportunidade
+## O Que as Pesquisas Independentes Acrescentam [incluir apenas se houver]
+## Direcionamentos para as Entrevistas
+
+Retorne o relatório completo em texto markdown, sem JSON.`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 6000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      return NextResponse.json({ report: extractText(r.content), createdAt: new Date().toISOString() });
+    }
+
+    // GERAR PERGUNTAS PARA ENTREVISTADO — pesquisador sênior calibrado por cargo e minibiografia
+    if (action === 'generate_interview_questions') {
+      const { interviewee } = body as { interviewee: { nome: string; cargo: string; minibio: string } };
+      if (!interviewee) return NextResponse.json({ error: 'Interviewee data required' }, { status: 400 });
+
+      // Calibrar o ângulo baseado no cargo
+      const cargoLower = interviewee.cargo.toLowerCase();
+      let cargoAngulo = '';
+      if (cargoLower.includes('ceo') || cargoLower.includes('fundador') || cargoLower.includes('sócio') || cargoLower.includes('presidente')) {
+        cargoAngulo = `ÂNGULO: Visão estratégica, decisões fundacionais, contradições entre intenção e realidade, legado vs. futuro, o que a empresa ainda não conseguiu dizer ao mundo. Perguntas devem revelar convicções profundas, medos estratégicos e a distância entre o projeto mental da empresa e o que está visível externamente.`;
+      } else if (cargoLower.includes('diretor') || cargoLower.includes('gerente') || cargoLower.includes('head')) {
+        cargoAngulo = `ÂNGULO: Operação vivida, cultura real vs. cultura declarada, gap entre o que é comunicado internamente e o que chega ao mercado, o que é sabido mas não dito, onde a estratégia encontra atrito com a realidade. Perguntas devem revelar a distância entre decisão e execução.`;
+      } else if (cargoLower.includes('colaborador') || cargoLower.includes('analista') || cargoLower.includes('assistente') || cargoLower.includes('coordenador')) {
+        cargoAngulo = `ÂNGULO: Percepção cotidiana, o que os clientes realmente dizem, o que nunca é reportado para cima, o orgulho que parece óbvio demais para mencionar, as tensões que aparecem no dia a dia mas não chegam à liderança. Perguntas devem revelar o que a empresa sabe mas não registra.`;
+      } else if (cargoLower.includes('cliente')) {
+        cargoAngulo = `ÂNGULO: Experiência real de consumo, percepção externa, o que faz continuar (ou não) com a marca, o que seria necessário para recomendar (ou parar de recomendar), onde a entrega fica aquém da promessa. Perguntas devem revelar a realidade da experiência de marca.`;
+      } else {
+        cargoAngulo = `ÂNGULO: Perspectiva específica do cargo de ${interviewee.cargo}, experiência vivida com a marca, percepções relevantes para branding e posicionamento.`;
+      }
+
+      const prompt = `${ctx}
+ENTREVISTADO:
+Nome: ${interviewee.nome}
+Cargo: ${interviewee.cargo}
+Minibiografia: ${interviewee.minibio}
+
+${cargoAngulo}
+
+Você é um pesquisador sênior especializado em escuta qualitativa para projetos de branding estratégico.
+Com base em TODO o contexto do projeto acima e na minibiografia e cargo deste entrevistado específico, formule perguntas de entrevista em profundidade.
+
+As perguntas devem:
+1. Ser calibradas para o cargo e experiência desta pessoa específica
+2. Investigar as tensões e lacunas identificadas nas pesquisas
+3. Testar hipóteses que emergiram dos dados coletados
+4. Revelar o que essa pessoa específica sabe que nenhuma pesquisa documental mostraria
+5. Ter sequência lógica: da mais aberta para a mais precisa
+6. Evitar perguntas fechadas (sim/não) e perguntas que induzam resposta
+
+Se a minibiografia revelar trajetória relevante (setor anterior, formação específica, histórico de transição), incorpore isso nas perguntas.
+
+Gere entre 8 e 12 perguntas. Retorne APENAS o seguinte JSON e nada mais:
+{"perguntas":["Pergunta 1 — aberta, de aquecimento","Pergunta 2","Pergunta 3","Pergunta 4","Pergunta 5 — sobre tensão específica identificada nos dados","Pergunta 6","Pergunta 7","Pergunta 8 — de fechamento, convite para adicionar o que não foi perguntado"]}`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
