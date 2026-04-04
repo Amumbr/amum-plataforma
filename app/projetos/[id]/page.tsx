@@ -2895,10 +2895,36 @@ function StepWebResearch({
   step: WorkflowStep;
   onUpdate: (p: Project) => void;
 }) {
+  const [generatingReport, setGeneratingReport] = useState(false);
   const isDone = step.status === 'done' || step.status === 'skipped';
 
   function handleApprove() { onUpdate(approveStep(project, step.id)); }
   function handleSkip() { onUpdate(skipStep(project, step.id)); }
+
+  const hasResearch = project.researchResults.length > 0 || (project.independentResearch || []).length > 0;
+
+  async function generateLearningsReport() {
+    setGeneratingReport(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'consolidate_report',
+          projectContext: getProjectContext(project),
+          independentResearch: project.independentResearch || [],
+        }),
+      });
+      const data = await res.json();
+      if (data.report) {
+        const proj = { ...project, consolidatedReport: data.report };
+        saveProject(proj);
+        onUpdate(proj);
+      }
+    } finally {
+      setGeneratingReport(false);
+    }
+  }
 
   return (
     <div className="step-body">
@@ -2907,16 +2933,58 @@ function StepWebResearch({
       {/* Upload de pesquisas externas */}
       <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
         <p style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
-          Pesquisas externas
+          Documentos complementares
+        </p>
+        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px' }}>
+          Relatórios, estudos setoriais, análises externas — serão incorporados ao relatório de aprendizados.
         </p>
         <IndependentResearchUploader
           project={project}
           onUpdate={onUpdate}
           locked={isDone}
-          label="Adicionar arquivo de pesquisa"
-          hint="Relatórios, estudos setoriais, análises externas — serão incluídos no contexto do dossiê."
+          label="Adicionar documento complementar"
+          hint=""
         />
       </div>
+
+      {/* Relatório de aprendizados */}
+      {hasResearch && (
+        <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+          <p style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
+            Relatório de aprendizados
+          </p>
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '14px' }}>
+            Compila todos os dados pesquisados e documentos complementares em um relatório estratégico integrado.
+          </p>
+          {!isDone && (
+            <button
+              className="btn-primary"
+              onClick={generateLearningsReport}
+              disabled={generatingReport}
+              style={{ marginBottom: '16px' }}
+            >
+              {generatingReport
+                ? 'Gerando relatório…'
+                : project.consolidatedReport
+                ? 'Regenerar relatório de aprendizados'
+                : 'Gerar relatório de aprendizados'}
+            </button>
+          )}
+          {project.consolidatedReport && (
+            <div className="ai-output" style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '11px', color: 'var(--gold)', marginBottom: '10px', fontWeight: 600, letterSpacing: '0.05em' }}>
+                RELATÓRIO DE APRENDIZADOS — {project.nome?.toUpperCase()}
+              </p>
+              <div style={{ fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap' }}>
+                {project.consolidatedReport}
+              </div>
+              <div style={{ marginTop: '16px' }}>
+                <DownloadButton title={`Relatório de Aprendizados — ${project.nome}`} content={project.consolidatedReport} />
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {!isDone && project.researchResults.length > 0 && (
         <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
