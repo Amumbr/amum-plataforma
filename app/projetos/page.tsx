@@ -104,36 +104,41 @@ export default function ProjetosPage() {
             const progress = steps.length > 0 ? Math.round((doneSteps / steps.length) * 100) : 0;
 
             return (
-              <div key={p.id} style={{ position: 'relative' }}>
-                {/* Botão excluir */}
+              <div key={p.id} className="project-card" style={{ position: 'relative', padding: 0, cursor: 'default' }}>
+                {/* Botão excluir — fora do Link, canto superior direito */}
                 <button
-                  onClick={(e) => { e.preventDefault(); setConfirmDelete(p.id); }}
+                  onClick={() => setConfirmDelete(p.id)}
                   title="Excluir projeto"
                   style={{
-                    position: 'absolute', top: '12px', right: '12px', zIndex: 10,
-                    background: 'transparent', border: '1px solid transparent',
-                    borderRadius: '6px', padding: '4px 8px', cursor: 'pointer',
-                    color: 'var(--text-dim)', fontSize: '13px', lineHeight: 1,
-                    transition: 'all 0.15s',
+                    position: 'absolute', top: '10px', right: '10px', zIndex: 20,
+                    background: 'var(--surface-2)', border: '1px solid var(--border)',
+                    borderRadius: '6px', width: '28px', height: '28px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    cursor: 'pointer', color: 'var(--text-dim)', fontSize: '14px',
+                    transition: 'all 0.15s', lineHeight: 1,
                   }}
                   onMouseEnter={e => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = '#c0392b';
-                    (e.currentTarget as HTMLButtonElement).style.color = '#c0392b';
+                    const b = e.currentTarget as HTMLButtonElement;
+                    b.style.background = '#3a1a1a';
+                    b.style.borderColor = '#c0392b';
+                    b.style.color = '#e05252';
                   }}
                   onMouseLeave={e => {
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'transparent';
-                    (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-dim)';
+                    const b = e.currentTarget as HTMLButtonElement;
+                    b.style.background = 'var(--surface-2)';
+                    b.style.borderColor = 'var(--border)';
+                    b.style.color = 'var(--text-dim)';
                   }}
                 >
                   ✕
                 </button>
 
-                <Link href={`/projetos/${p.id}`} style={{ textDecoration: 'none' }}>
-                  <div className="project-card" style={{ paddingRight: '36px' }}>
+                <Link href={`/projetos/${p.id}`} style={{ textDecoration: 'none', display: 'block', padding: '20px' }}>
+                  <div style={{ paddingRight: '24px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
-                      <h3>{p.nome}</h3>
+                      <h3 style={{ fontSize: '16px', color: 'var(--text)', margin: 0 }}>{p.nome}</h3>
                       {unread > 0 && (
-                        <span className="badge badge-gold" style={{ marginRight: '20px' }}>{unread} intel</span>
+                        <span className="badge badge-gold">{unread} intel</span>
                       )}
                     </div>
                     <div className="project-sector">{p.setor}</div>
