@@ -5989,8 +5989,87 @@ function StepChat({
               →
             </button>
           </div>
+
+          {messages.length > 0 && step.status !== 'done' && (
+            <ConceptValidation
+              step={step}
+              project={project}
+              label={label}
+              onUpdate={onUpdate}
+            />
+          )}
+
+          {step.status === 'done' && step.data?.conceitoAprovado && (
+            <div style={{
+              marginTop: '20px',
+              padding: '16px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+            }}>
+              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                Conceito aprovado
+              </p>
+              <p style={{ fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.7 }}>
+                {step.data.conceitoAprovado as string}
+              </p>
+            </div>
+          )}
         </>
       )}
+    </div>
+  );
+}
+
+function ConceptValidation({
+  step,
+  project,
+  label,
+  onUpdate,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  label: string;
+  onUpdate: (p: Project) => void;
+}) {
+  const [conceito, setConceito] = useState<string>((step.data?.conceitoAprovado as string) || '');
+
+  function handleApprove() {
+    if (!conceito.trim()) return;
+    const withConceito = updateStepData(project, step.id, { conceitoAprovado: conceito.trim() });
+    onUpdate(approveStep(withConceito, step.id));
+  }
+
+  return (
+    <div style={{
+      marginTop: '20px',
+      padding: '16px',
+      background: 'var(--bg-secondary)',
+      border: '1px solid var(--border)',
+      borderRadius: '8px',
+    }}>
+      <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px', lineHeight: 1.6 }}>
+        Para avançar, registre o conceito central que emergiu desta co-criação. Pode ser uma formulação, uma tese, uma direção validada — o que sintetiza o que foi construído aqui.
+      </p>
+      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+        Conceito aprovado — {label}
+      </label>
+      <textarea
+        className="textarea"
+        value={conceito}
+        onChange={e => setConceito(e.target.value)}
+        placeholder={`Qual é o conceito central que emerge desta fase de ${label}? Registre a formulação que orienta os próximos passos.`}
+        rows={4}
+        style={{ width: '100%', marginBottom: '12px' }}
+      />
+      <button
+        className="btn-approve"
+        onClick={handleApprove}
+        disabled={!conceito.trim()}
+        style={{ opacity: conceito.trim() ? 1 : 0.4, cursor: conceito.trim() ? 'pointer' : 'not-allowed' }}
+      >
+        Validar conceito e avançar →
+      </button>
     </div>
   );
 }
