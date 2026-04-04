@@ -1615,6 +1615,34 @@ function ModuleDossie({
                       ))}
                     </div>
                   )}
+                  {r.fontes && r.fontes.length > 0 && (
+                    <div style={{ marginTop: '14px', paddingTop: '12px', borderTop: '1px solid var(--border)' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--text-dim)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Fontes
+                      </p>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                        {r.fontes.map((fonte, i) => {
+                          const isUrl = fonte.startsWith('http://') || fonte.startsWith('https://') || fonte.startsWith('www.');
+                          const href = isUrl ? (fonte.startsWith('www.') ? `https://${fonte}` : fonte) : null;
+                          return href ? (
+                            <a
+                              key={i}
+                              href={href}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              style={{ fontSize: '12px', color: 'var(--gold)', opacity: 0.75, textDecoration: 'none', wordBreak: 'break-all' }}
+                              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+                              onMouseLeave={e => (e.currentTarget.style.opacity = '0.75')}
+                            >
+                              ↗ {fonte}
+                            </a>
+                          ) : (
+                            <p key={i} style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '2px' }}>· {fonte}</p>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -1723,7 +1751,7 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
     <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '14px' }}>
         <div>
-          <p style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '4px' }}>Diretrizes — fusão de dados</p>
+          <p style={{ fontSize: '13px', color: 'var(--gold)', fontWeight: 600, marginBottom: '4px' }}>Inteligência extraída — contexto para os próximos steps</p>
           {directives.tensaoCentral && (
             <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic' }}>"{directives.tensaoCentral}"</p>
           )}
@@ -1733,9 +1761,13 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
         </button>
       </div>
 
+      <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: '16px', padding: '10px 12px', background: 'rgba(201,169,110,0.05)', borderRadius: '6px', borderLeft: '2px solid rgba(201,169,110,0.3)' }}>
+        Estes dados já estão incorporados ao contexto de todos os steps seguintes. Use as marcas e perfis abaixo como referência ao inserir URLs nos steps de <strong style={{ color: 'var(--text-secondary)' }}>Auditoria de Canais</strong> e <strong style={{ color: 'var(--text-secondary)' }}>Pesquisa de Redes Sociais</strong>. Aprove este step para avançar.
+      </p>
+
       <DirectiveGroup
-        label="Marcas / perfis a analisar"
-        subtitle="Redes Sociais"
+        label="Marcas e perfis para social listening"
+        subtitle="→ Pesquisa de Redes Sociais"
         items={directives.marcas}
         onToggle={id => toggleDirective('marcas', id)}
         onAdd={v => addDirective('marcas', 'marca', v)}
@@ -1743,8 +1775,8 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
         placeholder="Adicionar marca ou perfil..."
       />
       <DirectiveGroup
-        label="Termos-chave"
-        subtitle="Google Trends"
+        label="Termos e conceitos relevantes"
+        subtitle="→ referência estratégica"
         items={directives.termos}
         onToggle={id => toggleDirective('termos', id)}
         onAdd={v => addDirective('termos', 'termo', v)}
@@ -1752,8 +1784,8 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
         placeholder="Adicionar termo de busca..."
       />
       <DirectiveGroup
-        label="Comunidades e espaços"
-        subtitle="Netnografia"
+        label="Comunidades e espaços de referência"
+        subtitle="→ contexto setorial"
         items={directives.comunidades}
         onToggle={id => toggleDirective('comunidades', id)}
         onAdd={v => addDirective('comunidades', 'comunidade', v)}
@@ -1762,7 +1794,7 @@ function DirectivesPanel({ project, onUpdate }: { project: Project; onUpdate: (p
       />
       <DirectiveGroup
         label="Plataformas prioritárias"
-        subtitle="Social + Netnografia"
+        subtitle="→ Auditoria de Canais"
         items={directives.plataformas}
         onToggle={id => toggleDirective('plataformas', id)}
         onAdd={v => addDirective('plataformas', 'plataforma', v)}
