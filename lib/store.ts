@@ -986,6 +986,14 @@ export function saveProject(project: Project): void {
   import('./db').then(({ pushToSupabase }) => pushToSupabase(project)).catch(() => {});
 }
 
+export function deleteProject(id: string): void {
+  if (typeof window === 'undefined') return;
+  const projects = getProjects().filter(p => p.id !== id);
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(projects));
+  // Delete from Supabase in background — non-blocking
+  import('./db').then(({ deleteFromSupabase }) => deleteFromSupabase(id)).catch(() => {});
+}
+
 export function approveStep(project: Project, stepId: string): Project {
   const steps = [...project.workflowSteps];
   const idx = steps.findIndex(s => s.id === stepId);

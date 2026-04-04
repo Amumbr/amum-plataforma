@@ -104,6 +104,21 @@ export async function fetchProjectFromSupabase(id: string): Promise<Project | nu
 }
 
 /**
+ * Remove um projeto do Supabase pelo id.
+ * Fire-and-forget — não bloqueia a UI.
+ */
+export async function deleteFromSupabase(id: string): Promise<void> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return;
+  try {
+    const { error } = await supabase.from(TABLE).delete().eq('id', id);
+    if (error) console.warn('[db] delete error:', error.message);
+  } catch (err) {
+    console.warn('[db] delete exception:', err);
+  }
+}
+
+/**
  * Push inicial: sobe todos os projetos do localStorage para o Supabase.
  * Chamado uma vez quando o Supabase está configurado mas a tabela está vazia.
  */
