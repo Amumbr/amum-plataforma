@@ -340,6 +340,129 @@ function StepNotes({
   );
 }
 
+// ─── SHARED: UPLOAD DE PESQUISAS INDEPENDENTES ────────────────────────────────
+
+function IndependentResearchUploader({
+  project,
+  onUpdate,
+  locked = false,
+  label = 'Adicionar pesquisa externa',
+  hint = 'Relatórios, estudos de mercado, análises externas — serão incorporados ao contexto de pesquisa.',
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+  locked?: boolean;
+  label?: string;
+  hint?: string;
+}) {
+  const [uploading, setUploading] = React.useState(false);
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = () => reject(new Error('Falha na leitura'));
+        reader.readAsDataURL(file);
+      });
+      const extractRes = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract', filename: file.name, fileType: file.type, size: file.size, base64 }),
+      });
+      const extractData = await extractRes.json();
+      const fileContent = extractData.extractedText || '';
+      if (!fileContent) {
+        alert(extractData.error || 'Não foi possível extrair o texto do arquivo.');
+        return;
+      }
+      const summaryRes = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: [{ role: 'user', content: `Faça um resumo estratégico conciso (máximo 200 palavras) do seguinte documento, destacando os dados e insights mais relevantes para um projeto de branding:\n\n${fileContent.slice(0, 4000)}` }],
+        }),
+      });
+      const summaryData = await summaryRes.json();
+      const resumo = summaryData.text || fileContent.slice(0, 300);
+      const newFile = {
+        id: `ir_${Date.now()}`,
+        filename: file.name,
+        content: fileContent,
+        resumo,
+        uploadedAt: new Date().toISOString(),
+      };
+      const updated = [...(project.independentResearch || []), newFile];
+      const proj = { ...project, independentResearch: updated };
+      saveProject(proj);
+      onUpdate(proj);
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
+
+  function removeFile(id: string) {
+    const updated = (project.independentResearch || []).filter(f => f.id !== id);
+    const proj = { ...project, independentResearch: updated };
+    saveProject(proj);
+    onUpdate(proj);
+  }
+
+  const files = project.independentResearch || [];
+
+  return (
+    <div>
+      {hint && (
+        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.5 }}>{hint}</p>
+      )}
+      {!locked && (
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".pdf,.docx,.txt,.doc"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+          />
+          <button
+            className="btn-small"
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading}
+            style={{ marginBottom: files.length > 0 ? '12px' : '0' }}
+          >
+            {uploading ? 'Processando…' : `+ ${label}`}
+          </button>
+        </>
+      )}
+      {files.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: locked ? '0' : '4px' }}>
+          {files.map(f => (
+            <div key={f.id} style={{ padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '8px' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', marginBottom: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.filename}</p>
+                  <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.5 }}>{f.resumo}</p>
+                </div>
+                {!locked && (
+                  <button
+                    onClick={() => removeFile(f.id)}
+                    style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '16px', flexShrink: 0, padding: '0 2px' }}
+                  >×</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── SHARED: STEP INLINE CHAT ─────────────────────────────────────────────────
 
 function StepInlineChat({
@@ -2781,6 +2904,20 @@ function StepWebResearch({
     <div className="step-body">
       <ModuleDossie project={project} step={step} onUpdate={onUpdate} />
 
+      {/* Upload de pesquisas externas */}
+      <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
+        <p style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '8px' }}>
+          Pesquisas externas
+        </p>
+        <IndependentResearchUploader
+          project={project}
+          onUpdate={onUpdate}
+          locked={isDone}
+          label="Adicionar arquivo de pesquisa"
+          hint="Relatórios, estudos setoriais, análises externas — serão incluídos no contexto do dossiê."
+        />
+      </div>
+
       {!isDone && project.researchResults.length > 0 && (
         <div style={{ marginTop: '24px', paddingTop: '20px', borderTop: '1px solid var(--border)' }}>
           <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px' }}>
@@ -3310,9 +3447,7 @@ function StepResearchReport({
   onUpdate: (p: Project) => void;
 }) {
   const [generating, setGenerating] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const isDone = step.status === 'done' || step.status === 'skipped';
-  const fileRef = React.useRef<HTMLInputElement>(null);
 
   function handleApprove() { onUpdate(approveStep(project, step.id)); }
   function handleSkip() { onUpdate(skipStep(project, step.id)); }
@@ -3340,110 +3475,20 @@ function StepResearchReport({
     }
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setUploading(true);
-    try {
-      // Ler como base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve((reader.result as string).split(',')[1]);
-        reader.onerror = () => reject(new Error('Falha na leitura'));
-        reader.readAsDataURL(file);
-      });
-
-      const extractRes = await fetch('/api/documents', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'extract', filename: file.name, fileType: file.type, size: file.size, base64 }),
-      });
-      const extractData = await extractRes.json();
-      const fileContent = extractData.extractedText || '';
-      if (!fileContent) {
-        alert(extractData.error || 'Não foi possível extrair o texto do arquivo.');
-        return;
-      }
-
-      // Gerar resumo estratégico
-      const summaryRes = await fetch('/api/claude', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          messages: [{ role: 'user', content: `Faça um resumo estratégico conciso (máximo 200 palavras) do seguinte documento, destacando os dados e insights mais relevantes para um projeto de branding:\n\n${fileContent.slice(0, 4000)}` }],
-        }),
-      });
-      const summaryData = await summaryRes.json();
-      const resumo = summaryData.text || fileContent.slice(0, 300);
-      const content = fileContent;
-
-      const newFile = {
-        id: `ir_${Date.now()}`,
-        filename: file.name,
-        content,
-        resumo,
-        uploadedAt: new Date().toISOString(),
-      };
-      const updated = [...(project.independentResearch || []), newFile];
-      const proj = { ...project, independentResearch: updated };
-      saveProject(proj);
-      onUpdate(proj);
-    } finally {
-      setUploading(false);
-      if (fileRef.current) fileRef.current.value = '';
-    }
-  }
-
-  function removeFile(id: string) {
-    const updated = (project.independentResearch || []).filter(f => f.id !== id);
-    const proj = { ...project, independentResearch: updated };
-    saveProject(proj);
-    onUpdate(proj);
-  }
-
   return (
     <div className="step-body">
       {/* Independent research uploads */}
       <div style={{ marginBottom: '24px' }}>
         <p style={{ fontSize: '13px', color: 'var(--text-secondary)', marginBottom: '12px' }}>
-          Inclua pesquisas independentes realizadas fora da plataforma — relatórios, estudos de mercado, análises externas. Elas serão analisadas e incorporadas ao relatório final.
+          Pesquisas independentes realizadas fora da plataforma — serão analisadas e incorporadas ao relatório final.
         </p>
-        {!isDone && (
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            <input
-              ref={fileRef}
-              type="file"
-              accept=".pdf,.docx,.txt,.doc"
-              onChange={handleFileUpload}
-              style={{ display: 'none' }}
-            />
-            <button
-              className="btn-primary"
-              onClick={() => fileRef.current?.click()}
-              disabled={uploading}
-            >
-              {uploading ? 'Processando arquivo…' : '+ Adicionar pesquisa independente'}
-            </button>
-          </div>
-        )}
-
-        {project.independentResearch && project.independentResearch.length > 0 && (
-          <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {project.independentResearch.map(f => (
-              <div key={f.id} style={{ padding: '10px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                  <div style={{ flex: 1 }}>
-                    <p style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '4px' }}>{f.filename}</p>
-                    <p style={{ fontSize: '12px', color: 'var(--text-dim)', lineHeight: 1.5 }}>{f.resumo}</p>
-                  </div>
-                  {!isDone && (
-                    <button onClick={() => removeFile(f.id)} style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', marginLeft: '8px', flexShrink: 0 }}>×</button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+        <IndependentResearchUploader
+          project={project}
+          onUpdate={onUpdate}
+          locked={isDone}
+          label="Adicionar pesquisa independente"
+          hint=""
+        />
       </div>
 
       {/* Generate report */}
