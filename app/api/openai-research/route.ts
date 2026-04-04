@@ -77,18 +77,31 @@ function robustParseJSON(raw: string): object {
   return sanitizeJSON(parsed) as object;
 }
 
-async function callOpenAIWithSearch(prompt: string): Promise<string> {
-  const response = await getClient().chat.completions.create({
-    model: 'gpt-4o-search-preview',
-    web_search_options: {},
-    messages: [
-      { role: 'system', content: AMUM_SYSTEM },
-      { role: 'user', content: prompt },
-    ],
-  });
-
-  const text = response.choices[0]?.message?.content || '';
-  return sanitizeText(text);
+async function callOpenAIWithSearch(prompt: string, retries = 3): Promise<string> {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const response = await getClient().chat.completions.create({
+        model: 'gpt-4o-search-preview',
+        web_search_options: {},
+        messages: [
+          { role: 'system', content: AMUM_SYSTEM },
+          { role: 'user', content: prompt },
+        ],
+      });
+      const text = response.choices[0]?.message?.content || '';
+      return sanitizeText(text);
+    } catch (err: unknown) {
+      const e = err as { status?: number; message?: string };
+      const is429 = e?.status === 429 || String(e?.message).includes('429');
+      if (is429 && attempt < retries) {
+        const delay = Math.pow(2, attempt + 1) * 5000; // 10s, 20s, 40s
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw new Error('Max retries exceeded');
 }
 
 export async function GET() {
@@ -121,6 +134,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { action, projectContext, agenda, url } = body;
     const ctx = projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : '';
+
+    // Contexto mínimo: apenas as duas primeiras linhas (PROJETO + SETOR) — usado em ações com modelo de baixo TPM
+    const minimalCtx = projectContext
+      ? projectContext.split('\n').slice(0, 3).join('\n') + '\n\n'
+      : '';
 
     // PESQUISA DE MERCADO — item único do dossiê com lentes ampliadas
     if (action === 'run_research_item') {
@@ -155,7 +173,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
     // AUDITORIA DE CANAL — análise de um canal próprio da marca por URL
     if (action === 'brand_channel_research') {
       const channelUrl = url || '';
-      const prompt = `${ctx}CANAL A ANALISAR: ${channelUrl}
+      const prompt = `${minimalCtx}CANAL A ANALISAR: ${channelUrl}
 
 Você é um especialista sênior em marketing, comunicação e social media com 15 anos de experiência em branding estratégico.
 Pesquise na web sobre este canal/perfil/página — busque o nome da marca associado à URL, publicações recentes, menções em imprensa, descrições do perfil e qualquer dado público disponível. Seu objetivo é entender o que a marca está EFETIVAMENTE comunicando, não o que ela diz que comunica.
@@ -200,7 +218,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
     // SOCIAL LISTENING — análise de perfil externo (concorrente/referência) por URL
     if (action === 'social_listening_item') {
       const listeningUrl = url || '';
-      const prompt = `${ctx}PERFIL A ANALISAR: ${listeningUrl}
+      const prompt = `${minimalCtx}PERFIL A ANALISAR: ${listeningUrl}
 
 Você é um especialista sênior em social media, marketing e comunicação de marca.
 Pesquise na web sobre este perfil/canal — busque o nome da marca ou empresa associada à URL, publicações recentes, menções em imprensa e qualquer dado público disponível. Seu objetivo é mapear o território que este player está ocupando no espaço digital.
