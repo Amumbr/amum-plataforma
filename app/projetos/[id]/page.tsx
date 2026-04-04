@@ -3808,8 +3808,41 @@ function StepTranscripts({
   const [publico, setPublico] = useState('');
   const [raw, setRaw] = useState('');
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  const fileRef = React.useRef<HTMLInputElement>(null);
   const isDone = step.status === 'done' || step.status === 'skipped';
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve((reader.result as string).split(',')[1]);
+        reader.onerror = () => reject(new Error('Falha na leitura do arquivo'));
+        reader.readAsDataURL(file);
+      });
+      const res = await fetch('/api/documents', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'extract', filename: file.name, fileType: file.type, size: file.size, base64 }),
+      });
+      const data = await res.json();
+      if (data.extractedText) {
+        setRaw(data.extractedText);
+        if (!filename) setFilename(file.name);
+      } else {
+        alert(data.error || 'Não foi possível extrair o texto do arquivo.');
+      }
+    } catch {
+      alert('Erro ao processar o arquivo.');
+    } finally {
+      setUploading(false);
+      if (fileRef.current) fileRef.current.value = '';
+    }
+  }
 
   async function handleProcess() {
     if (!raw.trim()) return;
@@ -3887,12 +3920,29 @@ function StepTranscripts({
             </div>
           </div>
           <div className="step-field">
-            <label className="step-label">Transcrição (cole o texto)</label>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+              <label className="step-label" style={{ marginBottom: 0 }}>Transcrição (cole o texto ou carregue um arquivo)</label>
+              <button
+                className="btn-small"
+                style={{ fontSize: '12px', opacity: uploading ? 0.6 : 1 }}
+                onClick={() => fileRef.current?.click()}
+                disabled={uploading || isDone}
+              >
+                {uploading ? 'Carregando…' : '↑ Carregar .txt ou .docx'}
+              </button>
+            </div>
+            <input
+              ref={fileRef}
+              type="file"
+              accept=".txt,.docx"
+              style={{ display: 'none' }}
+              onChange={handleFileUpload}
+            />
             <textarea
               className="textarea"
               value={raw}
               onChange={e => setRaw(e.target.value)}
-              placeholder="Cole aqui a transcrição da entrevista..."
+              placeholder="Cole aqui a transcrição da entrevista ou carregue um arquivo .txt/.docx…"
               rows={7}
             />
           </div>
