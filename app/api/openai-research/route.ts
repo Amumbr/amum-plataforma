@@ -158,28 +158,42 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
       const prompt = `${ctx}CANAL A ANALISAR: ${channelUrl}
 
 Você é um especialista sênior em marketing, comunicação e social media com 15 anos de experiência em branding estratégico.
-Acesse este canal/perfil/página e faça uma análise diagnóstica — o objetivo é entender o que a marca está EFETIVAMENTE comunicando, não o que ela diz que comunica.
+Pesquise na web sobre este canal/perfil/página — busque o nome da marca associado à URL, publicações recentes, menções em imprensa, descrições do perfil e qualquer dado público disponível. Seu objetivo é entender o que a marca está EFETIVAMENTE comunicando, não o que ela diz que comunica.
 
-Analise nos últimos 6 meses de conteúdo:
+Com base no que encontrar nas buscas, analise:
 - Posicionamento atual visível
 - Tom de voz dominante e variações
 - Temas recorrentes e ausências significativas
-- Frequência e consistência de publicação
+- Frequência e consistência de publicação (estime se não tiver dado exato)
 - Qualidade do engajamento (comentários, compartilhamentos — não apenas curtidas)
 - Ponto forte mais evidente
 - Ponto fraco mais crítico
 - Coerência com posicionamento declarado
 
 Pergunta central: o que está sendo comunicado? É coerente com o que a marca declara ser? Onde há potencial desperdiçado?
+Se o perfil tiver poucos dados públicos indexados, registre isso explicitamente na síntese e analise o que foi possível encontrar.
 
-Retorne APENAS o seguinte JSON e nada mais:
-{"url":"${channelUrl}","canal":"Instagram|LinkedIn|YouTube|Site|TikTok|outro","sintese":"síntese diagnóstica em 3 parágrafos","temas":["t1","t2","t3"],"tomDeVoz":"descrição do tom dominante","frequencia":"X posts/semana ou X/mês","engajamento":"descrição qualitativa do engajamento","pontoForte":"o ponto mais forte observado","pontoFraco":"o ponto mais crítico observado"}`;
+Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
+{"url":"${channelUrl}","canal":"Instagram|LinkedIn|YouTube|Site|TikTok|outro","sintese":"síntese diagnóstica em 3 parágrafos","temas":["t1","t2","t3"],"tomDeVoz":"descrição do tom dominante","frequencia":"X posts/semana ou X/mês ou estimativa","engajamento":"descrição qualitativa do engajamento","pontoForte":"o ponto mais forte observado","pontoFraco":"o ponto mais crítico observado"}`;
 
       const text = await callOpenAIWithSearch(prompt);
       try {
         return NextResponse.json({ ...robustParseJSON(text), createdAt: new Date().toISOString() });
-      } catch (e) {
-        return NextResponse.json({ error: 'Parse error', raw: text, detail: String(e) }, { status: 500 });
+      } catch {
+        // Fallback: retorna objeto parcial com texto bruto na síntese — usuário vê a resposta mesmo sem JSON válido
+        return NextResponse.json({
+          url: channelUrl,
+          canal: 'desconhecido',
+          sintese: text,
+          temas: [],
+          tomDeVoz: '',
+          frequencia: '',
+          engajamento: '',
+          pontoForte: '',
+          pontoFraco: '',
+          parseError: true,
+          createdAt: new Date().toISOString(),
+        });
       }
     }
 
@@ -189,25 +203,41 @@ Retorne APENAS o seguinte JSON e nada mais:
       const prompt = `${ctx}PERFIL A ANALISAR: ${listeningUrl}
 
 Você é um especialista sênior em social media, marketing e comunicação de marca.
-Acesse este perfil e faça um social listening estratégico — o objetivo é mapear o território que este player está ocupando no espaço digital.
+Pesquise na web sobre este perfil/canal — busque o nome da marca ou empresa associada à URL, publicações recentes, menções em imprensa e qualquer dado público disponível. Seu objetivo é mapear o território que este player está ocupando no espaço digital.
 
-Analise nos últimos 6 meses:
+Com base no que encontrar nas buscas, analise:
 - Posicionamento comunicado (o que eles dizem ser)
 - Arquétipo de marca dominante na comunicação
 - Temas mais recorrentes
 - Tom de voz e linguagem predominante
-- Frequência e formatos utilizados
+- Frequência e formatos utilizados (estime se não tiver dado exato)
 - Força e fraqueza estratégica principal
 - Qual território simbólico/digital este player ocupa
 
-Retorne APENAS o seguinte JSON e nada mais:
+Se o perfil tiver poucos dados públicos indexados, registre isso explicitamente no campo posicionamento e analise o que foi possível encontrar.
+
+Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"url":"${listeningUrl}","entidade":"nome da marca/canal","posicionamento":"como se posicionam estrategicamente em 2-3 frases","arquetipo":"arquétipo dominante","temas":["t1","t2","t3"],"tomDeVoz":"descrição do tom","frequencia":"estimativa de frequência de publicação","pontoForte":"principal força estratégica","pontoFraco":"principal fraqueza estratégica","territorioOcupado":"qual espaço simbólico este player domina"}`;
 
       const text = await callOpenAIWithSearch(prompt);
       try {
         return NextResponse.json({ ...robustParseJSON(text), createdAt: new Date().toISOString() });
-      } catch (e) {
-        return NextResponse.json({ error: 'Parse error', raw: text, detail: String(e) }, { status: 500 });
+      } catch {
+        // Fallback: retorna objeto parcial com texto bruto no posicionamento — usuário vê a resposta mesmo sem JSON válido
+        return NextResponse.json({
+          url: listeningUrl,
+          entidade: listeningUrl,
+          posicionamento: text,
+          arquetipo: '',
+          temas: [],
+          tomDeVoz: '',
+          frequencia: '',
+          pontoForte: '',
+          pontoFraco: '',
+          territorioOcupado: '',
+          parseError: true,
+          createdAt: new Date().toISOString(),
+        });
       }
     }
 

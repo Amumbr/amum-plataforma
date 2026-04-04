@@ -2962,6 +2962,7 @@ function StepBrandAudit({
   const [synthesizing, setSynthesizing] = useState(false);
   const [currentUrl, setCurrentUrl] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [auditErrors, setAuditErrors] = useState<string[]>([]);
   const isDone = step.status === 'done' || step.status === 'skipped';
 
   function handleApprove() { onUpdate(approveStep(project, step.id)); }
@@ -3002,7 +3003,9 @@ function StepBrandAudit({
           body: JSON.stringify({ action: 'brand_channel_research', url, projectContext: ctx }),
         });
         const data = await res.json();
-        if (!data.error) {
+        if (data.error) {
+          setAuditErrors(prev => [...prev, `${url}: ${data.error}${data.detail ? ' — ' + data.detail : ''}`]);
+        } else {
           const idx = results.findIndex(r => r.url === url);
           if (idx >= 0) results[idx] = data;
           else results.push(data);
@@ -3010,7 +3013,9 @@ function StepBrandAudit({
           saveProject(proj);
           onUpdate(proj);
         }
-      } catch { /* continue */ }
+      } catch (err) {
+        setAuditErrors(prev => [...prev, `${url}: ${String(err)}`]);
+      }
       if (i < profiles.length - 1) await new Promise(r => setTimeout(r, 4000));
     }
     setCurrentUrl('');
@@ -3087,6 +3092,16 @@ function StepBrandAudit({
           <button className="btn-primary" onClick={runAudit} disabled={running || synthesizing}>
             {running ? `Analisando: ${currentUrl.slice(0, 40)}…` : 'Analisar canais'}
           </button>
+        </div>
+      )}
+
+      {/* Erros de análise */}
+      {auditErrors.length > 0 && (
+        <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', borderRadius: '6px' }}>
+          <p style={{ fontSize: '12px', color: '#e06060', fontWeight: 600, marginBottom: '6px' }}>Erros durante a análise:</p>
+          {auditErrors.map((e, i) => (
+            <p key={i} style={{ fontSize: '12px', color: '#e06060', marginBottom: '2px', wordBreak: 'break-all' }}>{e}</p>
+          ))}
         </div>
       )}
 
@@ -3211,6 +3226,7 @@ function StepSocialResearch({
   const [synthesizing, setSynthesizing] = useState(false);
   const [currentUrl, setCurrentUrl] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [listeningErrors, setListeningErrors] = useState<string[]>([]);
   const isDone = step.status === 'done' || step.status === 'skipped';
 
   function handleApprove() { onUpdate(approveStep(project, step.id)); }
@@ -3251,7 +3267,9 @@ function StepSocialResearch({
           body: JSON.stringify({ action: 'social_listening_item', url, projectContext: ctx }),
         });
         const data = await res.json();
-        if (!data.error) {
+        if (data.error) {
+          setListeningErrors(prev => [...prev, `${url}: ${data.error}${data.detail ? ' — ' + data.detail : ''}`]);
+        } else {
           const idx = results.findIndex(r => r.url === url);
           if (idx >= 0) results[idx] = data;
           else results.push(data);
@@ -3259,7 +3277,9 @@ function StepSocialResearch({
           saveProject(proj);
           onUpdate(proj);
         }
-      } catch { /* continue */ }
+      } catch (err) {
+        setListeningErrors(prev => [...prev, `${url}: ${String(err)}`]);
+      }
       if (i < profiles.length - 1) await new Promise(r => setTimeout(r, 4000));
     }
     setCurrentUrl('');
@@ -3330,6 +3350,16 @@ function StepSocialResearch({
         <button className="btn-primary" onClick={runListening} disabled={running || synthesizing} style={{ marginBottom: '16px' }}>
           {running ? `Analisando: ${currentUrl.slice(0, 40)}…` : 'Iniciar social listening'}
         </button>
+      )}
+
+      {/* Erros de social listening */}
+      {listeningErrors.length > 0 && (
+        <div style={{ marginBottom: '16px', padding: '12px', background: 'rgba(220,60,60,0.08)', border: '1px solid rgba(220,60,60,0.25)', borderRadius: '6px' }}>
+          <p style={{ fontSize: '12px', color: '#e06060', fontWeight: 600, marginBottom: '6px' }}>Erros durante o listening:</p>
+          {listeningErrors.map((e, i) => (
+            <p key={i} style={{ fontSize: '12px', color: '#e06060', marginBottom: '2px', wordBreak: 'break-all' }}>{e}</p>
+          ))}
+        </div>
       )}
 
       {project.socialListeningResults && project.socialListeningResults.length > 0 && (
