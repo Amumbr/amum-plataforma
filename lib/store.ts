@@ -673,6 +673,52 @@ export function getProjectContext(project: Project): string {
   return parts.join('\n');
 }
 
+// Versão enxuta do contexto para chamadas run_research_item.
+// Remove blobs JSON pesados (diagnostico, espelho, mapaTensao, planoTravessia)
+// que não são necessários por item e inflariam o TPM desnecessariamente.
+export function getResearchItemContext(project: Project): string {
+  const parts: string[] = [];
+  parts.push(`PROJETO: ${project.nome}`);
+  parts.push(`SETOR: ${project.setor}`);
+  parts.push(`ESCOPO: ${project.escopo}`);
+
+  if (project.siteImport?.encontrado) {
+    const si = project.siteImport;
+    parts.push(`\nDADOS DO CLIENTE (pré-qualificação):`);
+    if (si.empresa) parts.push(`Empresa: ${si.empresa}`);
+    if (si.setor) parts.push(`Setor declarado: ${si.setor}`);
+    if (si.faseAtual) parts.push(`Fase na jornada: ${si.faseAtual}`);
+    if (si.scoreProntidao != null) parts.push(`Score de prontidão: ${si.scoreProntidao}/100`);
+    // brand_context em resumo, sem o JSON completo dos relatórios
+    if (si.brandContext && typeof si.brandContext === 'object') {
+      const bc = si.brandContext as Record<string, unknown>;
+      const resumo = Object.entries(bc)
+        .slice(0, 6)
+        .map(([k, v]) => `${k}: ${String(v).slice(0, 120)}`)
+        .join(' | ');
+      if (resumo) parts.push(`Brand context: ${resumo}`);
+    }
+    if (si.commercialScore?.summary) parts.push(`Resumo comercial: ${si.commercialScore.summary}`);
+  }
+
+  if (project.documents.length > 0) {
+    parts.push(`\nDOCUMENTOS ANALISADOS (${project.documents.length}):`);
+    project.documents.forEach(d => {
+      if (d.analysis) parts.push(`- ${d.filename}: ${d.analysis.slice(0, 300)}`);
+    });
+  }
+
+  // Concorrentes já mapeados (sem sínteses completas)
+  if (project.researchDirectives) {
+    const d = project.researchDirectives;
+    if (d.tensaoCentral) parts.push(`\nTensão central identificada: ${d.tensaoCentral}`);
+    const marcas = d.marcas.filter(m => m.ativo).map(m => m.valor);
+    if (marcas.length) parts.push(`Marcas/concorrentes relevantes: ${marcas.join(', ')}`);
+  }
+
+  return parts.join('\n');
+}
+
 export const PHASE_NAMES: Record<number, string> = {
   1: 'Escuta',
   2: 'Decifração',

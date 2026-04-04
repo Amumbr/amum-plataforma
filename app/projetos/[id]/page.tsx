@@ -11,6 +11,7 @@ import {
   reopenStep,
   updateStepData,
   getProjectContext,
+  getResearchItemContext,
   addIntel,
   STEP_DEFINITIONS,
   Project,
@@ -1258,18 +1259,26 @@ function ModuleDossie({
 
   function is429(detail: unknown): boolean {
     if (!detail) return false;
+    const s = String(detail);
+    // Match both {"status":429} and raw 429 mentions from OpenAI error envelope
+    if (s.includes('"status":429') || s.includes("'status': 429")) return true;
     try {
-      return (JSON.parse(String(detail)) as { status?: number }).status === 429;
-    } catch {
-      return String(detail).includes('"status":429');
-    }
+      const parsed = JSON.parse(s) as { status?: number; error?: { code?: string; type?: string } };
+      if (parsed.status === 429) return true;
+      const code = parsed.error?.code ?? '';
+      const type = parsed.error?.type ?? '';
+      if (code === 'rate_limit_exceeded' || type === 'tokens' || type === 'requests') return true;
+    } catch { /* not JSON */ }
+    if (s.toLowerCase().includes('rate limit') || s.toLowerCase().includes('tokens per m')) return true;
+    return false;
   }
 
   async function fetchResearchItem(
     body: object,
     onRetry: (attempt: number, delaySec: number) => void
   ): Promise<Record<string, unknown>> {
-    const RETRY_DELAYS = [10_000, 20_000, 40_000]; // ms — 3 attempts max
+    // Delays progressivos: 20s → 45s → 90s — margem suficiente para resetar a janela de TPM
+    const RETRY_DELAYS = [20_000, 45_000, 90_000];
     let lastData: Record<string, unknown> = { error: 'Max retries exceeded' };
 
     for (let attempt = 0; attempt <= RETRY_DELAYS.length; attempt++) {
@@ -1299,7 +1308,9 @@ function ModuleDossie({
     setLoading('research');
     setError(null);
     const notes = getStepNotes(step);
-    const ctx = getProjectContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : '');
+    // Contexto enxuto para pesquisa por item — exclui blobs JSON pesados (diagnostico, espelho, etc.)
+    // que inflariam o TPM desnecessariamente sem agregar valor à pesquisa setorial.
+    const ctx = getResearchItemContext(project) + (notes ? `\n\nNOTAS DO ESTRATEGISTA:\n${notes}` : '');
     const agenda = project.researchAgenda; // snapshot — won't change during loop
     const accumulated: ResearchResult[] = [];
     const errors: string[] = [];
@@ -1333,10 +1344,11 @@ function ModuleDossie({
             saveProject({ ...project, researchResults: [...accumulated] });
           }
 
-          // 4 s cooldown between items to stay within tokens/min limit
+          // 15s cooldown entre itens — suficiente para não saturar a janela de TPM
+          // do gpt-4o-search-preview sem comprometer o fluxo de trabalho.
           if (i < agenda.length - 1) {
-            setProgressSub(`Aguardando 4s antes do próximo tema…`);
-            await sleep(4_000);
+            setProgressSub(`Aguardando 15s antes do próximo tema…`);
+            await sleep(15_000);
           }
 
         } catch (itemErr) {
