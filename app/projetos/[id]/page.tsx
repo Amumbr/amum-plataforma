@@ -199,6 +199,91 @@ function buildStepContext(step: WorkflowStep, project: Project): string {
         );
       }
       break;
+    case 'touchpoint_audit':
+      if (project.touchpointAudit) {
+        const ta = project.touchpointAudit;
+        parts.push(`AUDITORIA DE TOUCHPOINTS (${ta.touchpoints.length} pontos):`);
+        ta.touchpoints.forEach(t => {
+          parts.push(`- ${t.touchpoint} (${t.canal}): peso ${t.peso}/5, coerência ${t.scoreCoerencia}/5${t.quickWin ? ' [quick win]' : ''}`);
+        });
+        if (ta.quickWins.length) parts.push(`Quick wins: ${ta.quickWins.join(', ')}`);
+        if (ta.analise) parts.push(`Análise: ${ta.analise}`);
+      }
+      break;
+    case 'incoherence_map':
+      if (project.incoherenceMap) {
+        const im = project.incoherenceMap;
+        parts.push(`MAPA DE INCOERÊNCIAS (${im.items.length} dimensões):`);
+        im.items.forEach(i => {
+          parts.push(`- ${i.dimensao}: gap "${i.discrepancia}" | risco "${i.risco}"`);
+        });
+        if (im.implicacoesEstrategicas.length) parts.push(`Implicações: ${im.implicacoesEstrategicas.join(' | ')}`);
+      }
+      break;
+    case 'positioning_thesis':
+      if (project.positioningThesis) {
+        const pt = project.positioningThesis;
+        parts.push(`TESE DE POSICIONAMENTO:\n${pt.afirmacaoCentral}`);
+        pt.tradeoffs.forEach(t => parts.push(`  Trade-off: abandona "${t.abandona}" → ganha "${t.ganha}"`));
+      }
+      break;
+    case 'brand_architecture':
+      if (project.brandArchitecture) {
+        const ba = project.brandArchitecture;
+        parts.push(`ARQUITETURA DE MARCA:\nPortfólio: ${ba.portfolioMap}\nNomenclatura: ${ba.nomenclaturaRegras}`);
+        ba.brandToOperating?.forEach(b => parts.push(`  ${b.funcao}: ${b.implicacao}`));
+      }
+      break;
+    case 'ods_matrix':
+      if (project.odsMatrix) {
+        parts.push(`MATRIZ ODS:`);
+        project.odsMatrix.items.forEach(o => {
+          parts.push(`- ${o.ods}: ${o.iniciativas.length} iniciativas`);
+        });
+      }
+      break;
+    case 'brand_platform':
+      if (project.brandPlatform) {
+        const bp = project.brandPlatform;
+        parts.push(`PLATAFORMA DE MARCA:\nPropósito: ${bp.proposito}\nEssência: ${bp.essencia}\nPosicionamento: ${bp.posicionamento}\nPromessa: ${bp.promessa}`);
+        if (bp.valores.length) parts.push(`Valores: ${bp.valores.map(v => v.valor).join(', ')}`);
+      }
+      break;
+    case 'linguistic_code':
+      if (project.linguisticCode) {
+        const lc = project.linguisticCode;
+        parts.push(`CÓDIGO LINGUÍSTICO:\nTom: ${lc.tomDeVoz.adjetivos.join(', ')} | Anti: ${lc.tomDeVoz.antiAdjetivos.join(', ')}`);
+        if (lc.vocabularioPreferencial.length) parts.push(`Vocabulário preferencial: ${lc.vocabularioPreferencial.join(', ')}`);
+        if (lc.vocabularioProibido.length) parts.push(`Proibido: ${lc.vocabularioProibido.join(', ')}`);
+      }
+      break;
+    case 'brand_narrative':
+      if (project.brandNarrative?.manifesto) {
+        parts.push(`NARRATIVA DE MARCA:\n${project.brandNarrative.manifesto.slice(0, 600)}`);
+      }
+      break;
+    case 'message_library':
+      if (project.messageLibrary) {
+        parts.push(`BIBLIOTECA DE MENSAGENS:`);
+        project.messageLibrary.items.forEach(m => {
+          parts.push(`- ${m.publico}: "${m.afirmacaoCentral}"`);
+        });
+      }
+      break;
+    case 'visual_direction':
+      if (project.visualDirection) {
+        const vd = project.visualDirection;
+        parts.push(`DIREÇÃO VISUAL:\nPrincípios: ${vd.principiosSimbolicos.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}`);
+      }
+      break;
+    case 'rollout_plan':
+      if (project.rolloutPlan) {
+        parts.push(`PLANO DE ROLLOUT:`);
+        project.rolloutPlan.ondas.forEach(o => {
+          parts.push(`- ${o.onda} (${o.timeline}): ${o.touchpoints.join(', ')}`);
+        });
+      }
+      break;
     case 'chat':
       parts.push(`Espaço de co-criação — fase ${step.id}. Contexto completo disponível.`);
       break;
@@ -5826,7 +5911,7 @@ export default function ProjetoPage() {
   const progress = Math.round((doneSteps / project.workflowSteps.length) * 100);
 
   // Agrupar steps por fase
-  const fases = [1, 2, 3, 4];
+  const fases = [1, 2, 3, 4, 5];
 
   return (
     <div className="layout">
