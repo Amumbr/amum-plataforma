@@ -416,6 +416,7 @@ export interface MoodboardImage {
   url: string;
   revisedPrompt?: string;
   generatedAt: string;
+  selecionada?: boolean;
 }
 
 export interface VisualDirection {
@@ -872,6 +873,7 @@ export interface Project {
   coherenceMonitor?: CoherenceMonitor;
   complianceAudit?: ComplianceAudit;
   annualReview?: AnnualReview;
+  finalReport?: { json: Record<string, unknown>; createdAt: string };
   deliverables: Deliverable[];
   driveFiles: DriveFile[];
   intel: IntelItem[];

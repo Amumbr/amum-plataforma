@@ -283,6 +283,35 @@ const REPORT_CSS = `
   .ameaca-media { background: rgba(220,150,60,0.1); color: #b06020; }
   .ameaca-baixa { background: rgba(80,180,100,0.1); color: #3a8050; }
 
+  /* MOODBOARD SECTION */
+  .moodboard-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 16px; }
+  .moodboard-img { border-radius: 8px; overflow: hidden; aspect-ratio: 1/1; position: relative; border: 1px solid #e8e4da; background: #f0ede8; }
+  .moodboard-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .moodboard-expired { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 11px; color: #9990A0; text-align: center; padding: 12px; }
+  .moodboard-badge { position: absolute; bottom: 6px; right: 6px; background: rgba(201,169,110,0.9); color: #1C1F2A; font-size: 9px; font-weight: 700; padding: 2px 7px; border-radius: 4px; letter-spacing: 0.04em; }
+
+  /* POSITIONING HERO */
+  .positioning-hero { background: #1C1F2A; padding: 48px 48px 40px; border-bottom: 3px solid #C9A96E; }
+  .positioning-hero-label { font-size: 10px; color: rgba(201,169,110,0.7); font-weight: 700; letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 20px; }
+  .positioning-hero-statement { font-size: 26px; font-weight: 700; color: #fff; line-height: 1.4; margin-bottom: 28px; font-style: italic; border-left: 4px solid #C9A96E; padding-left: 20px; }
+  .positioning-hero-meta { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 28px; }
+  .positioning-meta-card { background: rgba(201,169,110,0.08); border: 1px solid rgba(201,169,110,0.2); border-radius: 8px; padding: 14px 16px; }
+  .positioning-meta-label { font-size: 9px; color: rgba(201,169,110,0.6); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 6px; }
+  .positioning-meta-value { font-size: 13px; color: #fff; line-height: 1.5; font-weight: 500; }
+  .positioning-logic { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 18px 20px; }
+  .positioning-logic-label { font-size: 9px; color: rgba(201,169,110,0.6); font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px; }
+  .positioning-logic-text { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.7; }
+
+  /* SYMBOLIC SECTION */
+  .symbolic-section { background: #1C1F2A; padding: 36px 48px; }
+  .symbolic-label { font-size: 10px; color: rgba(201,169,110,0.7); font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; margin-bottom: 6px; }
+  .symbolic-title { font-size: 18px; font-weight: 700; color: #C9A96E; margin-bottom: 20px; }
+  .symbolic-body { font-size: 13px; color: rgba(255,255,255,0.8); line-height: 1.8; }
+  .symbolic-body p { margin-bottom: 14px; }
+  .symbolic-body p:last-child { margin-bottom: 0; }
+  .symbolic-loading { text-align: center; padding: 32px; }
+  .symbolic-loading-text { font-size: 12px; color: rgba(201,169,110,0.6); margin-top: 12px; }
+
   @media print {
     body { background: #fff; }
     .print-btn { display: none !important; }
@@ -535,6 +564,149 @@ function ScorecardGauges({ scorecard }: { scorecard: Fase5Data['scorecard'] }) {
   );
 }
 
+// ─── MOODBOARD SECTION ───────────────────────────────────────────────────────
+
+function MoodboardSection({ project }: { project: Project }) {
+  const selected = (project.visualDirection?.moodboardImages || []).filter(img => img.selecionada);
+  const [imgErrors, setImgErrors] = React.useState<Record<string, boolean>>({});
+
+  if (selected.length === 0) return null;
+
+  return (
+    <div className="report-section-alt">
+      <div className="section-label">Direção Visual</div>
+      <div className="section-title">Moodboard Selecionado</div>
+      <div className="section-body" style={{ marginBottom: '16px', fontSize: '12px' }}>
+        Imagens selecionadas pelo estrategista como referência de direção visual aprovada.
+        {selected.some(img => imgErrors[img.id]) && (
+          <span style={{ color: '#dc6060', marginLeft: '8px' }}>
+            · Algumas URLs expiraram — as imagens já devem ter sido salvas externamente.
+          </span>
+        )}
+      </div>
+      <div className="moodboard-grid">
+        {selected.map((img, i) => (
+          <div key={img.id} className="moodboard-img">
+            {imgErrors[img.id] ? (
+              <div className="moodboard-expired">
+                <div>
+                  <div style={{ fontSize: '24px', marginBottom: '8px' }}>⏱</div>
+                  <div>URL expirada<br />Imagem {i + 1}</div>
+                </div>
+              </div>
+            ) : (
+              <img
+                src={img.url}
+                alt={`Moodboard ${i + 1}`}
+                onError={() => setImgErrors(prev => ({ ...prev, [img.id]: true }))}
+              />
+            )}
+            <div className="moodboard-badge">✓ Selecionada</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── POSITIONING HERO (Fase 3) ───────────────────────────────────────────────
+
+function PositioningHero({ project }: { project: Project }) {
+  const pt = project.positioningThesis;
+  const da = project.deepAnalysis;
+  if (!pt?.afirmacaoCentral) return null;
+
+  return (
+    <div className="positioning-hero">
+      <div className="positioning-hero-label">Seção Central · O Posicionamento</div>
+      <div className="positioning-hero-statement">"{pt.afirmacaoCentral}"</div>
+
+      <div className="positioning-hero-meta">
+        {da?.arquetipo && (
+          <div className="positioning-meta-card">
+            <div className="positioning-meta-label">Arquétipo Dominante</div>
+            <div className="positioning-meta-value" style={{ color: '#C9A96E', fontSize: '15px', fontWeight: 700 }}>{da.arquetipo}</div>
+          </div>
+        )}
+        {da?.territorioRecomendado && (
+          <div className="positioning-meta-card">
+            <div className="positioning-meta-label">Território</div>
+            <div className="positioning-meta-value">{da.territorioRecomendado}</div>
+          </div>
+        )}
+      </div>
+
+      {pt.tradeoffs?.length > 0 && (
+        <div style={{ marginBottom: '20px' }}>
+          <div className="positioning-logic-label" style={{ color: 'rgba(201,169,110,0.6)', fontSize: '9px', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>Trade-offs formais</div>
+          {pt.tradeoffs.map((t, i) => (
+            <div key={i} className="tradeoff-row" style={{ marginBottom: '8px' }}>
+              <div className="tradeoff-abandon">✗ {t.abandona}</div>
+              <div className="tradeoff-arrow">→</div>
+              <div className="tradeoff-gain">✓ {t.ganha}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {pt.justificativa && (
+        <div className="positioning-logic">
+          <div className="positioning-logic-label">Lógica simbólica</div>
+          <div className="positioning-logic-text">{pt.justificativa}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SYMBOLIC SECTION ────────────────────────────────────────────────────────
+
+function SymbolicSection({ project }: { project: Project }) {
+  const [narrative, setNarrative] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [loaded, setLoaded] = React.useState(false);
+
+  async function loadNarrative() {
+    if (loaded || loading) return;
+    setLoading(true);
+    try {
+      const { getProjectContext } = await import('@/lib/store');
+      const ctx = getProjectContext(project);
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'report_symbolic_narrative', projectContext: ctx }),
+      });
+      const data = await res.json() as { narrativa?: string };
+      if (data.narrativa) setNarrative(data.narrativa);
+    } catch { /* fail silently */ }
+    setLoading(false);
+    setLoaded(true);
+  }
+
+  React.useEffect(() => { loadNarrative(); }, []);
+
+  if (!loading && !narrative) return null;
+
+  return (
+    <div className="symbolic-section">
+      <div className="symbolic-label">Síntese Final</div>
+      <div className="symbolic-title">Como este trabalho funciona simbolicamente</div>
+      {loading ? (
+        <div className="symbolic-loading">
+          <div style={{ width: '32px', height: '32px', border: '2px solid rgba(201,169,110,0.3)', borderTopColor: '#C9A96E', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+          <div className="symbolic-loading-text">Gerando articulação simbólica…</div>
+        </div>
+      ) : (
+        <div className="symbolic-body">
+          {narrative.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── TEMPLATE FASE 1: ESCUTA ─────────────────────────────────────────────────
 
 function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
@@ -620,6 +792,7 @@ function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
       </div>
 
       <ReportFooter gateLabel="Gate 0 → Fase 1 concluída" />
+      <SymbolicSection project={project} />
     </div>
   );
 }
@@ -716,6 +889,7 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
       </div>
 
       <ReportFooter gateLabel="Gate 1 → Território aprovado pela liderança" />
+      <SymbolicSection project={project} />
     </div>
   );
 }
@@ -727,6 +901,9 @@ function ReportFase3({ project, data }: { project: Project; data: Fase3Data }) {
     <div className="report-page">
       <ReportHeader project={project} fase={3} phaseName="Reconstrução" />
       <ExecSummary achados={data.resumo?.achados || []} />
+
+      {/* Posicionamento — seção central de destaque */}
+      <PositioningHero project={project} />
 
       {/* Plataforma de Marca */}
       <div className="report-section">
@@ -814,6 +991,8 @@ function ReportFase3({ project, data }: { project: Project; data: Fase3Data }) {
       </div>
 
       <ReportFooter gateLabel="Gate 3 → Plataforma assinada como documento-mãe" />
+      <MoodboardSection project={project} />
+      <SymbolicSection project={project} />
     </div>
   );
 }
@@ -899,6 +1078,7 @@ function ReportFase4({ project, data }: { project: Project; data: Fase4Data }) {
       </div>
 
       <ReportFooter gateLabel="Gate 4 → Rollout em andamento, cadência definida" />
+      <SymbolicSection project={project} />
     </div>
   );
 }
@@ -977,6 +1157,8 @@ function ReportFase5({ project, data }: { project: Project; data: Fase5Data }) {
       </div>
 
       <ReportFooter gateLabel="Gate 5 → Sistema de governança ativo" />
+      <MoodboardSection project={project} />
+      <SymbolicSection project={project} />
     </div>
   );
 }

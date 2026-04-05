@@ -5687,6 +5687,18 @@ ${PROMPT_MARKER_END}`;
     updateVD({ moodboardImages: [] });
   }
 
+  function deleteImage(id: string) {
+    updateVD({ moodboardImages: (vd?.moodboardImages || []).filter(img => img.id !== id) });
+  }
+
+  function toggleSelecionada(id: string) {
+    updateVD({
+      moodboardImages: (vd?.moodboardImages || []).map(img =>
+        img.id === id ? { ...img, selecionada: !img.selecionada } : img
+      ),
+    });
+  }
+
   return (
     <div>
       {/* Chat interface */}
@@ -5810,21 +5822,37 @@ ${PROMPT_MARKER_END}`;
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {moodboardImages.map((img, i) => (
-              <div key={img.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '1/1', background: 'var(--surface)' }}>
+              <div key={img.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: img.selecionada ? '2px solid var(--gold)' : '1px solid var(--border)', aspectRatio: '1/1', background: 'var(--surface)' }}>
                 <img
                   src={img.url}
                   alt={`Moodboard ${i + 1}`}
                   style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
-                <a
-                  href={img.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', textDecoration: 'none' }}
-                >
-                  ↗ Abrir
-                </a>
+                {/* Top controls */}
+                {!locked && (
+                  <button
+                    onClick={() => deleteImage(img.id)}
+                    title="Remover imagem"
+                    style={{ position: 'absolute', top: '6px', right: '6px', background: 'rgba(0,0,0,0.7)', color: '#fff', border: 'none', borderRadius: '50%', width: '22px', height: '22px', fontSize: '13px', lineHeight: '22px', textAlign: 'center', cursor: 'pointer', padding: 0 }}
+                  >×</button>
+                )}
+                {/* Bottom controls */}
+                <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(0,0,0,0.65)', padding: '4px 6px', gap: '6px' }}>
+                  <button
+                    onClick={() => toggleSelecionada(img.id)}
+                    title={img.selecionada ? 'Remover do relatório' : 'Usar no relatório'}
+                    style={{ background: img.selecionada ? 'var(--gold)' : 'transparent', color: img.selecionada ? '#1C1F2A' : 'rgba(255,255,255,0.7)', border: img.selecionada ? 'none' : '1px solid rgba(255,255,255,0.3)', borderRadius: '4px', fontSize: '9px', fontWeight: 700, padding: '2px 7px', cursor: 'pointer', letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap' }}
+                  >
+                    {img.selecionada ? '★ No relatório' : '☆ Usar'}
+                  </button>
+                  <a
+                    href={img.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ color: '#fff', fontSize: '10px', padding: '2px 6px', borderRadius: '4px', textDecoration: 'none', opacity: 0.7 }}
+                  >↗</a>
+                </div>
               </div>
             ))}
           </div>
@@ -7617,8 +7645,36 @@ export default function ProjetoPage() {
             <p style={{ color: 'var(--text-muted)', marginTop: '8px', fontSize: '13px' }}>
               Todas as etapas foram aprovadas. Os entregáveis estão disponíveis nos chats de co-criação.
             </p>
+            <a
+              href={`/projetos/${project.id}/relatorio/final`}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{ display: 'inline-block', marginTop: '20px', background: 'var(--gold)', color: '#1C1F2A', border: 'none', borderRadius: '8px', padding: '12px 28px', fontSize: '14px', fontWeight: 700, cursor: 'pointer', textDecoration: 'none' }}
+            >
+              🏆 Relatório Final Completo
+            </a>
           </div>
         )}
+        {(() => {
+          const bp = project.workflowSteps.find(s => s.type === 'brand_platform');
+          const fase3Done = bp && (bp.status === 'done' || bp.status === 'skipped');
+          const allDone = !activeStep && doneSteps === project.workflowSteps.length;
+          if (fase3Done && !allDone) {
+            return (
+              <div style={{ textAlign: 'center', marginTop: '16px', paddingBottom: '8px' }}>
+                <a
+                  href={`/projetos/${project.id}/relatorio/final`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ display: 'inline-block', background: 'transparent', color: 'var(--gold)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '8px 20px', fontSize: '12px', fontWeight: 600, cursor: 'pointer', textDecoration: 'none', letterSpacing: '0.04em' }}
+                >
+                  🏆 Relatório Final (rascunho disponível)
+                </a>
+              </div>
+            );
+          }
+          return null;
+        })()}
       </main>
     </div>
   );

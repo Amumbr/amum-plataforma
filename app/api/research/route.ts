@@ -1316,6 +1316,154 @@ Escreva em português. Este documento marca a conclusão do ciclo e o início da
       });
     }
 
+    // ── NARRATIVA SIMBÓLICA PARA RELATÓRIOS ──────────────────────────────────────
+    if (action === 'report_symbolic_narrative') {
+      const prompt = `${ctx}
+
+Você é o estrategista-narrador da AMUM. Escreva a seção "Como este trabalho funciona simbolicamente" — um texto denso e explicativo para o cliente ou stakeholder que não participou do processo.
+
+Este texto deve articular como o posicionamento escolhido, o arquétipo, o código linguístico e a direção visual se conectam como um sistema coerente — e como esse sistema, em conjunto, é capaz de atingir os objetivos estratégicos da marca.
+
+Não é um resumo executivo. É uma leitura de coerência sistêmica: por que estas escolhas específicas, por que nesta combinação, e o que isso produz simbolicamente no imaginário do público.
+
+Escreva entre 300 e 450 palavras. Linguagem densa, não publicitária. Evite clichês de branding. Trate o leitor como alguém inteligente que quer entender — não ser convencido.
+
+Retorne APENAS este JSON:
+{"narrativa":"O texto completo em um único campo, com parágrafos separados por \\n\\n"}`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
+      catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
+    }
+
+    // ── RELATÓRIO FINAL COMPLETO ──────────────────────────────────────────────────
+    if (action === 'final_report_data') {
+      const prompt = `${ctx}
+
+Você é o estrategista principal da AMUM. Produza o JSON estruturado completo para o Relatório Final da jornada AMUM com este cliente.
+
+Este é o documento mais importante do projeto — apresenta todo o trabalho metodológico para o cliente de forma editorial, densa e definitiva.
+
+Extraia os dados reais do contexto do projeto acima. Não invente — compile o que foi aprovado em cada fase.
+
+Retorne APENAS este JSON válido (sem markdown, sem texto antes ou depois):
+{
+  "capa": {
+    "tagline": "A tagline do posicionamento aprovado — em 1 linha",
+    "subtitulo": "Uma jornada de reposicionamento estratégico"
+  },
+  "pontoDepartida": {
+    "estadoInicial": "Retrato da marca antes do processo — 2-3 parágrafos densos sobre como a marca se apresentava, o que declarava ser e o que os dados revelavam",
+    "tensoesDiagnosticadas": ["Tensão estrutural 1 identificada na Escuta", "Tensão 2", "Tensão 3"],
+    "perguntaFundadora": "A pergunta central que este projeto precisava responder"
+  },
+  "jornada": [
+    {
+      "fase": 1,
+      "nome": "Escuta",
+      "achadoCritico": "O achado mais importante desta fase em 1-2 frases",
+      "decisaoChave": "A decisão ou revelação que mudou a leitura do projeto",
+      "dados": "Números ou evidências concretas desta fase (canais auditados, entrevistas, pesquisas)"
+    },
+    {
+      "fase": 2,
+      "nome": "Decifração",
+      "achadoCritico": "Achado crítico da Decifração",
+      "decisaoChave": "O território escolhido e por que",
+      "dados": "Dados concretos"
+    },
+    {
+      "fase": 3,
+      "nome": "Reconstrução",
+      "achadoCritico": "O que foi construído",
+      "decisaoChave": "A afirmação central do posicionamento",
+      "dados": "Entregáveis produzidos"
+    },
+    {
+      "fase": 4,
+      "nome": "Travessia",
+      "achadoCritico": "Como o rollout foi estruturado",
+      "decisaoChave": "Critérios de sucesso definidos",
+      "dados": "Ondas, KPIs e owners"
+    },
+    {
+      "fase": 5,
+      "nome": "Regeneração",
+      "achadoCritico": "Sistema de governança de marca",
+      "decisaoChave": "Cadência de monitoramento",
+      "dados": "Scorecard e critérios de alerta"
+    }
+  ],
+  "posicionamento": {
+    "afirmacaoCentral": "A afirmação de posicionamento aprovada — exatamente como foi formulada",
+    "logicaSimbolicaCompleta": "Explicação em 3-4 parágrafos da lógica que conecta arquétipo, território e afirmação — por que este posicionamento e não outro, o que ele ativa simbolicamente",
+    "tradeoffs": [
+      {"abandona": "O que a marca abandona", "ganha": "O que ganha com esse abandono"},
+      {"abandona": "...", "ganha": "..."},
+      {"abandona": "...", "ganha": "..."}
+    ],
+    "arquetipo": "O arquétipo dominante identificado",
+    "territorioEscolhido": "O território de posicionamento",
+    "porQueEsteTerritorio": "A lógica da escolha do território — por que este e não os alternativas — 2-3 frases"
+  },
+  "plataforma": {
+    "proposito": "O propósito aprovado",
+    "essencia": "A essência aprovada",
+    "posicionamento": "O posicionamento em 1-2 frases",
+    "promessa": "A promessa aprovada",
+    "valores": [
+      {"valor": "Nome", "comportamento": "Comportamento operacional concreto"}
+    ],
+    "tomDeVoz": {
+      "e": ["adjetivo1", "adjetivo2", "adjetivo3", "adjetivo4"],
+      "naoE": ["anti1", "anti2", "anti3", "anti4"]
+    },
+    "manifesto": "Os primeiros 3-4 parágrafos do manifesto de marca aprovado"
+  },
+  "sistemaVisual": {
+    "principiosSimbolicos": ["Princípio 1 com justificativa", "Princípio 2", "Princípio 3"],
+    "direcaoPaleta": "Lógica simbólica da paleta — o que ativa, por que",
+    "direcaoTipografia": "Direção tipográfica e o que comunica",
+    "descricaoMoodboard": "Síntese da direção visual em 2-3 frases"
+  },
+  "ativacao": {
+    "ondas": [
+      {"onda": "Onda 1 — Interno", "timeline": "Sem. 1-4", "foco": "O que acontece nesta onda"},
+      {"onda": "Onda 2 — Parceiros", "timeline": "Sem. 5-8", "foco": "O que acontece"},
+      {"onda": "Onda 3 — Mercado", "timeline": "Sem. 9-16", "foco": "O que acontece"}
+    ],
+    "kpis": [
+      {"periodo": "30 dias", "meta": "O que deve acontecer"},
+      {"periodo": "90 dias", "meta": "O que deve acontecer"},
+      {"periodo": "180 dias", "meta": "O que deve acontecer"}
+    ],
+    "criteriosSucesso": ["Critério verificável 1", "Critério 2", "Critério 3"]
+  },
+  "proximosPasass": [
+    {"prioridade": 1, "acao": "Ação prioritária concreta", "owner": "Responsável", "prazo": "Prazo"},
+    {"prioridade": 2, "acao": "Ação 2", "owner": "Responsável", "prazo": "Prazo"},
+    {"prioridade": 3, "acao": "Ação 3", "owner": "Responsável", "prazo": "Prazo"},
+    {"prioridade": 4, "acao": "Ação 4", "owner": "Responsável", "prazo": "Prazo"},
+    {"prioridade": 5, "acao": "Ação 5", "owner": "Responsável", "prazo": "Prazo"}
+  ],
+  "narrativaSimbolica": "Texto denso de 300-400 palavras explicando como posicionamento, arquétipo, código linguístico e direção visual se articulam como sistema coerente para atingir os objetivos estratégicos da marca — escrito para o cliente entender, não para impressionar"
+}`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try {
+        const json = robustParseJSON(extractText(r.content)) as Record<string, unknown>;
+        return NextResponse.json({ json, createdAt: new Date().toISOString() });
+      } catch (e) {
+        return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 });
+      }
+    }
+
     return NextResponse.json({ error: 'Acao invalida' }, { status: 400 });
 
   } catch (err) {
