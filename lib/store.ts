@@ -395,6 +395,22 @@ export interface MessageLibrary {
   createdAt: string;
 }
 
+export interface VisualBrandImage {
+  id: string;
+  filename: string;
+  thumbnail: string;          // small base64 JPEG for display (~200px)
+  mimeType: string;
+  semioticAnalysis: string;   // Claude Vision output
+  uploadedAt: string;
+}
+
+export interface MoodboardImage {
+  id: string;
+  url: string;
+  revisedPrompt?: string;
+  generatedAt: string;
+}
+
 export interface VisualDirection {
   principiosSimbolicos: string[];
   paleta: string;
@@ -402,6 +418,11 @@ export interface VisualDirection {
   elementosGraficos: string[];
   moodboardReferencias: string[];
   diretrizes: string;
+  // Extended fields
+  brandImages?: VisualBrandImage[];
+  moodboardPrompt?: string;
+  moodboardImages?: MoodboardImage[];
+  visualBriefing?: string;
   createdAt: string;
 }
 

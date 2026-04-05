@@ -274,6 +274,9 @@ function buildStepContext(step: WorkflowStep, project: Project): string {
       if (project.visualDirection) {
         const vd = project.visualDirection;
         parts.push(`DIREÇÃO VISUAL:\nPrincípios: ${vd.principiosSimbolicos.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}`);
+        if (vd.brandImages && vd.brandImages.length > 0) {
+          parts.push(`ANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA (${vd.brandImages.length} imagens):\n${vd.brandImages.map(img => `[${img.filename}]: ${img.semioticAnalysis.slice(0, 300)}`).join('\n\n')}`);
+        }
       }
       break;
     case 'rollout_plan':
@@ -5314,11 +5317,571 @@ function StepMessageLibrary({
 
 // ─── STEP: VISUAL DIRECTION ───────────────────────────────────────────────────
 
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+async function resizeImageToThumbnail(base64: string, mimeType: string, maxWidth = 200): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const scale = Math.min(1, maxWidth / img.width);
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.width * scale);
+      canvas.height = Math.round(img.height * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) { resolve(base64); return; }
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      resolve(canvas.toDataURL('image/jpeg', 0.7).split(',')[1]);
+    };
+    img.onerror = reject;
+    img.src = `data:${mimeType};base64,${base64}`;
+  });
+}
+
+// ── Sub-component: Image Analysis Panel ──────────────────────────────────────
+
+function VisualImageAnalysisPanel({
+  project,
+  onUpdate,
+  locked,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+  locked: boolean;
+}) {
+  const [analyzing, setAnalyzing] = React.useState<string | null>(null);
+  const [error, setError] = React.useState('');
+  const fileRef = React.useRef<HTMLInputElement>(null);
+  const vd = project.visualDirection;
+  const brandImages = vd?.brandImages || [];
+
+  async function handleFiles(files: FileList | File[]) {
+    const arr = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (!arr.length) return;
+    setError('');
+    for (const file of arr) {
+      setAnalyzing(file.name);
+      try {
+        // Read full-res base64 for vision
+        const fullBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = () => reject(new Error('Falha na leitura'));
+          reader.readAsDataURL(file);
+        });
+        // Resize to thumbnail for storage
+        const thumbnail = await resizeImageToThumbnail(fullBase64, file.type);
+
+        // Build semiotic analysis prompt
+        const vdCtx = vd
+          ? `\nDIREÇÃO VISUAL APROVADA:\nPrincípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}`
+          : '';
+        const bp = project.brandPlatform
+          ? `\nPLATAFORMA DE MARCA:\nPropósito: ${project.brandPlatform.proposito}\nEssência: ${project.brandPlatform.essencia}\nArquétipo base: ${project.deepAnalysis?.arquetipo || 'não definido'}`
+          : '';
+        const analysisPrompt = `Você é especialista em semiótica visual e estratégia de branding da AMUM.
+
+Analise esta imagem da marca atual do cliente.
+${bp}${vdCtx}
+
+Faça uma análise semiótica estratégica incluindo:
+1. SIGNOS PREDOMINANTES — ícones, índices e símbolos presentes
+2. CAMPOS SEMÂNTICOS — que territórios de sentido esta imagem ativa
+3. ARQUÉTIPO VISUAL — qual arquétipo esta composição comunica (conscientemente ou não)
+4. CONSISTÊNCIA — alinhamento ou desalinhamento com a plataforma de marca aprovada
+5. TENSÕES — o que este visual comunica que contradiz o posicionamento desejado
+6. POTENCIAL — o que há de aproveitável, o que deve ser transformado
+
+Seja preciso e estratégico. Não descreva o que vê — analise o que significa.`;
+
+        const res = await fetch('/api/claude', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            projectContext: getProjectContext(project),
+            messages: [{
+              role: 'user',
+              content: [
+                {
+                  type: 'image',
+                  source: { type: 'base64', media_type: file.type as 'image/jpeg' | 'image/png' | 'image/webp' | 'image/gif', data: fullBase64 },
+                },
+                { type: 'text', text: analysisPrompt },
+              ],
+            }],
+          }),
+        });
+        const data = await res.json() as { text?: string; error?: string };
+        if (data.error) throw new Error(data.error);
+
+        const newImg = {
+          id: `vi_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          filename: file.name,
+          thumbnail,
+          mimeType: file.type,
+          semioticAnalysis: data.text || 'Análise não disponível.',
+          uploadedAt: new Date().toISOString(),
+        };
+        const currentVD = project.visualDirection || {
+          principiosSimbolicos: [],
+          paleta: '',
+          tipografia: '',
+          elementosGraficos: [],
+          moodboardReferencias: [],
+          diretrizes: '',
+          createdAt: new Date().toISOString(),
+        };
+        const updated = {
+          ...project,
+          visualDirection: {
+            ...currentVD,
+            brandImages: [...(currentVD.brandImages || []), newImg],
+          },
+        };
+        saveProject(updated);
+        onUpdate(updated);
+      } catch (err) {
+        setError(`Erro ao analisar ${file.name}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+    }
+    setAnalyzing(null);
+    if (fileRef.current) fileRef.current.value = '';
+  }
+
+  function removeImage(id: string) {
+    if (!vd) return;
+    const updated = {
+      ...project,
+      visualDirection: { ...vd, brandImages: (vd.brandImages || []).filter(i => i.id !== id) },
+    };
+    saveProject(updated);
+    onUpdate(updated);
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.5 }}>
+        Faça upload das imagens da marca atual — logo, materiais, capturas de tela, fotos de ambiente. A IA fará análise semiótica de cada imagem confrontando com a plataforma aprovada.
+      </p>
+      {!locked && (
+        <>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp"
+            multiple
+            style={{ display: 'none' }}
+            onChange={e => e.target.files && handleFiles(e.target.files)}
+          />
+          <button
+            className="btn-primary"
+            onClick={() => fileRef.current?.click()}
+            disabled={!!analyzing}
+            style={{ marginBottom: '12px' }}
+          >
+            {analyzing ? `Analisando: ${analyzing.slice(0, 30)}…` : '+ Upload de imagens da marca'}
+          </button>
+        </>
+      )}
+      {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '8px' }}>{error}</p>}
+
+      {brandImages.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          {brandImages.map(img => (
+            <div key={img.id} style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', gap: '12px', padding: '12px', alignItems: 'flex-start' }}>
+                <img
+                  src={`data:${img.mimeType};base64,${img.thumbnail}`}
+                  alt={img.filename}
+                  style={{ width: '80px', height: '80px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }}
+                />
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text)', marginBottom: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{img.filename}</p>
+                    {!locked && (
+                      <button
+                        onClick={() => removeImage(img.id)}
+                        style={{ background: 'none', border: 'none', color: 'var(--text-dim)', cursor: 'pointer', fontSize: '14px', flexShrink: 0, padding: '0 4px' }}
+                      >×</button>
+                    )}
+                  </div>
+                  <p style={{ fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.5, whiteSpace: 'pre-wrap' }}>{img.semioticAnalysis}</p>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sub-component: Moodboard Generator ───────────────────────────────────────
+
+function MoodboardPanel({
+  project,
+  onUpdate,
+  locked,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+  locked: boolean;
+}) {
+  const [generatingPrompt, setGeneratingPrompt] = React.useState(false);
+  const [generatingImages, setGeneratingImages] = React.useState(false);
+  const [generationStatus, setGenerationStatus] = React.useState('');
+  const [error, setError] = React.useState('');
+  const [editingPrompt, setEditingPrompt] = React.useState(false);
+  const [promptDraft, setPromptDraft] = React.useState('');
+  const vd = project.visualDirection;
+
+  const moodboardPrompt = vd?.moodboardPrompt || '';
+  const moodboardImages = vd?.moodboardImages || [];
+
+  function updateVD(patch: Partial<NonNullable<Project['visualDirection']>>) {
+    const currentVD = vd || {
+      principiosSimbolicos: [],
+      paleta: '',
+      tipografia: '',
+      elementosGraficos: [],
+      moodboardReferencias: [],
+      diretrizes: '',
+      createdAt: new Date().toISOString(),
+    };
+    const updated = { ...project, visualDirection: { ...currentVD, ...patch } };
+    saveProject(updated);
+    onUpdate(updated);
+  }
+
+  async function generatePrompt() {
+    setGeneratingPrompt(true);
+    setError('');
+    try {
+      const semioticCtx = (vd?.brandImages || []).length > 0
+        ? `\n\nANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA ATUAL:\n${(vd?.brandImages || []).map(img => `[${img.filename}]: ${img.semioticAnalysis}`).join('\n\n')}`
+        : '';
+      const directionCtx = vd
+        ? `\n\nDIREÇÃO VISUAL ESTRATÉGICA APROVADA:\nPrincípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}\nReferências: ${vd.moodboardReferencias?.join(', ')}`
+        : '';
+
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          projectContext: getProjectContext(project) + directionCtx + semioticCtx,
+          messages: [{
+            role: 'user',
+            content: `Gere um prompt em inglês para DALL-E 3 que produza um painel de moodboard visual (mood board) coerente com o posicionamento estratégico e a direção visual aprovada da marca.
+
+O prompt deve especificar:
+- Estilo visual dominante (fotografia, ilustração, misto, etc.)
+- Paleta cromática precisa (tons, temperatura, saturação)
+- Composição e elementos visuais recorrentes
+- Atmosfera e sensação emocional
+- Texturas, materiais, espaços
+- O que EVITAR (elementos visuais que contradizem o posicionamento)
+
+O prompt deve ter 200-300 palavras em inglês. Comece diretamente com a descrição — não escreva "Prompt:" ou qualquer prefácio.`,
+          }],
+        }),
+      });
+      const data = await res.json() as { text?: string; error?: string };
+      if (data.error) throw new Error(data.error);
+      updateVD({ moodboardPrompt: data.text || '' });
+    } catch (err) {
+      setError(`Erro ao gerar prompt: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setGeneratingPrompt(false);
+    }
+  }
+
+  async function generateImages() {
+    if (!moodboardPrompt.trim()) return;
+    setGeneratingImages(true);
+    setError('');
+    const newImages: NonNullable<Project['visualDirection']>['moodboardImages'] = [];
+    const total = 4;
+
+    for (let i = 0; i < total; i++) {
+      setGenerationStatus(`Gerando imagem ${i + 1} de ${total}…`);
+      try {
+        const res = await fetch('/api/dalle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt: moodboardPrompt }),
+        });
+        const data = await res.json() as { url?: string; revised_prompt?: string; error?: string };
+        if (data.error) {
+          setError(`Erro na imagem ${i + 1}: ${data.error}`);
+          continue;
+        }
+        newImages.push({
+          id: `mb_${Date.now()}_${i}`,
+          url: data.url || '',
+          revisedPrompt: data.revised_prompt,
+          generatedAt: new Date().toISOString(),
+        });
+        // Update state after each image so user sees progress
+        updateVD({ moodboardImages: [...(vd?.moodboardImages || []), ...newImages] });
+      } catch (err) {
+        setError(`Erro na imagem ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
+      }
+      // Small pause between calls
+      if (i < total - 1) await new Promise(r => setTimeout(r, 2000));
+    }
+
+    updateVD({ moodboardImages: newImages });
+    setGeneratingImages(false);
+    setGenerationStatus('');
+  }
+
+  function clearImages() {
+    updateVD({ moodboardImages: [] });
+  }
+
+  return (
+    <div>
+      {/* Moodboard prompt */}
+      <div style={{ marginBottom: '20px' }}>
+        <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
+          Prompt para DALL-E 3
+        </p>
+        {!moodboardPrompt && !locked && (
+          <>
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px', lineHeight: 1.5 }}>
+              O prompt é gerado automaticamente a partir da direção visual aprovada e da análise semiótica das imagens. Você pode editá-lo antes de gerar.
+            </p>
+            <button className="btn-primary" onClick={generatePrompt} disabled={generatingPrompt}>
+              {generatingPrompt ? 'Gerando prompt…' : 'Gerar prompt de moodboard'}
+            </button>
+          </>
+        )}
+        {moodboardPrompt && !editingPrompt && (
+          <div style={{ position: 'relative' }}>
+            <div style={{ padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: '180px', overflowY: 'auto' }}>
+              {moodboardPrompt}
+            </div>
+            {!locked && (
+              <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
+                <button className="btn-small" onClick={() => { setPromptDraft(moodboardPrompt); setEditingPrompt(true); }}>Editar prompt</button>
+                <button className="btn-small" style={{ opacity: 0.6 }} onClick={generatePrompt} disabled={generatingPrompt}>
+                  {generatingPrompt ? '…' : '↺ Regerar'}
+                </button>
+              </div>
+            )}
+          </div>
+        )}
+        {editingPrompt && (
+          <div>
+            <textarea
+              className="textarea"
+              value={promptDraft}
+              onChange={e => setPromptDraft(e.target.value)}
+              rows={8}
+              style={{ marginBottom: '8px' }}
+            />
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button className="btn-approve" onClick={() => { updateVD({ moodboardPrompt: promptDraft }); setEditingPrompt(false); }}>Salvar</button>
+              <button className="btn-skip" onClick={() => setEditingPrompt(false)}>Cancelar</button>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Generate images */}
+      {moodboardPrompt && !locked && (
+        <div style={{ marginBottom: '20px' }}>
+          <button
+            className="btn-primary"
+            onClick={generateImages}
+            disabled={generatingImages}
+            style={{ marginRight: '8px' }}
+          >
+            {generatingImages ? generationStatus || 'Gerando…' : moodboardImages.length > 0 ? '↺ Regenerar moodboard' : 'Gerar moodboard (4 imagens)'}
+          </button>
+          {moodboardImages.length > 0 && !generatingImages && (
+            <button className="btn-small" style={{ opacity: 0.5 }} onClick={clearImages}>Limpar</button>
+          )}
+        </div>
+      )}
+
+      {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '12px' }}>{error}</p>}
+
+      {/* Image grid */}
+      {moodboardImages.length > 0 && (
+        <div>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+            Moodboard — {moodboardImages.length} imagem(ns)
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '12px' }}>
+            ⚠ As URLs das imagens expiram em 1 hora. Salve-as agora clicando em cada imagem (botão direito → Salvar imagem como).
+          </p>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            {moodboardImages.map((img, i) => (
+              <div key={img.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                <img
+                  src={img.url}
+                  alt={`Moodboard ${i + 1}`}
+                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
+                  onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                />
+                <a
+                  href={img.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', padding: '3px 7px', borderRadius: '4px', textDecoration: 'none' }}
+                >
+                  ↗ Abrir
+                </a>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sub-component: Visual Direction Chat ─────────────────────────────────────
+
+function VisualDirectionChat({
+  step,
+  project,
+  onUpdate,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const savedHistory = (step.data?.visualChatHistory as { role: 'user' | 'assistant'; content: string }[]) || [];
+  const [messages, setMessages] = React.useState(savedHistory);
+  const [input, setInput] = React.useState('');
+  const [loading, setLoading] = React.useState(false);
+  const [open, setOpen] = React.useState(savedHistory.length > 0);
+  const endRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const vd = project.visualDirection;
+    const semioticCtx = (vd?.brandImages || []).length > 0
+      ? `\n\nANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA:\n${(vd.brandImages || []).map(img => `[${img.filename}]: ${img.semioticAnalysis.slice(0, 400)}`).join('\n\n')}`
+      : '';
+    const vdCtx = vd
+      ? `\n\nDIREÇÃO VISUAL ATUAL:\nPrincípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}\nElementos: ${vd.elementosGraficos?.join(', ')}\nReferências: ${vd.moodboardReferencias?.join(', ')}\nDiretrizes: ${vd.diretrizes}`
+      : '';
+
+    const visualSystemContext = `${getProjectContext(project)}${vdCtx}${semioticCtx}
+
+MODO: Chat especializado em direção de arte, semiótica visual e simbologia de marca. Você atua como diretor de arte estratégico da AMUM — especialista em:
+- Semiótica visual (Peirce, Barthes, Eco aplicados à marca)
+- Teoria da cor e sua lógica simbólica
+- Tipografia como expressão de arquétipo
+- Linguagem visual e construção de territórios simbólicos
+- Referências de design, arte e cultura visual justificadas estrategicamente
+- Briefing para designers e direção de identidade visual
+
+Não seja um assistente genérico de design. Atue por tensão semiótica, justificativa estratégica e precisão simbólica.`;
+
+    const userMsg = { role: 'user' as const, content: input };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput('');
+    setLoading(true);
+
+    try {
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectContext: visualSystemContext, messages: newMessages }),
+      });
+      const data = await res.json() as { text?: string };
+      const allMessages = [...newMessages, { role: 'assistant' as const, content: data.text || '' }];
+      setMessages(allMessages);
+      const updated = updateStepData(project, step.id, { visualChatHistory: allMessages });
+      onUpdate(updated);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{ marginTop: '4px' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-dim)', fontSize: '12px', padding: 0, marginBottom: open ? '14px' : 0 }}
+      >
+        <span style={{ fontSize: '10px' }}>{open ? '▼' : '▶'}</span>
+        Chat especializado — Direção de Arte & Semiótica Visual
+        {messages.length > 0 && <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({messages.length} mensagens)</span>}
+      </button>
+
+      {open && (
+        <>
+          {messages.length === 0 && (
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px', lineHeight: 1.6 }}>
+              Chat especializado em direção de arte, semiótica visual e simbologia. A IA atua como diretor de arte estratégico — tensione formulações, explore referências visuais, questione escolhas simbólicas.
+            </p>
+          )}
+          {messages.length > 0 && (
+            <div className="chat-messages" style={{ marginBottom: '12px' }}>
+              {messages.map((m, i) => (
+                <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>
+                  <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
+                </div>
+              ))}
+              {loading && (
+                <div className="chat-msg chat-msg-ai">
+                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Processando…</p>
+                </div>
+              )}
+              <div ref={endRef} />
+            </div>
+          )}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <textarea
+              className="textarea"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Questione escolhas visuais, explore referências, tensione decisões simbólicas… (Enter envia)"
+              rows={2}
+              style={{ flex: 1 }}
+            />
+            <button
+              className="btn-primary"
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+              style={{ alignSelf: 'flex-end', padding: '8px 16px', minWidth: 'auto' }}
+            >→</button>
+          </div>
+          {messages.length > 0 && (
+            <button
+              className="btn-small"
+              style={{ marginTop: '8px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: '11px' }}
+              onClick={() => { setMessages([]); onUpdate(updateStepData(project, step.id, { visualChatHistory: [] })); }}
+            >
+              Limpar histórico
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// ── Main Component ────────────────────────────────────────────────────────────
+
 function StepVisualDirection({
   project, step, onUpdate,
 }: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
   const [loading, setLoading] = React.useState(false);
+  const [generatingBriefing, setGeneratingBriefing] = React.useState(false);
+  const [activePanel, setActivePanel] = React.useState<'analise' | 'direcao' | 'moodboard' | 'briefing'>('analise');
   const vd = project.visualDirection;
+  const isDone = step.status === 'done' || step.status === 'skipped';
 
   async function handleGenerate() {
     setLoading(true);
@@ -5328,12 +5891,42 @@ function StepVisualDirection({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'visual_direction', projectContext: getProjectContext(project) }),
       });
-      const data = await res.json();
+      const data = await res.json() as Partial<NonNullable<Project['visualDirection']>> & { error?: string };
       if (data.principiosSimbolicos) {
-        const updated = { ...project, visualDirection: { ...data, createdAt: new Date().toISOString() } };
+        const updated = {
+          ...project,
+          visualDirection: {
+            ...(project.visualDirection || {}),
+            ...data,
+            brandImages: project.visualDirection?.brandImages,
+            moodboardImages: project.visualDirection?.moodboardImages,
+            moodboardPrompt: project.visualDirection?.moodboardPrompt,
+            visualBriefing: project.visualDirection?.visualBriefing,
+            createdAt: new Date().toISOString(),
+          } as NonNullable<Project['visualDirection']>,
+        };
         saveProject(updated); onUpdate(updated);
       }
     } finally { setLoading(false); }
+  }
+
+  async function generateBriefing() {
+    setGeneratingBriefing(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'visual_briefing', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json() as { briefing?: string; error?: string };
+      if (data.briefing) {
+        const updated = {
+          ...project,
+          visualDirection: { ...(vd as NonNullable<Project['visualDirection']>), visualBriefing: data.briefing },
+        };
+        saveProject(updated); onUpdate(updated);
+      }
+    } finally { setGeneratingBriefing(false); }
   }
 
   function handleApprove() { onUpdate(approveStep(project, step.id)); }
@@ -5343,22 +5936,75 @@ function StepVisualDirection({
   const sectionStyle: React.CSSProperties = { border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' };
   const labelStyle: React.CSSProperties = { fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px', textTransform: 'uppercase' as const };
 
+  const panelTabs = [
+    { key: 'analise' as const, label: '🔍 Análise de Imagens' },
+    { key: 'direcao' as const, label: '🎨 Direção Visual' },
+    { key: 'moodboard' as const, label: '🖼 Moodboard' },
+    { key: 'briefing' as const, label: '📄 Briefing' },
+  ];
+
+  if (step.status === 'done') {
+    return (
+      <div style={{ padding: '0 16px 24px' }}>
+        <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '6px' }}>Direção visual aprovada</p>
+        {vd?.brandImages && vd.brandImages.length > 0 && (
+          <p style={{ color: 'var(--text-dim)', fontSize: '12px', marginBottom: '6px' }}>{vd.brandImages.length} imagem(ns) analisada(s)</p>
+        )}
+        {vd?.moodboardImages && vd.moodboardImages.length > 0 && (
+          <p style={{ color: 'var(--text-dim)', fontSize: '12px', marginBottom: '12px' }}>{vd.moodboardImages.length} imagem(ns) de moodboard gerada(s)</p>
+        )}
+        <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+      </div>
+    );
+  }
+
   return (
     <div style={{ padding: '0 16px 24px' }}>
-      {step.status === 'done' ? (
+      {/* Panel tabs */}
+      <div style={{ display: 'flex', gap: '4px', marginBottom: '20px', flexWrap: 'wrap' }}>
+        {panelTabs.map(tab => (
+          <button
+            key={tab.key}
+            onClick={() => setActivePanel(tab.key)}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              fontSize: '12px',
+              fontWeight: activePanel === tab.key ? 600 : 400,
+              background: activePanel === tab.key ? 'rgba(201,169,110,0.15)' : 'var(--surface)',
+              border: `1px solid ${activePanel === tab.key ? 'rgba(201,169,110,0.5)' : 'var(--border)'}`,
+              color: activePanel === tab.key ? 'var(--gold)' : 'var(--text-dim)',
+              cursor: 'pointer',
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Panel: Análise de Imagens */}
+      {activePanel === 'analise' && (
         <div>
-          <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px' }}>Direção visual aprovada</p>
-          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+          <VisualImageAnalysisPanel project={project} onUpdate={onUpdate} locked={isDone} />
+          {/* Specialized chat lives in the analysis panel */}
+          {(project.visualDirection?.brandImages || []).length > 0 && (
+            <div style={{ marginTop: '20px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+              <VisualDirectionChat step={step} project={project} onUpdate={onUpdate} />
+            </div>
+          )}
         </div>
-      ) : (
-        <>
-          {!vd ? (
+      )}
+
+      {/* Panel: Direção Visual */}
+      {activePanel === 'direcao' && (
+        <div>
+          {!vd?.principiosSimbolicos?.length ? (
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
               <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
-                Princípios simbólicos, paleta, tipografia e moodboard — diretrizes estratégicas que orientam qualquer designer que toque na marca.
+                Gera os princípios simbólicos, paleta, tipografia, elementos gráficos e diretrizes estratégicas para o designer — baseados na Plataforma de Marca e Código Linguístico aprovados.
               </p>
               <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
-                {loading ? 'Gerando direção...' : 'Gerar Direção Visual'}
+                {loading ? 'Gerando direção…' : 'Gerar Direção Visual'}
               </button>
             </div>
           ) : (
@@ -5373,18 +6019,26 @@ function StepVisualDirection({
               )}
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                 {vd.paleta && (
-                  <div style={{ ...sectionStyle, flex: 1 }}>
+                  <div style={{ ...sectionStyle, flex: 1, marginBottom: 0 }}>
                     <p style={labelStyle}>Paleta</p>
                     <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd.paleta}</p>
                   </div>
                 )}
                 {vd.tipografia && (
-                  <div style={{ ...sectionStyle, flex: 1 }}>
+                  <div style={{ ...sectionStyle, flex: 1, marginBottom: 0 }}>
                     <p style={labelStyle}>Tipografia</p>
                     <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd.tipografia}</p>
                   </div>
                 )}
               </div>
+              {vd.elementosGraficos?.length > 0 && (
+                <div style={{ ...sectionStyle, marginTop: '12px' }}>
+                  <p style={labelStyle}>Elementos Gráficos</p>
+                  {vd.elementosGraficos.map((e, i) => (
+                    <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>• {e}</p>
+                  ))}
+                </div>
+              )}
               {vd.moodboardReferencias?.length > 0 && (
                 <div style={sectionStyle}>
                   <p style={labelStyle}>Referências Moodboard</p>
@@ -5399,23 +6053,73 @@ function StepVisualDirection({
                   <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{vd.diretrizes}</p>
                 </div>
               )}
-              <RefinementChat
-                step={step}
-                project={project}
-                onUpdate={onUpdate}
-                stepLabel="Direção Visual"
-                stepContent={vd ? `Princípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}` : ''}
-              />
-              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
-                <button className="btn-approve" onClick={handleApprove}>Aprovar Direção Visual</button>
-                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
-                  {loading ? 'Regenerando...' : 'Regenerar'}
-                </button>
+              {/* Visual chat also accessible from direction panel */}
+              <div style={{ marginTop: '16px', borderTop: '1px solid var(--border)', paddingTop: '16px' }}>
+                <VisualDirectionChat step={step} project={project} onUpdate={onUpdate} />
               </div>
+              {!isDone && (
+                <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
+                  <button className="btn-approve" onClick={handleApprove}>Aprovar Direção Visual</button>
+                  <button className="btn-skip" onClick={handleGenerate} disabled={loading}>{loading ? 'Regenerando…' : 'Regenerar'}</button>
+                </div>
+              )}
             </>
           )}
-          {!vd && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
-        </>
+        </div>
+      )}
+
+      {/* Panel: Moodboard */}
+      {activePanel === 'moodboard' && (
+        <MoodboardPanel project={project} onUpdate={onUpdate} locked={isDone} />
+      )}
+
+      {/* Panel: Briefing */}
+      {activePanel === 'briefing' && (
+        <div>
+          {!vd?.visualBriefing ? (
+            <div>
+              <p style={{ fontSize: '13px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.6 }}>
+                Gera o briefing completo para identidade visual — documento que acompanha o designer com princípios estratégicos, restrições, checklist de validação e próximos passos.
+              </p>
+              {!vd?.principiosSimbolicos?.length && (
+                <div style={{ padding: '10px 12px', background: 'rgba(180,100,100,0.06)', borderRadius: '6px', marginBottom: '14px', border: '1px solid rgba(180,100,100,0.2)' }}>
+                  <p style={{ fontSize: '12px', color: '#b56a6a' }}>Recomendado: gere a Direção Visual antes de produzir o briefing.</p>
+                </div>
+              )}
+              <button className="btn-primary" onClick={generateBriefing} disabled={generatingBriefing}>
+                {generatingBriefing ? 'Gerando briefing…' : 'Gerar briefing para identidade visual'}
+              </button>
+            </div>
+          ) : (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
+                <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Briefing gerado</p>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  <DownloadButton title={`Briefing Identidade Visual — ${project.nome}`} content={vd.visualBriefing || ''} />
+                  <button className="btn-small" style={{ opacity: 0.6 }} onClick={generateBriefing} disabled={generatingBriefing}>
+                    {generatingBriefing ? '…' : '↺ Regerar'}
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: '16px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: '600px', overflowY: 'auto' }}>
+                {vd.visualBriefing}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Approve / Skip — visible from any panel */}
+      {!isDone && vd?.principiosSimbolicos?.length && activePanel !== 'direcao' && (
+        <div style={{ marginTop: '20px', paddingTop: '16px', borderTop: '1px solid var(--border)', display: 'flex', gap: '8px' }}>
+          <button className="btn-approve" onClick={handleApprove}>Aprovar Direção Visual</button>
+          <button className="btn-skip" onClick={handleSkip}>Pular</button>
+        </div>
+      )}
+      {!vd?.principiosSimbolicos?.length && activePanel !== 'direcao' && (
+        <div style={{ marginTop: '20px' }}>
+          <button className="btn-skip" onClick={handleSkip}>Pular direção visual</button>
+        </div>
       )}
     </div>
   );

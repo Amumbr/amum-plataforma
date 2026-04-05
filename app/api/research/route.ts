@@ -913,6 +913,54 @@ Retorne APENAS este JSON:
       catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
     }
 
+    // ── VISUAL BRIEFING ───────────────────────────────────────────────────────────
+    if (action === 'visual_briefing') {
+      const prompt = `${ctx}
+
+Você é diretor de estratégia visual da AMUM. Gere o briefing completo para identidade visual deste projeto — o documento que acompanha o designer durante todo o processo de criação da nova identidade.
+
+Este briefing deve ser baseado em todo o trabalho estratégico aprovado: Plataforma de Marca, Código Linguístico, Narrativa de Marca e Direção Visual.
+
+O documento deve ter a seguinte estrutura (use títulos em caixa alta como separadores de seção):
+
+VISÃO ESTRATÉGICA DA MARCA
+Propósito, essência, arquétipo dominante e o que a marca precisa comunicar visualmente de forma inevitável — não apenas bonita.
+
+PRINCÍPIOS SIMBÓLICOS E SUA LÓGICA
+Cada princípio simbólico com sua justificativa estratégica e como ele deve se manifestar visualmente. Por que cada escolha visual importa para o posicionamento.
+
+DIREÇÃO DE PALETA
+Lógica simbólica da paleta (não apenas códigos hex). Campos semânticos a ativar. O que a paleta deve comunicar emocionalmente. Aplicações primárias e secundárias. O que a paleta atual comunica de errado.
+
+SISTEMA TIPOGRÁFICO
+Personalidade tipográfica desejada. Contraste entre tipos (se houver). Hierarquia visual. O que a tipografia deve comunicar sobre a marca.
+
+ELEMENTOS GRÁFICOS E PADRÕES
+Elementos que devem persistir, ser criados ou ser abandonados. Padrões visuais coerentes com o arquétipo. O que não pode aparecer.
+
+TOM VISUAL GERAL
+Como a marca deve parecer e sentir. Adjetivos visuais que guiam decisões. Referências justificadas estrategicamente (marcas, artistas, períodos, estilos).
+
+RESTRIÇÕES ABSOLUTAS
+O que nunca pode aparecer na identidade visual desta marca. Por que cada restrição existe (justificativa estratégica, não preferência estética).
+
+PERGUNTAS DE VALIDAÇÃO PARA O DESIGNER
+Lista de 8-12 perguntas que o designer deve fazer a cada entregável para verificar coerência com o posicionamento.
+
+PRÓXIMOS PASSOS E ENTREGÁVEIS ESPERADOS
+O que a AMUM espera receber do designer e em que ordem. Critérios de aprovação de cada entregável.
+
+Escreva em português. Seja denso e preciso — cada frase deve produzir avanço para o designer. Evite generalidades.`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      const briefing = extractText(r.content);
+      if (!briefing) return NextResponse.json({ error: 'Resposta vazia' }, { status: 500 });
+      return NextResponse.json({ briefing, createdAt: new Date().toISOString() });
+    }
+
     return NextResponse.json({ error: 'Acao invalida' }, { status: 400 });
 
   } catch (err) {
