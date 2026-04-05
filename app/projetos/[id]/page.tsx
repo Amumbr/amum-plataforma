@@ -4737,6 +4737,9 @@ function StepPositioningThesis({
   const [draftTradeoffs, setDraftTradeoffs] = React.useState<{ abandona: string; ganha: string }[]>(
     thesis?.tradeoffs?.map(t => ({ ...t })) || [{ abandona: '', ganha: '' }]
   );
+  const [draftNovoPositionamento, setDraftNovoPositionamento] = React.useState(thesis?.novoPositionamento || '');
+  const [posicionamentoAnalise, setPosicionamentoAnalise] = React.useState(thesis?.posicionamentoAnalise || '');
+  const [analiseLoading, setAnaliseLoading] = React.useState(false);
 
   // Sincroniza draft com thesis quando o projeto muda externamente
   React.useEffect(() => {
@@ -4744,6 +4747,8 @@ function StepPositioningThesis({
       setDraftAfirmacao(thesis.afirmacaoCentral);
       setDraftJustificativa(thesis.justificativa || '');
       setDraftTradeoffs(thesis.tradeoffs?.map(t => ({ ...t })) || [{ abandona: '', ganha: '' }]);
+      setDraftNovoPositionamento(thesis.novoPositionamento || '');
+      setPosicionamentoAnalise(thesis.posicionamentoAnalise || '');
     }
   }, [thesis]);
 
@@ -4828,6 +4833,37 @@ Princípios desta sessão:
     setDraftTradeoffs(aiSuggestion.tradeoffs?.map((t: { abandona: string; ganha: string }) => ({ ...t })) || [{ abandona: '', ganha: '' }]);
   }
 
+  async function handleAnalysePositionamento() {
+    if (!draftNovoPositionamento.trim() || analiseLoading) return;
+    setAnaliseLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'positioning_deep_analysis',
+          projectContext: getProjectContext(project),
+          novoPositionamento: draftNovoPositionamento.trim(),
+        }),
+      });
+      const data = await res.json() as { analise?: string; error?: string };
+      if (data.analise) {
+        setPosicionamentoAnalise(data.analise);
+        // Persiste imediatamente no projeto
+        const updated = {
+          ...project,
+          positioningThesis: {
+            ...(project.positioningThesis || { afirmacaoCentral: '', tradeoffs: [], justificativa: '', createdAt: new Date().toISOString() }),
+            novoPositionamento: draftNovoPositionamento.trim(),
+            posicionamentoAnalise: data.analise,
+          },
+        };
+        saveProject(updated);
+        onUpdate(updated);
+      }
+    } finally { setAnaliseLoading(false); }
+  }
+
   function saveDraft() {
     const updated = {
       ...project,
@@ -4835,6 +4871,8 @@ Princípios desta sessão:
         afirmacaoCentral: draftAfirmacao.trim(),
         justificativa: draftJustificativa.trim(),
         tradeoffs: draftTradeoffs.filter(t => t.abandona.trim() || t.ganha.trim()),
+        novoPositionamento: draftNovoPositionamento.trim() || undefined,
+        posicionamentoAnalise: posicionamentoAnalise || undefined,
         createdAt: thesis?.createdAt || new Date().toISOString(),
       },
     };
@@ -4850,6 +4888,8 @@ Princípios desta sessão:
         afirmacaoCentral: draftAfirmacao.trim(),
         justificativa: draftJustificativa.trim(),
         tradeoffs: draftTradeoffs.filter(t => t.abandona.trim() || t.ganha.trim()),
+        novoPositionamento: draftNovoPositionamento.trim() || undefined,
+        posicionamentoAnalise: posicionamentoAnalise || undefined,
         createdAt: thesis?.createdAt || new Date().toISOString(),
       },
     };
@@ -4899,6 +4939,15 @@ Princípios desta sessão:
             </div>
           )}
         </div>
+        {thesis?.novoPositionamento && (
+          <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '10px', padding: '16px 20px', marginBottom: '16px' }}>
+            <p style={{ fontSize: '10px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.12em', marginBottom: '8px' }}>NOVO POSICIONAMENTO</p>
+            <p style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.6 }}>{thesis.novoPositionamento}</p>
+            {thesis.posicionamentoAnalise && (
+              <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginTop: '8px' }}>✓ Análise estratégica gerada</p>
+            )}
+          </div>
+        )}
         <div style={{ display: 'flex', gap: '8px' }}>
           <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
         </div>
@@ -5086,6 +5135,52 @@ Princípios desta sessão:
           placeholder="Por que este posicionamento — a lógica que conecta os dados da Escuta à afirmação central"
           style={{ width: '100%', background: 'transparent', border: 'none', fontSize: '13px', color: 'var(--text)', lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit', outline: 'none' }}
         />
+      </div>
+
+      {/* Novo Posicionamento */}
+      <div style={{ borderTop: '1px solid var(--border)', paddingTop: '20px', marginBottom: '20px' }}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '12px' }}>
+          <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--gold)', letterSpacing: '0.1em' }}>NOVO POSICIONAMENTO</span>
+          <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>— declaração formal que será analisada e destacada no relatório</span>
+        </div>
+        <textarea
+          value={draftNovoPositionamento}
+          onChange={e => setDraftNovoPositionamento(e.target.value)}
+          rows={4}
+          placeholder="Escreva aqui a declaração do novo posicionamento da marca — pode ser mais extensa que a afirmação central, mais descritiva, incluindo o contexto de para quem e por quê."
+          style={{
+            width: '100%', background: 'rgba(201,169,110,0.04)', border: '1px solid rgba(201,169,110,0.35)',
+            borderRadius: '8px', padding: '14px 16px', fontSize: '14px', color: 'var(--text)',
+            lineHeight: 1.7, resize: 'vertical', fontFamily: 'inherit', outline: 'none',
+            marginBottom: '10px',
+          }}
+        />
+        <button
+          onClick={handleAnalysePositionamento}
+          disabled={!draftNovoPositionamento.trim() || analiseLoading}
+          style={{
+            background: analiseLoading ? 'transparent' : 'rgba(201,169,110,0.15)',
+            border: '1px solid rgba(201,169,110,0.5)', borderRadius: '6px',
+            padding: '8px 18px', fontSize: '12px', fontWeight: 700, color: 'var(--gold)',
+            cursor: draftNovoPositionamento.trim() && !analiseLoading ? 'pointer' : 'not-allowed',
+            opacity: !draftNovoPositionamento.trim() ? 0.4 : 1,
+            transition: 'background 0.15s',
+          }}
+        >
+          {analiseLoading ? '✦ Analisando…' : posicionamentoAnalise ? '↺ Reanalisar com IA' : '✦ Analisar com IA'}
+        </button>
+
+        {posicionamentoAnalise && (
+          <div style={{ marginTop: '16px', border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--card-bg)', padding: '10px 16px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--gold)', letterSpacing: '0.1em' }}>ANÁLISE ESTRATÉGICA</span>
+              <span style={{ fontSize: '10px', color: 'var(--text-dim)' }}>— gerada pela IA, será destacada no relatório</span>
+            </div>
+            <div style={{ padding: '16px', maxHeight: '320px', overflowY: 'auto' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.8, whiteSpace: 'pre-wrap', margin: 0 }}>{posicionamentoAnalise}</p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Ações finais */}

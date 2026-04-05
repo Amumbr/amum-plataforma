@@ -321,6 +321,8 @@ export interface PositioningThesis {
   afirmacaoCentral: string;
   tradeoffs: { abandona: string; ganha: string }[];
   justificativa: string;
+  novoPositionamento?: string;
+  posicionamentoAnalise?: string;
   createdAt: string;
 }
 
@@ -1369,6 +1371,7 @@ export function getProjectContext(project: Project): string {
     parts.push(`Afirmação central: ${pt.afirmacaoCentral}`);
     if (pt.justificativa) parts.push(`Justificativa: ${pt.justificativa}`);
     pt.tradeoffs.forEach(t => parts.push(`  Trade-off: abandona "${t.abandona}" → ganha "${t.ganha}"`));
+    if (pt.novoPositionamento) parts.push(`Novo Posicionamento (declaração formal): ${pt.novoPositionamento}`);
   }
 
   if (project.brandArchitecture) {

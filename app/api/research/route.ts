@@ -603,6 +603,43 @@ Retorne APENAS este JSON:
       catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
     }
 
+    // ── POSITIONING DEEP ANALYSIS ─────────────────────────────────────────────────
+    if (action === 'positioning_deep_analysis') {
+      const novoPositionamento = body.novoPositionamento as string;
+      if (!novoPositionamento?.trim()) {
+        return NextResponse.json({ error: 'novoPositionamento é obrigatório' }, { status: 400 });
+      }
+
+      const prompt = `${ctx}
+
+NOVO POSICIONAMENTO A SER ANALISADO:
+"${novoPositionamento}"
+
+Você é o estrategista sênior da AMUM responsável por explicar e fundamentar o novo posicionamento desta marca.
+
+Produza uma análise técnica e estratégica deste posicionamento — densa, sem jargão vazio, escrita para ser apresentada ao cliente e para constar no relatório final do projeto.
+
+A análise deve cobrir, em prosa contínua e bem estruturada, as seguintes dimensões:
+
+1. O QUE ESTE POSICIONAMENTO AFIRMA — Decodifique a declaração: o que ela escolhe ser, o que ela escolhe não ser, e qual é o território simbólico que ela ocupa. Por que essas palavras específicas e não outras.
+
+2. ANCORAGEM NOS DADOS DO PROJETO — Mostre como o posicionamento responde diretamente ao que a Escuta revelou: tensões identificadas, incoerências do Mapa de Decifração, dados de mercado e percepção. O posicionamento não é criativo — é uma conclusão analítica. Demonstre isso.
+
+3. DIFERENCIAÇÃO COMPETITIVA — Como este posicionamento se separa do campo competitivo mapeado. Qual território ele desocupa, qual ele reclama, e por que esse movimento é sustentável neste setor.
+
+4. TEORIA DE FUNCIONAMENTO — Como este posicionamento vai operar na prática: quais comportamentos ele orienta (comunicação, produto, atendimento, cultura), quais decisões ele simplifica, e onde a marca precisará de maior disciplina para sustentá-lo.
+
+5. HIPÓTESE DE IMPACTO — O que muda, de forma verificável, se este posicionamento for implementado com coerência. Não promessas — hipóteses com critério de verificação.
+
+Escreva em português. Prosa densa, organizada em parágrafos, sem bullets. Mínimo de 600 palavras. Cada parágrafo deve avançar o argumento, não repetir o anterior.`;
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      return NextResponse.json({ analise: extractText(r.content), createdAt: new Date().toISOString() });
+    }
+
     // ── BRAND ARCHITECTURE ────────────────────────────────────────────────────────
     if (action === 'brand_architecture') {
       const prompt = `${ctx}

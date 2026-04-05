@@ -944,6 +944,32 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
         </div>
       </div>
 
+      {/* Novo Posicionamento — capítulo destacado */}
+      {project.positioningThesis?.novoPositionamento && (
+        <div className="report-section" style={{ background: '#1C1F2A', borderRadius: '12px', padding: '40px 48px', margin: '0 0 32px' }}>
+          <div style={{ fontSize: '10px', color: 'rgba(201,169,110,0.7)', fontWeight: 700, letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '8px' }}>Capítulo Central</div>
+          <div style={{ fontSize: '22px', fontWeight: 800, color: '#C9A96E', marginBottom: '28px', letterSpacing: '-0.01em' }}>Novo Posicionamento</div>
+
+          {/* Declaração */}
+          <div style={{ borderLeft: '3px solid #C9A96E', paddingLeft: '24px', marginBottom: '36px' }}>
+            <div style={{ fontSize: '11px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Declaração</div>
+            <div style={{ fontSize: '17px', color: '#fff', lineHeight: 1.75, fontWeight: 400 }}>
+              {project.positioningThesis.novoPositionamento}
+            </div>
+          </div>
+
+          {/* Análise estratégica */}
+          {project.positioningThesis?.posicionamentoAnalise && (
+            <div>
+              <div style={{ fontSize: '11px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '16px' }}>Leitura Estratégica</div>
+              <div style={{ fontSize: '13px', color: 'rgba(255,255,255,0.78)', lineHeight: 1.9, whiteSpace: 'pre-line' }}>
+                {project.positioningThesis.posicionamentoAnalise}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       <ReportFooter gateLabel="Gate 1 → Território aprovado pela liderança" />
       <MetodologiaSection project={project} fase={2} />
     </div>
