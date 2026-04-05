@@ -1318,17 +1318,53 @@ Escreva em português. Este documento marca a conclusão do ciclo e o início da
       });
     }
 
-    // ── NARRATIVA SIMBÓLICA PARA RELATÓRIOS ──────────────────────────────────────
-    if (action === 'report_symbolic_narrative') {
+    // ── METODOLOGIA POR FASE PARA RELATÓRIOS ──────────────────────────────────────
+    if (action === 'phase_methodology_narrative') {
+      const fase = body.fase as number;
+
+      const FASE_CONTEXTOS: Record<number, { nome: string; foco: string }> = {
+        1: {
+          nome: 'Escuta',
+          foco: `Explique como a AMUM conduz a fase de Escuta e por que essa sequência metodológica é necessária.
+Cubra: (1) a lógica de começar ouvindo antes de propor qualquer coisa — o que isso impede de errar; (2) como os instrumentos de escuta (auditoria de canais, pesquisa de mercado, entrevistas em profundidade, social listening) produzem camadas de dado que nenhum instrumento sozinho revelaria; (3) como o Mapa É/Faz/Fala opera como dispositivo analítico — o que ele revela quando há distância entre o que a marca diz ser, o que ela faz e o que ela comunica; (4) o que a Escuta produz que a Decifração precisa para funcionar.`,
+        },
+        2: {
+          nome: 'Decifração',
+          foco: `Explique como a AMUM conduz a fase de Decifração e qual é a lógica analítica por trás dela.
+Cubra: (1) como dados dispersos de múltiplas fontes se transformam em leitura estratégica coerente — o que o cruzamento de dados revela que nenhuma fonte isolada mostraria; (2) como arquétipos funcionam como instrumento analítico e não como etiqueta — o que eles revelam sobre o padrão de atração e identificação de uma marca; (3) a lógica de mapear territórios de posicionamento e por que escolher um implica necessariamente abrir mão de outros; (4) o que faz um território ser o certo — os critérios que tornam uma escolha necessária, não apenas preferível.`,
+        },
+        3: {
+          nome: 'Reconstrução',
+          foco: `Explique como a AMUM conduz a fase de Reconstrução e por que a sequência dos artefatos não é arbitrária.
+Cubra: (1) a lógica de derivação em cadeia — como propósito ancora essência, essência ancora posicionamento, posicionamento ancora promessa e valores; (2) por que a Plataforma de Marca funciona como documento-mãe — o que ela impede de acontecer quando não existe; (3) como o código linguístico é construído a partir do território aprovado, não do gosto — a diferença entre tom de voz estratégico e tom de voz decorativo; (4) como o manifesto traduz a estratégia em linguagem que o cliente reconhece como sua.`,
+        },
+        4: {
+          nome: 'Travessia',
+          foco: `Explique como a AMUM conduz a fase de Travessia e por que a implementação precisa ser planejada em ondas.
+Cubra: (1) a lógica das ondas — por que interno precede parceiros que precede mercado, e o que acontece quando essa sequência é invertida; (2) como o Enablement Kit funciona como sistema de transferência de conhecimento — o que ele garante que a marca não dependa dos seus criadores para ser sustentada; (3) o papel do treinamento interno na ativação — por que a equipe é o primeiro canal da marca; (4) o que distingue uma travessia bem planejada de uma entrega que não pega.`,
+        },
+        5: {
+          nome: 'Regeneração',
+          foco: `Explique como a AMUM estrutura a fase de Regeneração e por que governança contínua é parte da metodologia, não apêndice.
+Cubra: (1) o que diferencia uma marca que se regenera de uma marca que se dilui — a diferença entre aderência e engessamento; (2) como o scorecard de coerência funciona como instrumento de diagnóstico periódico — o que ele mede e por que essas métricas específicas; (3) os gatilhos de revisão estratégica — quando um sinal de desvio exige ajuste e quando exige reposicionamento; (4) como a cadência de monitoramento mantém o posicionamento vivo sem transformá-lo em dogma.`,
+        },
+      };
+
+      const faseCtx = FASE_CONTEXTOS[fase] || FASE_CONTEXTOS[1];
+
       const prompt = `${ctx}
 
-Você é o estrategista-narrador da AMUM. Escreva a seção "Como este trabalho funciona simbolicamente" — um texto denso e explicativo para o cliente ou stakeholder que não participou do processo.
+Você é o estrategista-narrador da AMUM. Escreva a seção "Como a metodologia operou nesta fase" para o relatório da Fase ${fase} — ${faseCtx.nome}.
 
-Este texto deve articular como o posicionamento escolhido, o arquétipo, o código linguístico e a direção visual se conectam como um sistema coerente — e como esse sistema, em conjunto, é capaz de atingir os objetivos estratégicos da marca.
+${faseCtx.foco}
 
-Não é um resumo executivo. É uma leitura de coerência sistêmica: por que estas escolhas específicas, por que nesta combinação, e o que isso produz simbolicamente no imaginário do público.
-
-Escreva entre 300 e 450 palavras. Linguagem densa, não publicitária. Evite clichês de branding. Trate o leitor como alguém inteligente que quer entender — não ser convencido.
+REGRAS:
+- Escreva entre 280 e 380 palavras.
+- Explique a lógica metodológica — não os resultados específicos deste projeto.
+- O leitor quer entender por que este processo existe desta forma, não ser convencido de que funciona.
+- Linguagem direta, densa, sem clichês de branding. Sem entusiasmo artificial.
+- Use o contexto do projeto para ancorar a explicação com exemplos do que foi feito, mas o foco é a metodologia, não o achado.
+- Parágrafos separados por linha em branco. Sem títulos internos.
 
 Retorne APENAS este JSON:
 {"narrativa":"O texto completo em um único campo, com parágrafos separados por \\n\\n"}`;
