@@ -7214,6 +7214,7 @@ function PhaseSynthesisBlock({
 }) {
   const [open, setOpen] = React.useState(false);
   const [generating, setGenerating] = React.useState(false);
+  const [generatingReport, setGeneratingReport] = React.useState(false);
   const [error, setError] = React.useState('');
 
   const PHASE_NAMES_LOCAL: Record<number, string> = {
@@ -7221,6 +7222,7 @@ function PhaseSynthesisBlock({
   };
 
   const saved = project.phaseSyntheses?.[fase] || '';
+  const savedReport = project.phaseReports?.[fase];
   const phaseName = PHASE_NAMES_LOCAL[fase] || `Fase ${fase}`;
 
   async function generate() {
@@ -7254,86 +7256,110 @@ function PhaseSynthesisBlock({
     }
   }
 
+  async function generateReport() {
+    setGeneratingReport(true);
+    setError('');
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'phase_report_data',
+          phase: fase,
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json() as { json?: Record<string, unknown>; fase?: number; phaseName?: string; createdAt?: string; error?: string };
+      if (data.error) throw new Error(data.error);
+      if (data.json) {
+        const updated = {
+          ...project,
+          phaseReports: {
+            ...(project.phaseReports || {}),
+            [fase]: { json: data.json, fase, phaseName, createdAt: data.createdAt || new Date().toISOString() },
+          },
+        };
+        saveProject(updated);
+        onUpdate(updated);
+        window.open(`/projetos/${project.id}/relatorio/${fase}`, '_blank');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGeneratingReport(false);
+    }
+  }
+
   return (
-    <div style={{
-      margin: '8px 0 0 0',
-      borderTop: '1px solid var(--border)',
-      padding: '16px',
-      background: 'rgba(201,169,110,0.03)',
-    }}>
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+    <div style={{ margin: '8px 0 0 0', borderTop: '1px solid var(--border)', padding: '16px', background: 'rgba(201,169,110,0.03)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px', flexWrap: 'wrap' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
           <span style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-            Documento Síntese — {phaseName}
+            Síntese — {phaseName}
           </span>
-          {saved && (
-            <span style={{ fontSize: '11px', color: '#6ab56a' }}>✓ Gerado</span>
-          )}
+          {saved && <span style={{ fontSize: '11px', color: '#6ab56a' }}>✓ Texto</span>}
+          {savedReport && <span style={{ fontSize: '11px', color: '#6ab56a' }}>✓ Visual</span>}
         </div>
-        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Texto: download */}
           {saved && (
-            <>
-              <DownloadButton
-                title={`Síntese Fase ${fase} — ${phaseName} — ${project.nome}`}
-                content={saved}
-              />
-              <button
-                className="btn-small"
-                style={{ opacity: 0.6 }}
-                onClick={() => setOpen(o => !o)}
-              >
-                {open ? '▲ Fechar' : '▼ Ver'}
-              </button>
-              <button
-                className="btn-small"
-                style={{ opacity: 0.5 }}
-                onClick={generate}
-                disabled={generating}
-              >
-                {generating ? '…' : '↺'}
-              </button>
-            </>
+            <DownloadButton title={`Síntese Fase ${fase} — ${phaseName} — ${project.nome}`} content={saved} />
+          )}
+          {saved && (
+            <button className="btn-small" style={{ opacity: 0.6 }} onClick={() => setOpen(o => !o)}>
+              {open ? '▲' : '▼ Ver texto'}
+            </button>
           )}
           {!saved && (
+            <button className="btn-small" onClick={generate} disabled={generating} style={{ opacity: 0.8 }}>
+              {generating ? 'Gerando…' : '↓ Síntese texto'}
+            </button>
+          )}
+
+          {/* Separador */}
+          <div style={{ width: '1px', height: '20px', background: 'var(--border)' }} />
+
+          {/* Visual: gerar ou abrir */}
+          {savedReport ? (
+            <>
+              <button
+                className="btn-primary"
+                style={{ fontSize: '12px', padding: '5px 12px' }}
+                onClick={() => window.open(`/projetos/${project.id}/relatorio/${fase}`, '_blank')}
+              >
+                ↗ Abrir relatório visual
+              </button>
+              <button className="btn-small" style={{ opacity: 0.5 }} onClick={generateReport} disabled={generatingReport}>
+                {generatingReport ? '…' : '↺'}
+              </button>
+            </>
+          ) : (
             <button
               className="btn-primary"
-              style={{ fontSize: '12px', padding: '6px 14px' }}
-              onClick={generate}
-              disabled={generating}
+              style={{ fontSize: '12px', padding: '5px 12px' }}
+              onClick={generateReport}
+              disabled={generatingReport}
             >
-              {generating ? 'Gerando síntese…' : `Gerar síntese da ${phaseName}`}
+              {generatingReport ? 'Gerando relatório…' : '🎨 Gerar relatório visual'}
             </button>
           )}
         </div>
       </div>
 
-      {error && (
-        <p style={{ fontSize: '12px', color: '#b56a6a', marginTop: '8px' }}>{error}</p>
-      )}
+      {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginTop: '8px' }}>{error}</p>}
 
-      {generating && (
+      {(generating || generatingReport) && (
         <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '13px', animation: 'spin 2s linear infinite', display: 'inline-block' }}>◌</span>
           <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
-            Compilando dados da {phaseName} e gerando documento…
+            {generatingReport ? `Gerando dados estruturados para o relatório visual da ${phaseName}…` : `Compilando síntese da ${phaseName}…`}
           </p>
         </div>
       )}
 
       {open && saved && (
-        <div style={{
-          marginTop: '14px',
-          padding: '16px 18px',
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: '8px',
-          fontSize: '13px',
-          color: 'var(--text-secondary)',
-          lineHeight: 1.8,
-          whiteSpace: 'pre-wrap',
-          maxHeight: '500px',
-          overflowY: 'auto',
-        }}>
+        <div style={{ marginTop: '14px', padding: '16px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: '500px', overflowY: 'auto' }}>
           {saved}
         </div>
       )}

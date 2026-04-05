@@ -395,6 +395,13 @@ export interface MessageLibrary {
   createdAt: string;
 }
 
+export interface PhaseReport {
+  json: Record<string, unknown>;
+  fase: number;
+  phaseName: string;
+  createdAt: string;
+}
+
 export interface VisualBrandImage {
   id: string;
   filename: string;
@@ -857,6 +864,7 @@ export interface Project {
   incoherenceMap?: IncoherenceMap;
   // Fase 4 — Novos
   phaseSyntheses?: Record<number, string>;
+  phaseReports?: Record<number, PhaseReport>;
   rolloutPlan?: RolloutPlan;
   enablementKit?: EnablementKit;
   trainingDesign?: TrainingDesign;

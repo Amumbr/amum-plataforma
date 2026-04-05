@@ -961,6 +961,192 @@ Escreva em português. Seja denso e preciso — cada frase deve produzir avanço
       return NextResponse.json({ briefing, createdAt: new Date().toISOString() });
     }
 
+    // ── RELATÓRIO VISUAL POR FASE ─────────────────────────────────────────────────
+    if (action === 'phase_report_data') {
+      const phase = body.phase as number;
+      const phaseNames: Record<number, string> = {
+        1: 'Escuta', 2: 'Decifração', 3: 'Reconstrução', 4: 'Travessia', 5: 'Regeneração',
+      };
+
+      const jsonPrompts: Record<number, string> = {
+        1: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 1 — Escuta.
+
+Retorne APENAS JSON válido, sem markdown, sem explicações:
+{
+  "resumo": {
+    "achados": ["achado crítico em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
+  },
+  "retratoDaMarca": {
+    "comoSeApresenta": "2-3 frases sobre como a marca se apresenta nos documentos",
+    "oQueDadosMostram": "2-3 frases sobre o que os dados externos revelam",
+    "tensaoCentral": "1 frase precisa — a tensão estrutural central"
+  },
+  "canais": [
+    {"nome": "Nome do canal", "scoreCoerencia": 7, "scorePresenca": 8, "ponto": "achado em até 8 palavras"}
+  ],
+  "competidores": [
+    {"nome": "Nome", "territorio": "território que ocupa em até 6 palavras", "ameaca": "alta"}
+  ],
+  "tensoes": [
+    {"titulo": "Título da tensão em até 5 palavras", "descricao": "Descrição em 2 frases"}
+  ],
+  "perguntasParaFase2": ["Pergunta 1 que a Fase 2 precisa responder?", "Pergunta 2?", "Pergunta 3?"]
+}
+
+Gere dados reais baseados no contexto do projeto. Scores de 1-10. Ameaça: "alta", "media" ou "baixa".`,
+
+        2: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 2 — Decifração.
+
+Retorne APENAS JSON válido, sem markdown:
+{
+  "resumo": {
+    "achados": ["decisão central em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
+  },
+  "diagnostico": {
+    "arquetipo": "Nome do arquétipo dominante",
+    "tensaoCentral": "A tensão em 1 frase precisa",
+    "territorioEscolhido": "O território em 1 frase"
+  },
+  "radarCoerencia": [
+    {"dimensao": "Comunicação Digital", "scoreAtual": 5, "scorePotencial": 9},
+    {"dimensao": "Identidade Visual", "scoreAtual": 4, "scorePotencial": 8},
+    {"dimensao": "Tom de Voz", "scoreAtual": 6, "scorePotencial": 9},
+    {"dimensao": "Posicionamento", "scoreAtual": 3, "scorePotencial": 9},
+    {"dimensao": "Experiência Cliente", "scoreAtual": 7, "scorePotencial": 9},
+    {"dimensao": "Cultura Interna", "scoreAtual": 5, "scorePotencial": 8}
+  ],
+  "mapaIncoerencias": [
+    {"dimensao": "Nome da dimensão", "gap": "O gap em 1 frase", "nivel": "critico"}
+  ],
+  "tradeoffs": [
+    {"abandona": "O que abandona em até 5 palavras", "ganha": "O que ganha em até 5 palavras"}
+  ],
+  "afirmacaoCentral": "A afirmação central do posicionamento em 1-2 frases"
+}
+
+Nivel: "critico", "alto", "medio" ou "baixo". Scores de 1-10. Gere dados reais do projeto.`,
+
+        3: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 3 — Reconstrução.
+
+Retorne APENAS JSON válido, sem markdown:
+{
+  "resumo": {
+    "achados": ["entregável principal em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
+  },
+  "plataforma": {
+    "proposito": "O propósito aprovado",
+    "essencia": "A essência aprovada (até 5 palavras)",
+    "posicionamento": "O posicionamento em 1-2 frases",
+    "promessa": "A promessa em 1 frase"
+  },
+  "tomDeVoz": {
+    "e": ["adjetivo1", "adjetivo2", "adjetivo3", "adjetivo4", "adjetivo5"],
+    "naoE": ["anti1", "anti2", "anti3", "anti4", "anti5"]
+  },
+  "valores": [
+    {"valor": "Nome do valor", "comportamento": "Comportamento operacional concreto em 1 frase"}
+  ],
+  "mensagens": [
+    {"publico": "Público-alvo", "afirmacao": "Afirmação central para este público em 1 frase"}
+  ],
+  "principiosVisuais": ["Princípio simbólico 1", "Princípio simbólico 2", "Princípio simbólico 3"]
+}
+
+Gere dados reais baseados na plataforma aprovada no projeto.`,
+
+        4: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 4 — Travessia.
+
+Retorne APENAS JSON válido, sem markdown:
+{
+  "resumo": {
+    "achados": ["ação prioritária em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
+  },
+  "ondas": [
+    {
+      "nome": "Onda 1 — Interno",
+      "timeline": "Sem. 1-4",
+      "cor": "#C9A96E",
+      "touchpoints": ["touchpoint 1", "touchpoint 2", "touchpoint 3"],
+      "criterio": "Critério verificável de conclusão desta onda"
+    },
+    {
+      "nome": "Onda 2 — Parceiros",
+      "timeline": "Sem. 5-8",
+      "cor": "#8BA0C9",
+      "touchpoints": ["touchpoint 1", "touchpoint 2"],
+      "criterio": "Critério desta onda"
+    },
+    {
+      "nome": "Onda 3 — Mercado",
+      "timeline": "Sem. 9-16",
+      "cor": "#6AB56A",
+      "touchpoints": ["touchpoint 1", "touchpoint 2", "touchpoint 3"],
+      "criterio": "Critério desta onda"
+    }
+  ],
+  "kpis": [
+    {"periodo": "30 dias", "indicador": "O que medir", "meta": "A meta concreta"},
+    {"periodo": "90 dias", "indicador": "O que medir", "meta": "A meta concreta"},
+    {"periodo": "180 dias", "indicador": "O que medir", "meta": "A meta concreta"}
+  ],
+  "riscos": [
+    {"risco": "Risco identificado em até 8 palavras", "nivel": "alto", "contingencia": "Como responder em 1 frase"}
+  ]
+}
+
+Nivel de risco: "alto", "medio" ou "baixo". Gere dados reais do projeto.`,
+
+        5: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 5 — Regeneração.
+
+Retorne APENAS JSON válido, sem markdown:
+{
+  "resumo": {
+    "achados": ["status do sistema em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
+  },
+  "scorecard": [
+    {"dimensao": "Comunicação Digital", "score": 7, "meta": 9, "tendencia": "subindo", "acao": "Ação prioritária em 1 frase"},
+    {"dimensao": "Identidade Visual", "score": 6, "meta": 9, "tendencia": "estavel", "acao": "Ação em 1 frase"},
+    {"dimensao": "Cultura Interna", "score": 5, "meta": 8, "tendencia": "subindo", "acao": "Ação em 1 frase"},
+    {"dimensao": "Experiência Cliente", "score": 8, "meta": 9, "tendencia": "estavel", "acao": "Ação em 1 frase"},
+    {"dimensao": "Coerência de Mensagem", "score": 7, "meta": 9, "tendencia": "subindo", "acao": "Ação em 1 frase"}
+  ],
+  "cadencia": [
+    {"frequencia": "Mensal", "atividade": "O que acontece mensalmente", "responsavel": "Responsável"},
+    {"frequencia": "Trimestral", "atividade": "O que acontece trimestralmente", "responsavel": "Responsável"},
+    {"frequencia": "Anual", "atividade": "O que acontece anualmente", "responsavel": "Responsável"}
+  ],
+  "criteriosAlerta": [
+    "Sinal de alerta que indica necessidade de intervenção",
+    "Sinal 2",
+    "Sinal 3"
+  ]
+}
+
+Tendência: "subindo", "estavel" ou "caindo". Scores de 1-10. Gere dados reais do projeto.`,
+      };
+
+      const prompt = jsonPrompts[phase];
+      if (!prompt) return NextResponse.json({ error: 'Fase inválida' }, { status: 400 });
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: `${ctx}\n\n${prompt}` }],
+      });
+
+      try {
+        const raw = extractText(r.content);
+        const json = robustParseJSON(raw) as Record<string, unknown>;
+        return NextResponse.json({
+          json,
+          fase: phase,
+          phaseName: phaseNames[phase],
+          createdAt: new Date().toISOString(),
+        });
+      } catch (e) {
+        return NextResponse.json({ error: 'Parse error', detail: String(e) }, { status: 500 });
+      }
+    }
+
     // ── SÍNTESE DE FASE ───────────────────────────────────────────────────────────
     if (action === 'phase_synthesis') {
       const phase = body.phase as number;
