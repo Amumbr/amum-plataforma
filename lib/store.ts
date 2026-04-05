@@ -669,14 +669,6 @@ export const STEP_DEFINITIONS: {
     narrativa:
       'ODS como comprometimento operacional — não como linguagem cosmética. Cada ODS selecionado ancorado em iniciativas concretas com indicadores verificáveis, owners e cadência de revisão. O sistema que impede ESG decorativo.',
   },
-  {
-    id: 'chat_decifração',
-    type: 'chat',
-    fase: 2,
-    label: 'Co-criação — Decifração',
-    narrativa:
-      'Espaço de co-criação para Mapa Simbólico, Análise de Gaps e Imersão de Liderança. A IA opera com contexto completo — tudo que foi aprovado até aqui está disponível.',
-  },
   // ── FASE 3 — RECONSTRUÇÃO ─────────────────────────────────────────────────────
   {
     id: 'brand_platform',
@@ -718,14 +710,6 @@ export const STEP_DEFINITIONS: {
     narrativa:
       'Princípios simbólicos, paleta, tipografia, elementos gráficos e moodboard referencial. Não substitui o trabalho de design — documenta as diretrizes estratégicas que orientam qualquer designer que toque na marca daqui em diante.',
   },
-  {
-    id: 'chat_reconstrucao',
-    type: 'chat',
-    fase: 3,
-    label: 'Co-criação — Reconstrução',
-    narrativa:
-      'Co-criação da Plataforma de Marca, Código Linguístico e Narrativa de Marca. A IA tensiona, nomeia e lapida junto com o estrategista.',
-  },
   // ── FASE 4 — TRAVESSIA ────────────────────────────────────────────────────────
   {
     id: 'rollout_plan',
@@ -750,14 +734,6 @@ export const STEP_DEFINITIONS: {
     label: 'Desenho do Treinamento',
     narrativa:
       'Programa de treinamento interno com objetivos por público, formatos (workshop, trilha, certificação), agenda e materiais necessários. A IA sugere a estrutura; o estrategista edita e aprova. Gate 4: rollout em andamento; cadência de monitoramento definida.',
-  },
-  {
-    id: 'chat_travessia',
-    type: 'chat',
-    fase: 4,
-    label: 'Co-criação — Travessia',
-    narrativa:
-      'Plano de Travessia, treinamento de time e curadoria de ativação. Com a plataforma aprovada, o trabalho passa para implementação real.',
   },
   // ── FASE 5 — REGENERAÇÃO ──────────────────────────────────────────────────────
   {

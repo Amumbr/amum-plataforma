@@ -5515,7 +5515,17 @@ Seja preciso e estratégico. Não descreva o que vê — analise o que significa
   );
 }
 
-// ── Sub-component: Moodboard Generator ───────────────────────────────────────
+// ── Sub-component: Moodboard Generator with AI Chat ──────────────────────────
+
+const PROMPT_MARKER_START = '[PROMPT_START]';
+const PROMPT_MARKER_END = '[PROMPT_END]';
+
+function extractPromptFromMessage(text: string): string | null {
+  const start = text.indexOf(PROMPT_MARKER_START);
+  const end = text.indexOf(PROMPT_MARKER_END);
+  if (start === -1 || end === -1) return null;
+  return text.slice(start + PROMPT_MARKER_START.length, end).trim();
+}
 
 function MoodboardPanel({
   project,
@@ -5526,16 +5536,21 @@ function MoodboardPanel({
   onUpdate: (p: Project) => void;
   locked: boolean;
 }) {
-  const [generatingPrompt, setGeneratingPrompt] = React.useState(false);
+  const [chatMessages, setChatMessages] = React.useState<{ role: 'user' | 'assistant'; content: string }[]>([]);
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatLoading, setChatLoading] = React.useState(false);
   const [generatingImages, setGeneratingImages] = React.useState(false);
   const [generationStatus, setGenerationStatus] = React.useState('');
   const [error, setError] = React.useState('');
-  const [editingPrompt, setEditingPrompt] = React.useState(false);
-  const [promptDraft, setPromptDraft] = React.useState('');
-  const vd = project.visualDirection;
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
 
+  const vd = project.visualDirection;
   const moodboardPrompt = vd?.moodboardPrompt || '';
   const moodboardImages = vd?.moodboardImages || [];
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
 
   function updateVD(patch: Partial<NonNullable<Project['visualDirection']>>) {
     const currentVD = vd || {
@@ -5552,46 +5567,80 @@ function MoodboardPanel({
     onUpdate(updated);
   }
 
-  async function generatePrompt() {
-    setGeneratingPrompt(true);
-    setError('');
-    try {
-      const semioticCtx = (vd?.brandImages || []).length > 0
-        ? `\n\nANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA ATUAL:\n${(vd?.brandImages || []).map(img => `[${img.filename}]: ${img.semioticAnalysis}`).join('\n\n')}`
-        : '';
-      const directionCtx = vd
-        ? `\n\nDIREÇÃO VISUAL ESTRATÉGICA APROVADA:\nPrincípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}\nReferências: ${vd.moodboardReferencias?.join(', ')}`
-        : '';
+  function buildVisualContext() {
+    const semioticCtx = (vd?.brandImages || []).length > 0
+      ? `\n\nANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA ATUAL:\n${(vd?.brandImages || []).map(img => `[${img.filename}]: ${img.semioticAnalysis.slice(0, 350)}`).join('\n\n')}`
+      : '';
+    const directionCtx = vd
+      ? `\n\nDIREÇÃO VISUAL APROVADA:\nPrincípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}\nReferências: ${vd.moodboardReferencias?.join(', ')}`
+      : '';
+    return getProjectContext(project) + directionCtx + semioticCtx;
+  }
 
+  function buildMoodboardSystemContext() {
+    return `${buildVisualContext()}
+
+MODO: Especialista em engenharia de prompts para DALL-E 3, com foco em moodboards de identidade visual estratégica.
+
+Sua função:
+- Criar e refinar prompts em inglês para DALL-E 3 que gerem moodboards coerentes com o posicionamento e a direção visual da marca
+- Responda às solicitações de ajuste refinando o prompt
+- Explique brevemente as escolhas feitas
+
+REGRAS DO PROMPT DALL-E 3:
+- Sempre em inglês
+- 200-400 palavras de descrição visual detalhada
+- Especificar: estilo visual, paleta cromática, composição, atmosfera, elementos a evitar
+- Nunca mencionar marcas específicas ou rostos humanos identificáveis
+- Formato: moodboard visual ou collage de elementos estéticos relacionados
+
+FORMATO OBRIGATÓRIO DA RESPOSTA:
+Após sua explicação (em português), inclua SEMPRE o prompt completo envolvido nos marcadores:
+${PROMPT_MARKER_START}
+[prompt em inglês aqui]
+${PROMPT_MARKER_END}`;
+  }
+
+  async function sendChatMessage(userContent?: string) {
+    const content = userContent || chatInput.trim();
+    if (!content || chatLoading) return;
+
+    const userMsg = { role: 'user' as const, content };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    setChatInput('');
+    setChatLoading(true);
+    setError('');
+
+    try {
       const res = await fetch('/api/claude', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          projectContext: getProjectContext(project) + directionCtx + semioticCtx,
-          messages: [{
-            role: 'user',
-            content: `Gere um prompt em inglês para DALL-E 3 que produza um painel de moodboard visual (mood board) coerente com o posicionamento estratégico e a direção visual aprovada da marca.
-
-O prompt deve especificar:
-- Estilo visual dominante (fotografia, ilustração, misto, etc.)
-- Paleta cromática precisa (tons, temperatura, saturação)
-- Composição e elementos visuais recorrentes
-- Atmosfera e sensação emocional
-- Texturas, materiais, espaços
-- O que EVITAR (elementos visuais que contradizem o posicionamento)
-
-O prompt deve ter 200-300 palavras em inglês. Comece diretamente com a descrição — não escreva "Prompt:" ou qualquer prefácio.`,
-          }],
+          projectContext: buildMoodboardSystemContext(),
+          messages: newMessages,
         }),
       });
       const data = await res.json() as { text?: string; error?: string };
       if (data.error) throw new Error(data.error);
-      updateVD({ moodboardPrompt: data.text || '' });
+
+      const assistantMsg = { role: 'assistant' as const, content: data.text || '' };
+      setChatMessages([...newMessages, assistantMsg]);
+
+      // Auto-apply if prompt found
+      const extracted = extractPromptFromMessage(data.text || '');
+      if (extracted) updateVD({ moodboardPrompt: extracted });
     } catch (err) {
-      setError(`Erro ao gerar prompt: ${err instanceof Error ? err.message : String(err)}`);
+      setError(`Erro: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setGeneratingPrompt(false);
+      setChatLoading(false);
     }
+  }
+
+  async function generateInitialPrompt() {
+    await sendChatMessage(
+      'Crie um prompt inicial para DALL-E 3 que gere um moodboard visual coerente com o posicionamento e a direção visual desta marca. O prompt deve capturar a essência estratégica, não apenas o estilo superficial.'
+    );
   }
 
   async function generateImages() {
@@ -5610,22 +5659,18 @@ O prompt deve ter 200-300 palavras em inglês. Comece diretamente com a descriç
           body: JSON.stringify({ prompt: moodboardPrompt }),
         });
         const data = await res.json() as { url?: string; revised_prompt?: string; error?: string };
-        if (data.error) {
-          setError(`Erro na imagem ${i + 1}: ${data.error}`);
-          continue;
-        }
+        if (data.error) { setError(`Erro imagem ${i + 1}: ${data.error}`); continue; }
         newImages.push({
           id: `mb_${Date.now()}_${i}`,
           url: data.url || '',
           revisedPrompt: data.revised_prompt,
           generatedAt: new Date().toISOString(),
         });
-        // Update state after each image so user sees progress
+        // Show progress
         updateVD({ moodboardImages: [...(vd?.moodboardImages || []), ...newImages] });
       } catch (err) {
-        setError(`Erro na imagem ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
+        setError(`Erro imagem ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);
       }
-      // Small pause between calls
       if (i < total - 1) await new Promise(r => setTimeout(r, 2000));
     }
 
@@ -5634,101 +5679,149 @@ O prompt deve ter 200-300 palavras em inglês. Comece diretamente com a descriç
     setGenerationStatus('');
   }
 
+  function usePrompt(prompt: string) {
+    updateVD({ moodboardPrompt: prompt });
+  }
+
   function clearImages() {
     updateVD({ moodboardImages: [] });
   }
 
   return (
     <div>
-      {/* Moodboard prompt */}
+      {/* Chat interface */}
       <div style={{ marginBottom: '20px' }}>
         <p style={{ fontSize: '12px', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '8px' }}>
-          Prompt para DALL-E 3
+          Chat de refinamento de prompt
         </p>
-        {!moodboardPrompt && !locked && (
-          <>
-            <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px', lineHeight: 1.5 }}>
-              O prompt é gerado automaticamente a partir da direção visual aprovada e da análise semiótica das imagens. Você pode editá-lo antes de gerar.
-            </p>
-            <button className="btn-primary" onClick={generatePrompt} disabled={generatingPrompt}>
-              {generatingPrompt ? 'Gerando prompt…' : 'Gerar prompt de moodboard'}
-            </button>
-          </>
-        )}
-        {moodboardPrompt && !editingPrompt && (
-          <div style={{ position: 'relative' }}>
-            <div style={{ padding: '12px 14px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '6px', fontSize: '12px', color: 'var(--text-secondary)', lineHeight: 1.7, whiteSpace: 'pre-wrap', maxHeight: '180px', overflowY: 'auto' }}>
-              {moodboardPrompt}
-            </div>
-            {!locked && (
-              <div style={{ display: 'flex', gap: '6px', marginTop: '8px' }}>
-                <button className="btn-small" onClick={() => { setPromptDraft(moodboardPrompt); setEditingPrompt(true); }}>Editar prompt</button>
-                <button className="btn-small" style={{ opacity: 0.6 }} onClick={generatePrompt} disabled={generatingPrompt}>
-                  {generatingPrompt ? '…' : '↺ Regerar'}
-                </button>
+        <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '12px', lineHeight: 1.5 }}>
+          A IA gera e refina o prompt para DALL-E 3 com base na direção visual aprovada. Peça ajustes em linguagem natural — "mais escuro", "remover elementos dourados", "adicionar textura industrial".
+        </p>
+
+        {/* Chat messages */}
+        {chatMessages.length > 0 && (
+          <div style={{ maxHeight: '360px', overflowY: 'auto', marginBottom: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            {chatMessages.map((msg, i) => {
+              const extractedPrompt = msg.role === 'assistant' ? extractPromptFromMessage(msg.content) : null;
+              // Display text without the prompt markers block
+              const displayText = msg.content
+                .replace(/\[PROMPT_START\][\s\S]*?\[PROMPT_END\]/g, '')
+                .trim();
+
+              return (
+                <div key={i} className={`chat-msg ${msg.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>
+                  <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>
+                    {displayText}
+                  </p>
+                  {extractedPrompt && (
+                    <div style={{ marginTop: '10px', padding: '10px 12px', background: 'rgba(201,169,110,0.08)', borderRadius: '6px', border: '1px solid rgba(201,169,110,0.25)' }}>
+                      <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Prompt gerado
+                      </p>
+                      <p style={{ fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: '8px', maxHeight: '80px', overflowY: 'auto' }}>
+                        {extractedPrompt.slice(0, 200)}…
+                      </p>
+                      <button
+                        className="btn-approve"
+                        style={{ fontSize: '11px', padding: '4px 12px' }}
+                        onClick={() => usePrompt(extractedPrompt)}
+                      >
+                        ✓ Usar este prompt
+                      </button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+            {chatLoading && (
+              <div className="chat-msg chat-msg-ai">
+                <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Elaborando prompt…</p>
               </div>
             )}
+            <div ref={chatEndRef} />
           </div>
         )}
-        {editingPrompt && (
-          <div>
-            <textarea
-              className="textarea"
-              value={promptDraft}
-              onChange={e => setPromptDraft(e.target.value)}
-              rows={8}
-              style={{ marginBottom: '8px' }}
-            />
-            <div style={{ display: 'flex', gap: '6px' }}>
-              <button className="btn-approve" onClick={() => { updateVD({ moodboardPrompt: promptDraft }); setEditingPrompt(false); }}>Salvar</button>
-              <button className="btn-skip" onClick={() => setEditingPrompt(false)}>Cancelar</button>
+
+        {/* Input */}
+        {!locked && (
+          chatMessages.length === 0 ? (
+            <button className="btn-primary" onClick={generateInitialPrompt} disabled={chatLoading}>
+              {chatLoading ? 'Gerando…' : 'Gerar prompt inicial com IA'}
+            </button>
+          ) : (
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <textarea
+                className="textarea"
+                value={chatInput}
+                onChange={e => setChatInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+                placeholder="Peça ajustes: 'mais austero', 'cores mais quentes', 'remover elementos florais'… (Enter envia)"
+                rows={2}
+                style={{ flex: 1 }}
+                disabled={chatLoading}
+              />
+              <button
+                className="btn-primary"
+                onClick={() => sendChatMessage()}
+                disabled={!chatInput.trim() || chatLoading}
+                style={{ alignSelf: 'flex-end', padding: '8px 14px', minWidth: 'auto' }}
+              >→</button>
             </div>
-          </div>
+          )
         )}
       </div>
 
-      {/* Generate images */}
-      {moodboardPrompt && !locked && (
-        <div style={{ marginBottom: '20px' }}>
-          <button
-            className="btn-primary"
-            onClick={generateImages}
-            disabled={generatingImages}
-            style={{ marginRight: '8px' }}
-          >
-            {generatingImages ? generationStatus || 'Gerando…' : moodboardImages.length > 0 ? '↺ Regenerar moodboard' : 'Gerar moodboard (4 imagens)'}
-          </button>
-          {moodboardImages.length > 0 && !generatingImages && (
-            <button className="btn-small" style={{ opacity: 0.5 }} onClick={clearImages}>Limpar</button>
+      {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '12px' }}>{error}</p>}
+
+      {/* Active prompt */}
+      {moodboardPrompt && (
+        <div style={{ marginBottom: '20px', padding: '12px 14px', background: 'var(--surface)', border: '1px solid rgba(201,169,110,0.3)', borderRadius: '8px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            Prompt ativo
+          </p>
+          <p style={{ fontSize: '11px', color: 'var(--text-dim)', lineHeight: 1.6, marginBottom: '10px', maxHeight: '100px', overflowY: 'auto' }}>
+            {moodboardPrompt}
+          </p>
+          {!locked && (
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <button
+                className="btn-primary"
+                onClick={generateImages}
+                disabled={generatingImages}
+              >
+                {generatingImages ? generationStatus || 'Gerando…' : moodboardImages.length > 0 ? '↺ Regenerar moodboard (4 imagens)' : '🖼 Gerar moodboard (4 imagens)'}
+              </button>
+              {moodboardImages.length > 0 && !generatingImages && (
+                <button className="btn-small" style={{ opacity: 0.5 }} onClick={clearImages}>Limpar</button>
+              )}
+            </div>
           )}
         </div>
       )}
 
-      {error && <p style={{ fontSize: '12px', color: '#b56a6a', marginBottom: '12px' }}>{error}</p>}
-
       {/* Image grid */}
       {moodboardImages.length > 0 && (
         <div>
-          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '10px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '8px' }}>
             Moodboard — {moodboardImages.length} imagem(ns)
           </p>
-          <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '12px' }}>
-            ⚠ As URLs das imagens expiram em 1 hora. Salve-as agora clicando em cada imagem (botão direito → Salvar imagem como).
+          <p style={{ fontSize: '11px', color: 'var(--text-dim)', marginBottom: '10px' }}>
+            ⚠ URLs expiram em ~1h. Salve agora: botão direito em cada imagem → Salvar como.
           </p>
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
             {moodboardImages.map((img, i) => (
-              <div key={img.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+              <div key={img.id} style={{ position: 'relative', borderRadius: '8px', overflow: 'hidden', border: '1px solid var(--border)', aspectRatio: '1/1', background: 'var(--surface)' }}>
                 <img
                   src={img.url}
                   alt={`Moodboard ${i + 1}`}
-                  style={{ width: '100%', aspectRatio: '1/1', objectFit: 'cover', display: 'block' }}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
                   onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }}
                 />
                 <a
                   href={img.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '10px', padding: '3px 7px', borderRadius: '4px', textDecoration: 'none' }}
+                  style={{ position: 'absolute', bottom: '6px', right: '6px', background: 'rgba(0,0,0,0.65)', color: '#fff', fontSize: '10px', padding: '3px 8px', borderRadius: '4px', textDecoration: 'none' }}
                 >
                   ↗ Abrir
                 </a>
@@ -7210,6 +7303,8 @@ export default function ProjetoPage() {
                 {faseSteps.map((step, si) => {
                   const def = faseDef[si];
                   if (!def) return null;
+                  // Steps de co-criação removidos — cada step tem seu próprio chat agora
+                  if (step.type === 'chat') return null;
                   const isActive = step.status === 'active';
                   const isExpanded = isActive || expandedSteps.has(step.id);
                   const isClickable = !isActive; // headers de steps não-ativos são clicáveis
