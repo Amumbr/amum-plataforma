@@ -800,6 +800,14 @@ function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
 // ─── TEMPLATE FASE 2: DECIFRAÇÃO ─────────────────────────────────────────────
 
 function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
+  // O dado aprovado em project.positioningThesis tem prioridade absoluta sobre
+  // o JSON gerado pela IA (que pode ter reformulado a afirmação).
+  const pt = project.positioningThesis;
+  const afirmacaoCentral = pt?.afirmacaoCentral || data.afirmacaoCentral;
+  const tradeoffs = (pt?.tradeoffs && pt.tradeoffs.length > 0)
+    ? pt.tradeoffs
+    : (data.tradeoffs || []);
+
   return (
     <div className="report-page">
       <ReportHeader project={project} fase={2} phaseName="Decifração" />
@@ -874,7 +882,7 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
         <div className="section-label">Seção 03</div>
         <div className="section-title">Tese de Posicionamento</div>
         <div style={{ marginBottom: '20px' }}>
-          {(data.tradeoffs || []).map((t, i) => (
+          {tradeoffs.map((t, i) => (
             <div key={i} className="tradeoff-row">
               <div className="tradeoff-abandon">✗ {t.abandona}</div>
               <div className="tradeoff-arrow">→</div>
@@ -884,7 +892,7 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
         </div>
         <div className="affirmation-box">
           <div className="affirmation-label">Afirmação Central — Gate 1</div>
-          <div className="affirmation-text">"{data.afirmacaoCentral}"</div>
+          <div className="affirmation-text">"{afirmacaoCentral}"</div>
         </div>
       </div>
 

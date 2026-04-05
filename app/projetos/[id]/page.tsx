@@ -36,6 +36,9 @@ import {
   IndependentResearchFile,
   Interviewee,
   PHASE_NAMES,
+  computeStepInputHash,
+  confirmStepHash,
+  StepType,
 } from '@/lib/store';
 import { fetchProjectFromSupabase } from '@/lib/db';
 
@@ -92,7 +95,73 @@ function StepBadge({ status }: { status: WorkflowStep['status'] }) {
   return <span className={`step-badge ${cls}`}>{label}</span>;
 }
 
-// ─── SHARED: HELPERS ──────────────────────────────────────────────────────────
+// ─── STALE INPUT BADGE ────────────────────────────────────────────────────────
+// Detecta em runtime se os campos de input de um step aprovado mudaram
+// desde o momento da aprovação. Se sim, exibe alerta âmbar com duas ações.
+
+function StaleInputBadge({
+  step,
+  project,
+  onReopen,
+  onConfirm,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onReopen: () => void;
+  onConfirm: () => void;
+}) {
+  // Só aplica em steps aprovados com hash salvo
+  if (step.status !== 'done' || !step.inputHash) return null;
+
+  const currentHash = computeStepInputHash(project, step.type);
+  // Steps sem extrator definido retornam string vazia — não geram alerta
+  if (!currentHash || currentHash === step.inputHash) return null;
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '6px',
+        background: 'rgba(201,169,110,0.10)',
+        border: '1px solid rgba(201,169,110,0.35)',
+        borderRadius: '6px',
+        padding: '5px 10px',
+        fontSize: '11px',
+        color: '#a07830',
+        whiteSpace: 'nowrap',
+      }}
+      title="Um ou mais inputs deste step mudaram desde a aprovação. O output pode estar desatualizado."
+    >
+      <span style={{ fontSize: '13px' }}>⚠</span>
+      <span style={{ fontWeight: 600 }}>Input alterado</span>
+      <span
+        style={{
+          marginLeft: '4px',
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          color: '#7a5a10',
+        }}
+        onClick={(e) => { e.stopPropagation(); onReopen(); }}
+      >
+        Recalibrar
+      </span>
+      <span style={{ opacity: 0.4 }}>·</span>
+      <span
+        style={{
+          cursor: 'pointer',
+          textDecoration: 'underline',
+          color: '#7a5a10',
+        }}
+        onClick={(e) => { e.stopPropagation(); onConfirm(); }}
+      >
+        Confirmar assim
+      </span>
+    </div>
+  );
+}
+
+
 
 function getStepNotes(step: WorkflowStep): string {
   return (step.data?.userNotes as string) || '';
@@ -7526,7 +7595,17 @@ export default function ProjetoPage() {
                             <p className="step-narrativa">{def.narrativa}</p>
                           )}
                         </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                          <StaleInputBadge
+                            step={step}
+                            project={project}
+                            onReopen={() => handleReopen(step.id)}
+                            onConfirm={() => {
+                              if (!project) return;
+                              const updated = confirmStepHash(project, step.id);
+                              handleUpdate(updated);
+                            }}
+                          />
                           <StepBadge status={step.status} />
                           {(step.status === 'done' || step.status === 'skipped') && (
                             <button

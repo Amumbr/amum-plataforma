@@ -1024,7 +1024,8 @@ Retorne APENAS JSON válido, sem markdown:
   "afirmacaoCentral": "A afirmação central do posicionamento em 1-2 frases"
 }
 
-Nivel: "critico", "alto", "medio" ou "baixo". Scores de 1-10. Gere dados reais do projeto.`,
+Nivel: "critico", "alto", "medio" ou "baixo". Scores de 1-10. Gere dados reais do projeto.
+CRÍTICO: Se o contexto do projeto contiver uma "TESE DE POSICIONAMENTO" com "Afirmação central", use EXATAMENTE esse texto no campo "afirmacaoCentral" — não reformule nem gere um novo. O mesmo vale para os "Trade-off" listados — copie-os como estão para o campo "tradeoffs".`,
 
         3: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 3 — Reconstrução.
 
@@ -1052,7 +1053,8 @@ Retorne APENAS JSON válido, sem markdown:
   "principiosVisuais": ["Princípio simbólico 1", "Princípio simbólico 2", "Princípio simbólico 3"]
 }
 
-Gere dados reais baseados na plataforma aprovada no projeto.`,
+Gere dados reais baseados na plataforma aprovada no projeto.
+CRÍTICO: Use os valores EXATOS da "PLATAFORMA DE MARCA APROVADA" presente no contexto — não reformule propósito, essência, posicionamento, promessa ou valores. Se houver "TESE DE POSICIONAMENTO" com "Afirmação central" no contexto, use-a para preencher o campo "posicionamento" da plataforma. Use também os adjetivos do "CÓDIGO LINGUÍSTICO" se presentes.`,
 
         4: `Com base no contexto do projeto, gere os dados estruturados para o Relatório Visual da Fase 4 — Travessia.
 

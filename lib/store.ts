@@ -554,6 +554,9 @@ export interface WorkflowStep {
   status: StepStatus;
   approvedAt?: string;
   data?: Record<string, unknown>;
+  /** Hash dos inputs relevantes calculado no momento da aprovação.
+   *  Comparado em runtime para detectar mudanças upstream. */
+  inputHash?: string;
 }
 
 export const STEP_DEFINITIONS: {
@@ -880,6 +883,130 @@ export interface Project {
   createdAt: string;
 }
 
+// ─── HASH DE DEPENDÊNCIA ──────────────────────────────────────────────────────
+
+/** Checksum simples — não criptográfico, só para detectar mudança real de conteúdo. */
+function _hashString(str: string): string {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(31, h) + str.charCodeAt(i) | 0;
+  }
+  return Math.abs(h).toString(36);
+}
+
+/**
+ * Mapa de extratores: dado o projeto, retorna os campos de input relevantes para cada step.
+ * Apenas campos que, se mudarem, invalidam o output do step.
+ * Steps da Fase 1 são inputs primários — não dependem de outros steps, não geram hash.
+ */
+const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> = {
+  deep_analysis: (p) => ({
+    researchSinteses: p.researchResults.map(r => r.sintese?.slice(0, 100)),
+    brandAuditDiagnostico: p.brandAuditSynthesis?.diagnostico?.slice(0, 100),
+    socialComparativo: p.socialResearchSynthesis?.comparativoComMarca?.slice(0, 100),
+    transcriptsCount: p.transcripts.length,
+    touchpointAnalise: p.touchpointAudit?.analise?.slice(0, 100),
+    incoherenceAnalise: p.incoherenceMap?.analise?.slice(0, 100),
+    incoherenceCount: p.incoherenceMap?.items?.length,
+  }),
+  positioning_thesis: (p) => ({
+    arquetipo: p.deepAnalysis.arquetipo,
+    territorioRecomendado: p.deepAnalysis.territorioRecomendado,
+    tensaoCentral: p.deepAnalysis.tensaoCentral,
+    narrativaNucleo: p.deepAnalysis.narrativaNucleo?.slice(0, 100),
+    incoherenceItems: p.incoherenceMap?.items?.length,
+    incoherenceImplicacoes: p.incoherenceMap?.implicacoesEstrategicas?.join('|'),
+  }),
+  brand_architecture: (p) => ({
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    tradeoffs: p.positioningThesis?.tradeoffs?.map(t => t.abandona + t.ganha).join('|'),
+  }),
+  ods_matrix: (p) => ({
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    arquetipo: p.deepAnalysis.arquetipo,
+  }),
+  brand_platform: (p) => ({
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    tradeoffs: p.positioningThesis?.tradeoffs?.map(t => t.abandona + t.ganha).join('|'),
+    justificativa: p.positioningThesis?.justificativa?.slice(0, 100),
+    narrativaNucleo: p.deepAnalysis.narrativaNucleo?.slice(0, 100),
+    incoherenceCount: p.incoherenceMap?.items?.length,
+  }),
+  linguistic_code: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    posicionamento: p.brandPlatform?.posicionamento,
+    promessa: p.brandPlatform?.promessa,
+    valores: p.brandPlatform?.valores?.map(v => v.valor).join('|'),
+  }),
+  brand_narrative: (p) => ({
+    proposito: p.brandPlatform?.proposito,
+    essencia: p.brandPlatform?.essencia,
+    posicionamento: p.brandPlatform?.posicionamento,
+    tomAdjetivos: p.linguisticCode?.tomDeVoz?.adjetivos?.join('|'),
+  }),
+  message_library: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    posicionamento: p.brandPlatform?.posicionamento,
+    narrativaAprovada: p.brandNarrative?.versaoAprovada?.slice(0, 150),
+  }),
+  visual_direction: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    posicionamento: p.brandPlatform?.posicionamento,
+    arquetipo: p.deepAnalysis.arquetipo,
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+  }),
+  rollout_plan: (p) => ({
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    essencia: p.brandPlatform?.essencia,
+    posicionamento: p.brandPlatform?.posicionamento,
+    principiosVisuais: p.visualDirection?.principiosSimbolicos?.join('|'),
+  }),
+  enablement_kit: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    tomAdjetivos: p.linguisticCode?.tomDeVoz?.adjetivos?.join('|'),
+    vocabulario: p.linguisticCode?.vocabularioPreferencial?.join('|'),
+  }),
+  training_design: (p) => ({
+    ondasCount: p.rolloutPlan?.ondas?.length,
+    essencia: p.brandPlatform?.essencia,
+  }),
+  coherence_monitor: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    valores: p.brandPlatform?.valores?.map(v => v.valor).join('|'),
+  }),
+  compliance_audit: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    ondasCount: p.rolloutPlan?.ondas?.length,
+  }),
+  annual_review: (p) => ({
+    essencia: p.brandPlatform?.essencia,
+    afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+  }),
+  incoherence_map: (p) => ({
+    brandAuditDiagnostico: p.brandAuditSynthesis?.diagnostico?.slice(0, 100),
+    brandAuditCoerencia: p.brandAuditSynthesis?.coerencia?.slice(0, 100),
+    socialComparativo: p.socialResearchSynthesis?.comparativoComMarca?.slice(0, 100),
+    documentsCount: p.documents.length,
+  }),
+  touchpoint_audit: (p) => ({
+    brandAuditResultsCount: p.brandAuditResults.length,
+    documentsCount: p.documents.length,
+    consolidatedReport: p.consolidatedReport?.slice(0, 80),
+  }),
+};
+
+/**
+ * Computa o hash dos inputs relevantes de um step dado o estado atual do projeto.
+ * Retorna string vazia se o step não tiver extrator definido (inputs primários).
+ */
+export function computeStepInputHash(project: Project, stepType: StepType): string {
+  const extractor = STEP_INPUT_EXTRACTORS[stepType];
+  if (!extractor) return '';
+  const payload = extractor(project);
+  return _hashString(JSON.stringify(payload));
+}
+
 // ─── SEED ─────────────────────────────────────────────────────────────────────
 
 export const STORAGE_KEY = 'amum_projects_v2';
@@ -1005,7 +1132,16 @@ export function deleteProject(id: string): void {
 export function approveStep(project: Project, stepId: string): Project {
   const steps = [...project.workflowSteps];
   const idx = steps.findIndex(s => s.id === stepId);
-  if (idx >= 0) steps[idx] = { ...steps[idx], status: 'done', approvedAt: new Date().toISOString() };
+  if (idx >= 0) {
+    const stepType = steps[idx].type;
+    const inputHash = computeStepInputHash(project, stepType);
+    steps[idx] = {
+      ...steps[idx],
+      status: 'done',
+      approvedAt: new Date().toISOString(),
+      ...(inputHash ? { inputHash } : {}),
+    };
+  }
   let activated = false;
   for (let i = idx + 1; i < steps.length; i++) {
     if (steps[i].status === 'pending' && !activated) {
@@ -1051,6 +1187,21 @@ export function updateStepData(
   const steps = project.workflowSteps.map(s =>
     s.id === stepId ? { ...s, data: { ...(s.data || {}), ...data } } : s
   );
+  const updated = { ...project, workflowSteps: steps };
+  saveProject(updated);
+  return updated;
+}
+
+/**
+ * Recalcula e salva o inputHash do step sem reabrir nem alterar o status.
+ * Usado pelo botão "Confirmar sem alterações" do badge de alerta.
+ */
+export function confirmStepHash(project: Project, stepId: string): Project {
+  const steps = project.workflowSteps.map(s => {
+    if (s.id !== stepId) return s;
+    const newHash = computeStepInputHash(project, s.type);
+    return newHash ? { ...s, inputHash: newHash } : s;
+  });
   const updated = { ...project, workflowSteps: steps };
   saveProject(updated);
   return updated;
@@ -1215,6 +1366,7 @@ export function getProjectContext(project: Project): string {
     const pt = project.positioningThesis;
     parts.push(`\nTESE DE POSICIONAMENTO:`);
     parts.push(`Afirmação central: ${pt.afirmacaoCentral}`);
+    if (pt.justificativa) parts.push(`Justificativa: ${pt.justificativa}`);
     pt.tradeoffs.forEach(t => parts.push(`  Trade-off: abandona "${t.abandona}" → ganha "${t.ganha}"`));
   }
 
