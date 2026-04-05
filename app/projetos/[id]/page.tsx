@@ -5767,7 +5767,7 @@ function VisualDirectionChat({
     if (!input.trim() || loading) return;
     const vd = project.visualDirection;
     const semioticCtx = (vd?.brandImages || []).length > 0
-      ? `\n\nANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA:\n${(vd.brandImages || []).map(img => `[${img.filename}]: ${img.semioticAnalysis.slice(0, 400)}`).join('\n\n')}`
+      ? `\n\nANÁLISE SEMIÓTICA DAS IMAGENS DA MARCA:\n${(vd?.brandImages || []).map(img => `[${img.filename}]: ${img.semioticAnalysis.slice(0, 400)}`).join('\n\n')}`
       : '';
     const vdCtx = vd
       ? `\n\nDIREÇÃO VISUAL ATUAL:\nPrincípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}\nElementos: ${vd.elementosGraficos?.join(', ')}\nReferências: ${vd.moodboardReferencias?.join(', ')}\nDiretrizes: ${vd.diretrizes}`
@@ -5998,7 +5998,7 @@ function StepVisualDirection({
       {/* Panel: Direção Visual */}
       {activePanel === 'direcao' && (
         <div>
-          {!vd?.principiosSimbolicos?.length ? (
+          {(!vd || !vd.principiosSimbolicos?.length) ? (
             <div style={{ textAlign: 'center', padding: '24px 0' }}>
               <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
                 Gera os princípios simbólicos, paleta, tipografia, elementos gráficos e diretrizes estratégicas para o designer — baseados na Plataforma de Marca e Código Linguístico aprovados.
@@ -6009,48 +6009,48 @@ function StepVisualDirection({
             </div>
           ) : (
             <>
-              {vd.principiosSimbolicos?.length > 0 && (
+              {(vd?.principiosSimbolicos?.length ?? 0) > 0 && (
                 <div style={sectionStyle}>
                   <p style={labelStyle}>Princípios Simbólicos</p>
-                  {vd.principiosSimbolicos.map((p, i) => (
+                  {(vd?.principiosSimbolicos || []).map((p, i) => (
                     <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '6px', paddingLeft: '8px', borderLeft: '2px solid var(--gold)' }}>→ {p}</p>
                   ))}
                 </div>
               )}
               <div style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
-                {vd.paleta && (
+                {vd?.paleta && (
                   <div style={{ ...sectionStyle, flex: 1, marginBottom: 0 }}>
                     <p style={labelStyle}>Paleta</p>
-                    <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd.paleta}</p>
+                    <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd?.paleta}</p>
                   </div>
                 )}
-                {vd.tipografia && (
+                {vd?.tipografia && (
                   <div style={{ ...sectionStyle, flex: 1, marginBottom: 0 }}>
                     <p style={labelStyle}>Tipografia</p>
-                    <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd.tipografia}</p>
+                    <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.5 }}>{vd?.tipografia}</p>
                   </div>
                 )}
               </div>
-              {vd.elementosGraficos?.length > 0 && (
+              {(vd?.elementosGraficos?.length ?? 0) > 0 && (
                 <div style={{ ...sectionStyle, marginTop: '12px' }}>
                   <p style={labelStyle}>Elementos Gráficos</p>
-                  {vd.elementosGraficos.map((e, i) => (
+                  {(vd?.elementosGraficos || []).map((e, i) => (
                     <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>• {e}</p>
                   ))}
                 </div>
               )}
-              {vd.moodboardReferencias?.length > 0 && (
+              {(vd?.moodboardReferencias?.length ?? 0) > 0 && (
                 <div style={sectionStyle}>
                   <p style={labelStyle}>Referências Moodboard</p>
-                  {vd.moodboardReferencias.map((r, i) => (
+                  {(vd?.moodboardReferencias || []).map((r, i) => (
                     <p key={i} style={{ fontSize: '13px', color: 'var(--text)', marginBottom: '4px' }}>• {r}</p>
                   ))}
                 </div>
               )}
-              {vd.diretrizes && (
+              {vd?.diretrizes && (
                 <div style={sectionStyle}>
                   <p style={labelStyle}>Diretrizes para o Designer</p>
-                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{vd.diretrizes}</p>
+                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{vd?.diretrizes}</p>
                 </div>
               )}
               {/* Visual chat also accessible from direction panel */}
@@ -6095,14 +6095,14 @@ function StepVisualDirection({
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '14px' }}>
                 <p style={{ fontSize: '11px', color: '#6ab56a', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Briefing gerado</p>
                 <div style={{ display: 'flex', gap: '6px' }}>
-                  <DownloadButton title={`Briefing Identidade Visual — ${project.nome}`} content={vd.visualBriefing || ''} />
+                  <DownloadButton title={`Briefing Identidade Visual — ${project.nome}`} content={vd?.visualBriefing || ''} />
                   <button className="btn-small" style={{ opacity: 0.6 }} onClick={generateBriefing} disabled={generatingBriefing}>
                     {generatingBriefing ? '…' : '↺ Regerar'}
                   </button>
                 </div>
               </div>
               <div style={{ padding: '16px 18px', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: '8px', fontSize: '13px', color: 'var(--text-secondary)', lineHeight: 1.8, whiteSpace: 'pre-wrap', maxHeight: '600px', overflowY: 'auto' }}>
-                {vd.visualBriefing}
+                {vd?.visualBriefing}
               </div>
             </div>
           )}
