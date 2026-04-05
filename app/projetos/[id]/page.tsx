@@ -6018,6 +6018,8 @@ ${PROMPT_MARKER_END}`;
 
   async function generateImages() {
     if (!moodboardPrompt.trim()) return;
+    const proj = project;
+    if (!proj) return;
     setGeneratingImages(true);
     setError('');
     const newImages: NonNullable<Project['visualDirection']>['moodboardImages'] = [];
@@ -6033,13 +6035,31 @@ ${PROMPT_MARKER_END}`;
         });
         const data = await res.json() as { url?: string; revised_prompt?: string; error?: string };
         if (data.error) { setError(`Erro imagem ${i + 1}: ${data.error}`); continue; }
-        newImages.push({
-          id: `mb_${Date.now()}_${i}`,
+
+        const imageId = `mb_${Date.now()}_${i}`;
+        const newImg: NonNullable<Project['visualDirection']>['moodboardImages'][number] = {
+          id: imageId,
           url: data.url || '',
           revisedPrompt: data.revised_prompt,
           generatedAt: new Date().toISOString(),
-        });
-        // Show progress
+        };
+
+        // Persist to Supabase Storage immediately (URLs DALL-E expiram em ~1h)
+        setGenerationStatus(`Salvando imagem ${i + 1} permanentemente…`);
+        try {
+          const stRes = await fetch('/api/storage', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ dalleUrl: newImg.url, projectId: proj.id, imageId }),
+          });
+          const stData = await stRes.json() as { publicUrl?: string };
+          if (stData.publicUrl) newImg.storedUrl = stData.publicUrl;
+        } catch {
+          // Silencioso — continua com DALL-E URL como fallback
+        }
+
+        newImages.push(newImg);
+        // Atualiza UI progressivamente
         updateVD({ moodboardImages: [...(vd?.moodboardImages || []), ...newImages] });
       } catch (err) {
         setError(`Erro imagem ${i + 1}: ${err instanceof Error ? err.message : String(err)}`);

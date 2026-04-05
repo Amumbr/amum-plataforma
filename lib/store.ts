@@ -413,7 +413,8 @@ export interface VisualBrandImage {
 
 export interface MoodboardImage {
   id: string;
-  url: string;
+  url: string;           // DALL-E URL (expires ~1h)
+  storedUrl?: string;    // Supabase Storage URL (permanent)
   revisedPrompt?: string;
   generatedAt: string;
   selecionada?: boolean;

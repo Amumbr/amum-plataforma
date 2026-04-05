@@ -1347,9 +1347,17 @@ Retorne APENAS este JSON:
 
 Você é o estrategista principal da AMUM. Produza o JSON estruturado completo para o Relatório Final da jornada AMUM com este cliente.
 
-Este é o documento mais importante do projeto — apresenta todo o trabalho metodológico para o cliente de forma editorial, densa e definitiva.
+Este é o documento mais importante do projeto — apresenta todo o trabalho metodológico ao cliente de forma editorial, densa e definitiva. Não é um resumo executivo. É uma demonstração de profundidade: como trabalhamos, por que cada fase existe, o que cada uma revelou, e como tudo se articula como sistema coerente.
 
-Extraia os dados reais do contexto do projeto acima. Não invente — compile o que foi aprovado em cada fase.
+Extraia os dados reais do contexto do projeto. Não invente — compile o que foi aprovado e registrado em cada fase.
+
+REGRAS DE QUALIDADE:
+- Cada campo de texto deve ter densidade real. Parágrafos únicos são insuficientes onde 2-3 são pedidos.
+- "premissaMetodologica" por fase: explique a LÓGICA DA FASE, não o que aconteceu nela. Por que esse passo existe? O que ele impede de errar? Como ele prepara o terreno para a fase seguinte?
+- "oQueRevelou": o que os dados mostraram que o cliente não sabia ou não queria admitir? Qual tensão veio à superfície?
+- "processo": seja concreto — ferramentas, fontes, lógica analítica aplicada.
+- "entregaveis": lista exata dos artefatos produzidos nesta fase.
+- A "premissaMetodologicaGeral" no início é a fundação teórica — por que branding estratégico profundo é diferente de branding convencional, o que a AMUM pressupõe sobre como marcas funcionam.
 
 Retorne APENAS este JSON válido (sem markdown, sem texto antes ou depois):
 {
@@ -1358,58 +1366,79 @@ Retorne APENAS este JSON válido (sem markdown, sem texto antes ou depois):
     "subtitulo": "Uma jornada de reposicionamento estratégico"
   },
   "pontoDepartida": {
-    "estadoInicial": "Retrato da marca antes do processo — 2-3 parágrafos densos sobre como a marca se apresentava, o que declarava ser e o que os dados revelavam",
-    "tensoesDiagnosticadas": ["Tensão estrutural 1 identificada na Escuta", "Tensão 2", "Tensão 3"],
-    "perguntaFundadora": "A pergunta central que este projeto precisava responder"
+    "estadoInicial": "Retrato denso da marca antes do processo — 3-4 parágrafos: como a marca se apresentava, o que declarava ser, o que os dados revelavam de contraditório, qual era o gap entre intenção e percepção",
+    "tensoesDiagnosticadas": ["Tensão estrutural 1 — com contexto suficiente para entender o problema real", "Tensão 2", "Tensão 3", "Tensão 4"],
+    "perguntaFundadora": "A pergunta central que este projeto precisava responder — formulada como problema real, não como objetivo genérico"
   },
+  "premissaMetodologicaGeral": "3-4 parágrafos sobre a fundação epistemológica da metodologia AMUM: o que diferencia branding estratégico profundo de branding convencional; por que o processo começa com escuta antes de qualquer proposta; como as 5 fases se constroem umas sobre as outras como sistema; qual é a aposta metodológica central — o que a AMUM acredita sobre como marcas funcionam que orienta cada decisão do processo",
   "jornada": [
     {
       "fase": 1,
       "nome": "Escuta",
-      "achadoCritico": "O achado mais importante desta fase em 1-2 frases",
-      "decisaoChave": "A decisão ou revelação que mudou a leitura do projeto",
-      "dados": "Números ou evidências concretas desta fase (canais auditados, entrevistas, pesquisas)"
+      "premissaMetodologica": "2 parágrafos: por que a AMUM começa ouvindo antes de propor qualquer coisa; o que esta fase impede de errar; como ela diferencia um diagnóstico real de uma opinião qualificada; o que acontece com projetos que pulam essa fase",
+      "achadoCritico": "O achado mais importante desta fase — formulado como insight, não como fato",
+      "oQueRevelou": "2 parágrafos: o que os dados desta fase revelaram sobre a marca que não estava visível antes do processo; qual tensão veio à superfície; o que surpreendeu; qual padrão foi identificado",
+      "processo": "Como a análise foi conduzida: quais ferramentas, quais fontes, qual lógica analítica foi aplicada para transformar dados brutos em diagnóstico — específico, não genérico",
+      "decisaoChave": "A decisão ou revelação que mudou a leitura do projeto a partir desta fase",
+      "entregaveis": ["Entregável 1 produzido nesta fase", "Entregável 2", "Entregável 3"],
+      "dados": "Números e evidências concretas: canais auditados, entrevistas realizadas, documentos analisados, pesquisas conduzidas"
     },
     {
       "fase": 2,
       "nome": "Decifração",
-      "achadoCritico": "Achado crítico da Decifração",
-      "decisaoChave": "O território escolhido e por que",
-      "dados": "Dados concretos"
+      "premissaMetodologica": "2 parágrafos: por que decifrar precede reconstruir; como a AMUM transforma achados dispersos em leitura estratégica coerente; o que é um território de posicionamento e por que escolher um implica abrir mão de outros; como o arquétipo funciona como instrumento analítico, não como etiqueta",
+      "achadoCritico": "O achado mais importante da Decifração — o que a análise cruzada dos dados revelou que nenhuma fonte isolada mostraria",
+      "oQueRevelou": "2 parágrafos: qual padrão emergiu quando os dados da Escuta foram cruzados; qual tensão se tornou uma oportunidade de posicionamento; por que o território escolhido emergiu como o mais coerente com os dados e com o momento da marca",
+      "processo": "Como a análise foi conduzida: quais frameworks foram aplicados, como os dados foram cruzados, como os territórios alternativos foram mapeados e avaliados",
+      "decisaoChave": "O território de posicionamento escolhido — e a lógica que tornou essa escolha necessária, não apenas preferível",
+      "entregaveis": ["Entregável 1", "Entregável 2", "Entregável 3"],
+      "dados": "Arquétipos avaliados, territórios mapeados, fontes cruzadas"
     },
     {
       "fase": 3,
       "nome": "Reconstrução",
-      "achadoCritico": "O que foi construído",
-      "decisaoChave": "A afirmação central do posicionamento",
-      "dados": "Entregáveis produzidos"
+      "premissaMetodologica": "2 parágrafos: por que reconstruir a marca a partir do território aprovado, e não do zero; como a Plataforma de Marca funciona como documento-mãe que ancora todos os outros entregáveis; por que a sequência propósito → essência → posicionamento → promessa → valores não é arbitrária",
+      "achadoCritico": "O que foi construído e o que esse sistema de marca torna possível que antes não era",
+      "oQueRevelou": "2 parágrafos: como os artefatos de Reconstrução materializaram o território escolhido na Decifração; quais escolhas linguísticas foram feitas e por que; como o manifesto captura a essência estratégica em linguagem que o cliente reconhece como sua",
+      "processo": "Como a construção foi conduzida: como o posicionamento foi traduzido em plataforma, código linguístico, narrativa e sistema visual — a lógica de derivação de cada artefato",
+      "decisaoChave": "A afirmação central do posicionamento aprovada — e o que ela ativa simbolicamente",
+      "entregaveis": ["Entregável 1", "Entregável 2", "Entregável 3", "Entregável 4", "Entregável 5"],
+      "dados": "Versões iteradas, rodadas de refinamento, aprovações formais"
     },
     {
       "fase": 4,
       "nome": "Travessia",
-      "achadoCritico": "Como o rollout foi estruturado",
-      "decisaoChave": "Critérios de sucesso definidos",
-      "dados": "Ondas, KPIs e owners"
+      "premissaMetodologica": "2 parágrafos: por que a implementação precisa ser planejada em ondas e não lançada de uma vez; como o Enablement Kit garante que a marca não dependa de seus criadores para ser sustentada; o que diferencia uma travessia bem planejada de uma entrega que não pega",
+      "achadoCritico": "Como o rollout foi estruturado e por que essa sequência específica de ativação faz sentido para este cliente",
+      "oQueRevelou": "2 parágrafos: quais foram as principais apostas do plano de ativação; quais touchpoints foram priorizados e por que; como o kit de capacitação foi estruturado para o contexto específico deste cliente",
+      "processo": "Como o plano foi construído: lógica das ondas, critérios de priorização de touchpoints, design do programa de capacitação",
+      "decisaoChave": "Critérios de sucesso definidos — como saber que a travessia funcionou",
+      "entregaveis": ["Entregável 1", "Entregável 2", "Entregável 3"],
+      "dados": "Ondas definidas, KPIs estabelecidos, owners designados, timeline aprovado"
     },
     {
       "fase": 5,
       "nome": "Regeneração",
-      "achadoCritico": "Sistema de governança de marca",
-      "decisaoChave": "Cadência de monitoramento",
-      "dados": "Scorecard e critérios de alerta"
+      "premissaMetodologica": "2 parágrafos: por que a marca precisa de governança contínua e não apenas de um projeto de reposicionamento; como o sistema de monitoramento garante que o posicionamento se mantenha coerente ao longo do tempo; o que é uma marca que se regenera versus uma que se dilui",
+      "achadoCritico": "Sistema de governança de marca estabelecido — o que ele monitora e como garante aderência ao posicionamento",
+      "oQueRevelou": "2 parágrafos: como o scorecard de coerência foi calibrado para este cliente; quais critérios de alerta foram definidos; como a cadência de revisão foi estruturada",
+      "processo": "Como o sistema de monitoramento foi desenhado: métricas, cadência, responsabilidades, gatilhos de revisão estratégica",
+      "decisaoChave": "Cadência e critérios formais de monitoramento aprovados",
+      "entregaveis": ["Scorecard trimestral", "Protocolo de auditoria de conformidade", "Critérios de alerta"],
+      "dados": "Frequência de revisão, % conformidade-alvo, indicadores de coerência"
     }
   ],
   "posicionamento": {
     "afirmacaoCentral": "A afirmação de posicionamento aprovada — exatamente como foi formulada",
-    "logicaSimbolicaCompleta": "Explicação em 3-4 parágrafos da lógica que conecta arquétipo, território e afirmação — por que este posicionamento e não outro, o que ele ativa simbolicamente",
+    "logicaSimbolicaCompleta": "4-5 parágrafos da lógica que conecta arquétipo, território e afirmação: por que este posicionamento e não outro; o que ele ativa simbolicamente; qual tensão do mercado ele resolve; como ele diferencia esta marca no contexto competitivo; o que ele permite que a marca faça que não era possível antes",
     "tradeoffs": [
-      {"abandona": "O que a marca abandona", "ganha": "O que ganha com esse abandono"},
+      {"abandona": "O que a marca abandona formalmente com este posicionamento", "ganha": "O que ela ganha com esse abandono"},
       {"abandona": "...", "ganha": "..."},
       {"abandona": "...", "ganha": "..."}
     ],
-    "arquetipo": "O arquétipo dominante identificado",
-    "territorioEscolhido": "O território de posicionamento",
-    "porQueEsteTerritorio": "A lógica da escolha do território — por que este e não os alternativas — 2-3 frases"
+    "arquetipo": "O arquétipo dominante e por que ele é o mais coerente com o território",
+    "territorioEscolhido": "O território de posicionamento com descrição precisa",
+    "porQueEsteTerritorio": "3 frases: por que este território e não os alternativos avaliados — a lógica da escolha"
   },
   "plataforma": {
     "proposito": "O propósito aprovado",
@@ -1417,45 +1446,47 @@ Retorne APENAS este JSON válido (sem markdown, sem texto antes ou depois):
     "posicionamento": "O posicionamento em 1-2 frases",
     "promessa": "A promessa aprovada",
     "valores": [
-      {"valor": "Nome", "comportamento": "Comportamento operacional concreto"}
+      {"valor": "Nome do valor", "comportamento": "O comportamento operacional concreto que expressa este valor — verificável, não declaratório"}
     ],
     "tomDeVoz": {
-      "e": ["adjetivo1", "adjetivo2", "adjetivo3", "adjetivo4"],
-      "naoE": ["anti1", "anti2", "anti3", "anti4"]
+      "e": ["adjetivo1", "adjetivo2", "adjetivo3", "adjetivo4", "adjetivo5"],
+      "naoE": ["anti1", "anti2", "anti3", "anti4", "anti5"]
     },
-    "manifesto": "Os primeiros 3-4 parágrafos do manifesto de marca aprovado"
+    "manifesto": "Os 4-5 primeiros parágrafos do manifesto de marca aprovado — o texto completo, não um resumo"
   },
   "sistemaVisual": {
-    "principiosSimbolicos": ["Princípio 1 com justificativa", "Princípio 2", "Princípio 3"],
-    "direcaoPaleta": "Lógica simbólica da paleta — o que ativa, por que",
-    "direcaoTipografia": "Direção tipográfica e o que comunica",
-    "descricaoMoodboard": "Síntese da direção visual em 2-3 frases"
+    "principiosSimbolicos": ["Princípio 1 com justificativa de por que este princípio e o que ele orienta visualmente", "Princípio 2", "Princípio 3", "Princípio 4"],
+    "direcaoPaleta": "Lógica simbólica da paleta: o que cada direção de cor ativa, por que essa combinação é coerente com o posicionamento, o que ela comunica antes de qualquer palavra",
+    "direcaoTipografia": "Direção tipográfica, o que a escolha de cada família tipográfica comunica e como ela se relaciona com o código linguístico da marca",
+    "descricaoMoodboard": "3-4 frases descrevendo a direção visual como sistema: o que as imagens selecionadas têm em comum, qual atmosfera criam, como elas traduzem o território de posicionamento em estética"
   },
   "ativacao": {
     "ondas": [
-      {"onda": "Onda 1 — Interno", "timeline": "Sem. 1-4", "foco": "O que acontece nesta onda"},
-      {"onda": "Onda 2 — Parceiros", "timeline": "Sem. 5-8", "foco": "O que acontece"},
-      {"onda": "Onda 3 — Mercado", "timeline": "Sem. 9-16", "foco": "O que acontece"}
+      {"onda": "Onda 1 — Interno", "timeline": "Sem. 1-4", "foco": "O que acontece nesta onda e por que ela precede as demais"},
+      {"onda": "Onda 2 — Parceiros", "timeline": "Sem. 5-8", "foco": "O que acontece e quem é envolvido"},
+      {"onda": "Onda 3 — Mercado", "timeline": "Sem. 9-16", "foco": "O que acontece e como a marca se posiciona publicamente"}
     ],
     "kpis": [
-      {"periodo": "30 dias", "meta": "O que deve acontecer"},
-      {"periodo": "90 dias", "meta": "O que deve acontecer"},
-      {"periodo": "180 dias", "meta": "O que deve acontecer"}
+      {"periodo": "30 dias", "meta": "O que deve ser verificável em 30 dias"},
+      {"periodo": "90 dias", "meta": "O que deve ser verificável em 90 dias"},
+      {"periodo": "180 dias", "meta": "O que deve ser verificável em 180 dias"},
+      {"periodo": "12 meses", "meta": "O que caracteriza uma travessia bem-sucedida ao final de 1 ano"}
     ],
-    "criteriosSucesso": ["Critério verificável 1", "Critério 2", "Critério 3"]
+    "criteriosSucesso": ["Critério verificável 1 — específico e mensurável", "Critério 2", "Critério 3", "Critério 4"]
   },
-  "proximosPasass": [
-    {"prioridade": 1, "acao": "Ação prioritária concreta", "owner": "Responsável", "prazo": "Prazo"},
+  "proximosPassos": [
+    {"prioridade": 1, "acao": "Ação prioritária concreta — o que precisa acontecer primeiro e por que", "owner": "Responsável", "prazo": "Prazo"},
     {"prioridade": 2, "acao": "Ação 2", "owner": "Responsável", "prazo": "Prazo"},
     {"prioridade": 3, "acao": "Ação 3", "owner": "Responsável", "prazo": "Prazo"},
     {"prioridade": 4, "acao": "Ação 4", "owner": "Responsável", "prazo": "Prazo"},
-    {"prioridade": 5, "acao": "Ação 5", "owner": "Responsável", "prazo": "Prazo"}
+    {"prioridade": 5, "acao": "Ação 5", "owner": "Responsável", "prazo": "Prazo"},
+    {"prioridade": 6, "acao": "Ação 6", "owner": "Responsável", "prazo": "Prazo"}
   ],
-  "narrativaSimbolica": "Texto denso de 300-400 palavras explicando como posicionamento, arquétipo, código linguístico e direção visual se articulam como sistema coerente para atingir os objetivos estratégicos da marca — escrito para o cliente entender, não para impressionar"
+  "narrativaSimbolica": "Texto de 400-500 palavras explicando como posicionamento, arquétipo, código linguístico e direção visual se articulam como sistema coerente — e o que esse sistema torna possível para a marca a partir de agora. Escrito para o cliente entender a profundidade do que foi construído, não para impressionar tecnicamente. Deve ter a densidade de um texto de encerramento de um processo transformador."
 }`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        model: 'claude-sonnet-4-20250514', max_tokens: 6000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try {
