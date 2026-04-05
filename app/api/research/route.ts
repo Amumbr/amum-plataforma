@@ -452,6 +452,9 @@ ESTRUTURA DO RELATÓRIO:
 ## Território Disponível
 ## Janelas de Oportunidade
 ## O Que as Pesquisas Independentes Acrescentam [incluir apenas se houver]
+## Sinais ODS na Operação
+[Identifique práticas, processos, posicionamentos ou decisões já presentes nos dados coletados que têm potencial real de ancoragem em Objetivos de Desenvolvimento Sustentável. Seja específico — cite a prática, não a intenção. NÃO selecione ODS ainda, não faça recomendações. Esta seção é matéria-prima para a Fase 2: registre apenas o que existe de concreto, com a fonte que o evidencia. Lacunas também são relevantes — nomeie o que seria esperado para o setor e não apareceu.]
+## O Que as Pesquisas Independentes Acrescentam [incluir apenas se houver]
 ## Direcionamentos para as Entrevistas
 
 Retorne o relatório completo em texto markdown, sem JSON.`;
@@ -674,24 +677,93 @@ Retorne APENAS este JSON:
     if (action === 'ods_matrix') {
       const prompt = `${ctx}
 
-Você é um especialista em ESG estratégico da AMUM. ODS como linguagem cosmética é um fracasso de posicionamento — sua função aqui é o oposto: ancorar o discurso em iniciativas verificáveis.
+Você é um especialista em ESG estratégico e branding da AMUM. Sua função aqui não é produzir uma lista de ODS aspiracionais — é construir uma arquitetura de compromisso verificável que a marca possa sustentar ao longo do tempo sem risco de inconsistência.
 
-Com base no contexto e na tese de posicionamento, selecione 3-5 ODS que tenham conexão real com o negócio e proponha iniciativas concretas para cada um.
+ODS como linguagem cosmética é um fracasso de posicionamento e um risco reputacional. O filtro central desta análise é: "Se um jornalista investigativo olhar para esta afirmação de ODS daqui a 2 anos, o que encontrará?"
 
-Retorne APENAS este JSON:
+METODOLOGIA DE ANÁLISE:
+
+PASSO 1 — LEITURA OPERACIONAL
+Antes de selecionar qualquer ODS, mapeie o que já existe nas práticas, processos e posicionamentos da marca (dados da Fase 1 e documentos internos). Identifique práticas com potencial ODS mesmo sem esse nome ainda. Registre também o que está ausente e seria esperado para o setor.
+
+PASSO 2 — SELEÇÃO COM SCORING
+Para cada ODS candidato, aplique scoring em 4 critérios (0-10 cada, total máximo 40):
+- Lastro Operacional: a marca já tem práticas verificáveis que sustentam este ODS?
+- Relevância Setorial: este ODS é central para o setor de atuação da marca?
+- Potencial de Diferenciação: a marca pode assumir protagonismo neste ODS ou é território saturado?
+- Alinhamento com Arquétipo: este ODS ressoa com a identidade simbólica e o território de posicionamento?
+
+Selecione apenas ODS com total ≥ 22/40. Prefira 3-4 ODS densos a 6-7 rasos.
+Classifique cada ODS selecionado como:
+- "operacional": a marca já tem práticas concretas — o trabalho é formalizar, medir e comunicar
+- "aspiracional": a marca quer chegar lá — o trabalho é construir primeiro, comunicar depois
+
+PASSO 3 — AVALIAÇÃO DE RISCO
+Para cada ODS selecionado, avalie o risco de greenwashing:
+- "baixo": lastro operacional sólido, iniciativas verificáveis, comunicação coerente com a realidade
+- "medio": há intenção e algumas práticas, mas gaps relevantes que precisam ser resolvidos antes de comunicar
+- "alto": seleção primariamente aspiracional, sem práticas concretas sustentando — comunicar agora é risco
+
+PASSO 4 — INICIATIVAS POR HORIZONTE
+Para cada ODS selecionado, proponha iniciativas distribuídas em horizontes:
+- "imediato" (0-3 meses): formalizar, nomear e medir o que já existe
+- "6meses": primeiras expansões e melhorias verificáveis
+- "12meses": comprometimentos mensuráveis com baseline e meta
+- "24meses": transformações estruturais de maior prazo
+
+PASSO 5 — NARRATIVA NA VOZ DA MARCA
+Para cada ODS selecionado, traduza o compromisso para a linguagem própria da marca — sem jargão de relatório ESG, sem linguagem de agência de sustentabilidade. A narrativa deve soar como a marca fala, não como um documento de conformidade.
+
+Retorne APENAS este JSON (sem texto fora do JSON):
 {
-  "items": [
+  "leituraOperacional": {
+    "praticasIdentificadas": [
+      { "pratica": "Descrição específica da prática já existente", "odsLatente": "ODS X — Nome", "evidencia": "Fonte: documento / dado da Fase 1 que evidencia" }
+    ],
+    "lacunasOperacionais": ["Prática que seria esperada para o setor e está ausente", "..."]
+  },
+  "selecao": [
     {
       "ods": "ODS 8 — Trabalho Decente e Crescimento Econômico",
+      "numero": 8,
+      "tipo": "operacional",
+      "scoring": {
+        "lastroOperacional": 8,
+        "relevanciaSetorial": 7,
+        "potencialDiferenciacao": 6,
+        "alinhamentoArquetipo": 8,
+        "total": 29,
+        "justificativaCriteria": "2-3 frases explicando os scores — por que esse ODS pontua assim nessa marca específica"
+      },
+      "justificativaEstrategica": "Por que este ODS foi selecionado — argumento estratégico e simbólico, não apenas temático",
+      "riscoGreenwashing": "baixo",
+      "alertaRisco": null,
       "iniciativas": [
-        {"descricao":"Iniciativa concreta e verificável","indicador":"Indicador mensurável","owner":"Área responsável","cadencia":"trimestral"},
-        {"descricao":"...","indicador":"...","owner":"...","cadencia":"anual"}
-      ]
+        {
+          "descricao": "Iniciativa verificável e específica — não genérica",
+          "horizonte": "imediato",
+          "indicador": "Métrica mensurável e objetiva",
+          "baseline": "Estado atual conhecido ou estimado com base nos dados disponíveis",
+          "meta": "Onde pretende chegar em termos concretos",
+          "owner": "Área ou função responsável",
+          "cadencia": "trimestral"
+        }
+      ],
+      "narrativaComunicacao": "Como a marca fala sobre este compromisso na própria voz — específico, concreto, sem jargão ESG"
     }
-  ]
+  ],
+  "odsDescartados": [
+    { "ods": "ODS X — Nome", "motivo": "Por que foi descartado apesar de parecer relevante para o setor ou aspiracional para a marca" }
+  ],
+  "estrategiaGeral": {
+    "odsLider": "ODS principal onde a marca tem condição real de assumir protagonismo — não apenas alinhamento",
+    "mensagemNucleo": "O que a marca diz sobre seu compromisso em uma frase — na própria voz, verificável",
+    "sequenciaAtivacao": "Qual ODS comunicar primeiro e por quê — lógica de credibilidade acumulada antes de comunicar aspiração",
+    "alertaGeral": "Observação crítica sobre riscos do conjunto selecionado ou sobre o gap entre ambição e capacidade operacional atual"
+  }
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        model: 'claude-sonnet-4-20250514', max_tokens: 4500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -708,6 +780,8 @@ Com base em TODO o contexto aprovado (Escuta, Decifração, Tese de Posicionamen
 
 Cada campo deve ser preciso, não genérico. Propósito não é slogan — é a razão de existência que permanece quando o produto muda. Valores sem comportamentos operacionais são decoração.
 
+Se a Matriz ODS estiver disponível no contexto, utilize os ODS selecionados como âncoras nos valores correspondentes — apenas onde há lastro operacional real. Não force conexão ODS em todos os valores.
+
 Retorne APENAS este JSON:
 {
   "proposito": "Por que existimos além do lucro — a razão fundacional que orienta decisões difíceis",
@@ -715,9 +789,12 @@ Retorne APENAS este JSON:
   "posicionamento": "Para quem somos, em que categoria e por que diferente — sem jargão inflado",
   "promessa": "O que entregamos consistentemente — verificável, não aspiracional vazio",
   "valores": [
-    {"valor": "Nome do valor","comportamentos": ["Comportamento operacional 1","Comportamento operacional 2","Comportamento operacional 3"]},
-    {"valor": "Nome do valor","comportamentos": ["...","...","..."]},
-    {"valor": "Nome do valor","comportamentos": ["...","...","..."]}
+    {
+      "valor": "Nome do valor",
+      "comportamentos": ["Comportamento operacional 1", "Comportamento operacional 2", "Comportamento operacional 3"],
+      "provaOperacional": "O que a empresa já faz que demonstra este valor — específico e verificável, não genérico",
+      "odsAncora": "ODS X — Nome (incluir apenas se houver lastro real; omitir ou null se não houver)"
+    }
   ]
 }`;
       const r = await client.messages.create({
@@ -735,6 +812,8 @@ Retorne APENAS este JSON:
 Você é um especialista em código linguístico da AMUM — a tradução do posicionamento em linguagem operacional.
 
 Com base na Plataforma de Marca aprovada, produza o Código Linguístico completo. Anti-adjetivos são tão importantes quanto adjetivos — nomeie o que a marca NÃO é para evitar deriva. Exemplos de aplicação devem ser concretos, não ilustrativos vazios.
+
+Se a Matriz ODS estiver disponível no contexto, inclua na seção de vocabulário proibido os termos ESG genéricos que a marca não deve usar (ex: "sustentável", "responsável", "impacto positivo" como termos soltos sem especificidade) e adicione no vocabulário preferencial as formas como a marca fala sobre seus compromissos na própria voz — concreto, não jargão de relatório.
 
 Retorne APENAS este JSON:
 {
