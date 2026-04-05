@@ -4716,23 +4716,118 @@ function StepIncoherenceMap({
 function StepPositioningThesis({
   project, step, onUpdate,
 }: { project: Project; step: WorkflowStep; onUpdate: (p: Project) => void }) {
-  const [loading, setLoading] = React.useState(false);
   const thesis = project.positioningThesis;
 
-  // ── Edição inline ──────────────────────────────────────────────────────────
-  const [editing, setEditing] = React.useState(false);
-  const [draftAfirmacao, setDraftAfirmacao] = React.useState('');
-  const [draftJustificativa, setDraftJustificativa] = React.useState('');
-  const [draftTradeoffs, setDraftTradeoffs] = React.useState<{ abandona: string; ganha: string }[]>([]);
+  // Zona 1 — sugestão da IA
+  const [genLoading, setGenLoading] = React.useState(false);
+  const aiSuggestion = step.data?.aiSuggestion as typeof thesis | undefined;
 
-  function openEdit() {
-    setDraftAfirmacao(thesis?.afirmacaoCentral || '');
-    setDraftJustificativa(thesis?.justificativa || '');
-    setDraftTradeoffs(thesis?.tradeoffs ? thesis.tradeoffs.map(t => ({ ...t })) : [{ abandona: '', ganha: '' }]);
-    setEditing(true);
+  // Zona 2 — chat de co-criação
+  const [chatMessages, setChatMessages] = React.useState<{ role: 'user' | 'assistant'; content: string }[]>(
+    getStepChatHistory(step)
+  );
+  const [chatInput, setChatInput] = React.useState('');
+  const [chatLoading, setChatLoading] = React.useState(false);
+  const chatEndRef = React.useRef<HTMLDivElement>(null);
+
+  // Zona 3 — campo aprovado (edição inline)
+  const [draftAfirmacao, setDraftAfirmacao] = React.useState(thesis?.afirmacaoCentral || '');
+  const [draftJustificativa, setDraftJustificativa] = React.useState(thesis?.justificativa || '');
+  const [draftTradeoffs, setDraftTradeoffs] = React.useState<{ abandona: string; ganha: string }[]>(
+    thesis?.tradeoffs?.map(t => ({ ...t })) || [{ abandona: '', ganha: '' }]
+  );
+
+  // Sincroniza draft com thesis quando o projeto muda externamente
+  React.useEffect(() => {
+    if (thesis && !draftAfirmacao && thesis.afirmacaoCentral) {
+      setDraftAfirmacao(thesis.afirmacaoCentral);
+      setDraftJustificativa(thesis.justificativa || '');
+      setDraftTradeoffs(thesis.tradeoffs?.map(t => ({ ...t })) || [{ abandona: '', ganha: '' }]);
+    }
+  }, [thesis]);
+
+  React.useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [chatMessages]);
+
+  // ── Zona 1: Gerar sugestão ────────────────────────────────────────────────
+  async function handleGenerateSuggestion() {
+    setGenLoading(true);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'positioning_thesis', projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json();
+      if (data.afirmacaoCentral) {
+        const updated = updateStepData(project, step.id, { aiSuggestion: data });
+        onUpdate(updated);
+      }
+    } finally { setGenLoading(false); }
   }
 
-  function saveEdit() {
+  // ── Zona 2: Chat de co-criação ────────────────────────────────────────────
+  const QUICK_CHIPS = [
+    'Teste este posicionamento contra os dados da Escuta — onde ele sustenta e onde ele vacila?',
+    'Sugira 3 variações da afirmação central com tons diferentes: uma mais ousada, uma mais funcional, uma mais poética.',
+    'Quais são os riscos deste posicionamento no mercado de Live Marketing?',
+    'Como este posicionamento se diferencia de cada concorrente mapeado?',
+    'Simplifique a afirmação central para uma frase de impacto de até 10 palavras.',
+  ];
+
+  async function sendChatMessage(content?: string) {
+    const userContent = content || chatInput.trim();
+    if (!userContent || chatLoading) return;
+    if (!content) setChatInput('');
+
+    const userMsg = { role: 'user' as const, content: userContent };
+    const newMessages = [...chatMessages, userMsg];
+    setChatMessages(newMessages);
+    setChatLoading(true);
+
+    // Contexto especializado: todo o projeto + sugestão atual + draft aprovado
+    const suggestionBlock = aiSuggestion
+      ? `\n\nSUGESTÃO ATUAL DA IA:\nAfirmação: ${aiSuggestion.afirmacaoCentral}\nJustificativa: ${aiSuggestion.justificativa}\nTrade-offs: ${aiSuggestion.tradeoffs?.map((t: { abandona: string; ganha: string }) => `abandonar "${t.abandona}" → ganhar "${t.ganha}"`).join(' | ')}`
+      : '';
+    const draftBlock = draftAfirmacao
+      ? `\n\nDRAFT DO POSICIONAMENTO APROVADO (editado pelo estrategista):\n"${draftAfirmacao}"\n${draftTradeoffs.filter(t => t.abandona || t.ganha).map(t => `- abandona "${t.abandona}" → ganha "${t.ganha}"`).join('\n')}`
+      : '';
+
+    const systemCtx = `${getProjectContext(project)}${suggestionBlock}${draftBlock}
+
+Você é o parceiro estratégico do estrategista da AMUM na sessão de co-criação do posicionamento. Seu papel é ajudar a refinar, testar e formular o posicionamento com precisão máxima.
+
+Princípios desta sessão:
+- Posicionamento não é tagline — é escolha estratégica com trade-offs reais
+- Uma afirmação central forte é precisa, memorável e implica abandono explícito
+- Teste cada formulação contra os dados: Escuta, transcrições, incoerências
+- Quando sugerir variações, apresente-as com o trade-off correspondente
+- Seja direto, denso, sem jargão vazio — o estrategista tem alta capacidade de abstração`;
+
+    try {
+      const res = await fetch('/api/claude', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectContext: systemCtx, messages: newMessages }),
+      });
+      const data = await res.json() as { text: string };
+      const allMessages = [...newMessages, { role: 'assistant' as const, content: data.text }];
+      setChatMessages(allMessages);
+      const updated = updateStepData(project, step.id, { chatHistory: allMessages });
+      onUpdate(updated);
+    } finally { setChatLoading(false); }
+  }
+
+  // ── Zona 3: Salvar e aprovar ──────────────────────────────────────────────
+  function applySuggestion() {
+    if (!aiSuggestion) return;
+    setDraftAfirmacao(aiSuggestion.afirmacaoCentral || '');
+    setDraftJustificativa(aiSuggestion.justificativa || '');
+    setDraftTradeoffs(aiSuggestion.tradeoffs?.map((t: { abandona: string; ganha: string }) => ({ ...t })) || [{ abandona: '', ganha: '' }]);
+  }
+
+  function saveDraft() {
     const updated = {
       ...project,
       positioningThesis: {
@@ -4744,181 +4839,269 @@ function StepPositioningThesis({
     };
     saveProject(updated);
     onUpdate(updated);
-    setEditing(false);
   }
 
-  function addTradeoff() {
-    setDraftTradeoffs(prev => [...prev, { abandona: '', ganha: '' }]);
+  function handleApprove() {
+    // Salva o draft antes de aprovar
+    const withThesis = {
+      ...project,
+      positioningThesis: {
+        afirmacaoCentral: draftAfirmacao.trim(),
+        justificativa: draftJustificativa.trim(),
+        tradeoffs: draftTradeoffs.filter(t => t.abandona.trim() || t.ganha.trim()),
+        createdAt: thesis?.createdAt || new Date().toISOString(),
+      },
+    };
+    saveProject(withThesis);
+    onUpdate(approveStep(withThesis, step.id));
   }
 
-  function removeTradeoff(i: number) {
-    setDraftTradeoffs(prev => prev.filter((_, idx) => idx !== i));
-  }
-
-  function updateTradeoff(i: number, field: 'abandona' | 'ganha', val: string) {
-    setDraftTradeoffs(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: val } : t));
-  }
-
-  async function handleGenerate() {
-    setLoading(true);
-    try {
-      const res = await fetch('/api/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'positioning_thesis', projectContext: getProjectContext(project) }),
-      });
-      const data = await res.json();
-      if (data.afirmacaoCentral) {
-        const updated = { ...project, positioningThesis: { ...data, createdAt: new Date().toISOString() } };
-        saveProject(updated); onUpdate(updated);
-      }
-    } finally { setLoading(false); }
-  }
-
-  function handleApprove() { onUpdate(approveStep(project, step.id)); }
-  function handleSkip() { onUpdate(skipStep(project, step.id)); }
   function handleReopen() { onUpdate(reopenStep(project, step.id)); }
 
-  // ── Modo edição inline ─────────────────────────────────────────────────────
-  if (editing) {
+  function addTradeoff() { setDraftTradeoffs(prev => [...prev, { abandona: '', ganha: '' }]); }
+  function removeTradeoff(i: number) { setDraftTradeoffs(prev => prev.filter((_, idx) => idx !== i)); }
+  function updateTradeoff(i: number, f: 'abandona' | 'ganha', v: string) {
+    setDraftTradeoffs(prev => prev.map((t, idx) => idx === i ? { ...t, [f]: v } : t));
+  }
+
+  // ── Estilos inline compartilhados ─────────────────────────────────────────
+  const zoneHeader = (n: string, label: string, sub: string) => (
+    <div style={{ display: 'flex', alignItems: 'baseline', gap: '10px', marginBottom: '16px' }}>
+      <span style={{ fontSize: '11px', fontWeight: 800, color: 'var(--gold)', opacity: 0.6, letterSpacing: '0.1em' }}>{n}</span>
+      <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--text)' }}>{label}</span>
+      <span style={{ fontSize: '11px', color: 'var(--text-dim)' }}>{sub}</span>
+    </div>
+  );
+
+  const divider = (
+    <div style={{ borderTop: '1px solid var(--border)', margin: '24px 0' }} />
+  );
+
+  // ── Render: estado done ───────────────────────────────────────────────────
+  if (step.status === 'done') {
     return (
       <div style={{ padding: '0 16px 24px' }}>
-        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
-          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px' }}>AFIRMAÇÃO CENTRAL</p>
-          <textarea
-            value={draftAfirmacao}
-            onChange={e => setDraftAfirmacao(e.target.value)}
-            rows={3}
-            style={{
-              width: '100%', background: 'transparent', border: '1px solid var(--border)',
-              borderRadius: '6px', padding: '10px 12px', fontSize: '14px', color: 'var(--text)',
-              lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit',
-            }}
-            placeholder="Ex: doBrasil — Deciframos culturas e criamos comunidades"
-          />
-        </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Trade-offs</p>
-            <button className="btn-skip" style={{ fontSize: '11px', padding: '3px 10px' }} onClick={addTradeoff}>+ Adicionar</button>
-          </div>
-          {draftTradeoffs.map((t, i) => (
-            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', gap: '8px', alignItems: 'start', marginBottom: '8px' }}>
-              <div>
-                <p style={{ fontSize: '10px', color: '#e05252', fontWeight: 700, marginBottom: '4px' }}>ABANDONA</p>
-                <textarea
-                  value={t.abandona}
-                  onChange={e => updateTradeoff(i, 'abandona', e.target.value)}
-                  rows={2}
-                  style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', fontSize: '12px', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
-                />
-              </div>
-              <div style={{ paddingTop: '26px', color: 'var(--gold)', fontSize: '16px' }}>→</div>
-              <div>
-                <p style={{ fontSize: '10px', color: '#52c47a', fontWeight: 700, marginBottom: '4px' }}>GANHA</p>
-                <textarea
-                  value={t.ganha}
-                  onChange={e => updateTradeoff(i, 'ganha', e.target.value)}
-                  rows={2}
-                  style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', fontSize: '12px', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
-                />
-              </div>
-              <button
-                onClick={() => removeTradeoff(i)}
-                style={{ marginTop: '26px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', fontSize: '16px', padding: '4px' }}
-                title="Remover"
-              >✕</button>
+        <div style={{ background: 'rgba(201,169,110,0.06)', border: '1px solid var(--gold)', borderRadius: '10px', padding: '20px 24px', marginBottom: '16px' }}>
+          <p style={{ fontSize: '10px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.12em', marginBottom: '10px' }}>POSICIONAMENTO APROVADO</p>
+          <p style={{ fontSize: '16px', color: 'var(--text)', fontStyle: 'italic', lineHeight: 1.6, fontWeight: 500, marginBottom: thesis?.tradeoffs?.length ? '16px' : '0' }}>"{thesis?.afirmacaoCentral}"</p>
+          {thesis?.tradeoffs && thesis.tradeoffs.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              {thesis.tradeoffs.map((t, i) => (
+                <div key={i} style={{ display: 'flex', gap: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+                  <span style={{ color: '#e05252', minWidth: '16px' }}>✗</span>
+                  <span>{t.abandona}</span>
+                  <span style={{ color: 'var(--gold)', margin: '0 4px' }}>→</span>
+                  <span style={{ color: '#52c47a' }}>✓</span>
+                  <span>{t.ganha}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
-
-        <div style={{ marginBottom: '16px' }}>
-          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '6px' }}>JUSTIFICATIVA</p>
-          <textarea
-            value={draftJustificativa}
-            onChange={e => setDraftJustificativa(e.target.value)}
-            rows={4}
-            style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px', fontSize: '13px', color: 'var(--text)', lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit' }}
-            placeholder="Por que este posicionamento e não outro? O que ele ativa simbolicamente?"
-          />
-        </div>
-
         <div style={{ display: 'flex', gap: '8px' }}>
-          <button className="btn-approve" onClick={saveEdit} disabled={!draftAfirmacao.trim()}>Salvar edição</button>
-          <button className="btn-skip" onClick={() => setEditing(false)}>Cancelar</button>
+          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
         </div>
       </div>
     );
   }
 
-  // ── Modo visualização ──────────────────────────────────────────────────────
+  // ── Render: estado active ─────────────────────────────────────────────────
   return (
     <div style={{ padding: '0 16px 24px' }}>
-      {step.status === 'done' ? (
-        <div>
-          {thesis && <p style={{ fontSize: '14px', color: 'var(--text)', fontStyle: 'italic', marginBottom: '12px' }}>"{thesis.afirmacaoCentral}"</p>}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
-            <button className="btn-skip" onClick={openEdit}>Editar inline</button>
-          </div>
+
+      {/* ── ZONA 1: SUGESTÃO DA IA ─────────────────────────────────────────── */}
+      {zoneHeader('01', 'Leitura Estratégica', '— o que os dados revelam sobre o posicionamento possível')}
+
+      {!aiSuggestion ? (
+        <div style={{ textAlign: 'center', padding: '20px', border: '1px dashed var(--border)', borderRadius: '8px', marginBottom: '8px' }}>
+          <p style={{ fontSize: '13px', color: 'var(--text-muted)', marginBottom: '14px' }}>
+            A IA cruza toda a Escuta — documentos, pesquisa, auditorias, transcrições, mapa de incoerências — e propõe uma tese de posicionamento com trade-offs explícitos.
+          </p>
+          <button className="btn-primary" onClick={handleGenerateSuggestion} disabled={genLoading}>
+            {genLoading ? 'Lendo o projeto...' : 'Gerar leitura estratégica'}
+          </button>
         </div>
       ) : (
-        <>
-          {!thesis ? (
-            <div style={{ textAlign: 'center', padding: '24px 0' }}>
-              <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
-                Não apenas "para onde vamos" — mas "o que deixamos de ser e fazer". Trade-offs explícitos são obrigatórios.
-              </p>
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
-                <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
-                  {loading ? 'Gerando tese...' : 'Gerar Tese com IA'}
-                </button>
-                <button className="btn-skip" onClick={openEdit}>Inserir manualmente</button>
-              </div>
+        <div style={{ border: '1px solid var(--border)', borderRadius: '8px', overflow: 'hidden', marginBottom: '8px' }}>
+          <div style={{ background: 'var(--card-bg)', padding: '16px 20px', borderBottom: '1px solid var(--border)' }}>
+            <p style={{ fontSize: '10px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.1em', marginBottom: '8px' }}>AFIRMAÇÃO PROPOSTA PELA IA</p>
+            <p style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.6, fontStyle: 'italic' }}>"{aiSuggestion.afirmacaoCentral}"</p>
+          </div>
+          {aiSuggestion.tradeoffs && aiSuggestion.tradeoffs.length > 0 && (
+            <div style={{ padding: '12px 20px', borderBottom: '1px solid var(--border)' }}>
+              <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px' }}>TRADE-OFFS PROPOSTOS</p>
+              {aiSuggestion.tradeoffs.map((t: { abandona: string; ganha: string }, i: number) => (
+                <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '6px', fontSize: '12px' }}>
+                  <span style={{ color: '#e05252', flexShrink: 0 }}>✗</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{t.abandona}</span>
+                  <span style={{ color: 'var(--gold)', margin: '0 6px', flexShrink: 0 }}>→</span>
+                  <span style={{ color: '#52c47a', flexShrink: 0 }}>✓</span>
+                  <span style={{ color: 'var(--text-muted)' }}>{t.ganha}</span>
+                </div>
+              ))}
             </div>
-          ) : (
-            <>
-              <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
-                <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px' }}>AFIRMAÇÃO CENTRAL</p>
-                <p style={{ fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, fontWeight: 500 }}>{thesis.afirmacaoCentral}</p>
-              </div>
-              {thesis.tradeoffs?.length > 0 && (
-                <div style={{ marginBottom: '16px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '10px', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Trade-offs</p>
-                  {thesis.tradeoffs.map((t, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start', marginBottom: '8px', padding: '10px 12px', border: '1px solid var(--border)', borderRadius: '6px' }}>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '11px', color: '#e05252', fontWeight: 600, marginBottom: '2px' }}>ABANDONA</p>
-                        <p style={{ fontSize: '13px', color: 'var(--text)' }}>{t.abandona}</p>
-                      </div>
-                      <div style={{ padding: '0 8px', color: 'var(--text-dim)', alignSelf: 'center' }}>→</div>
-                      <div style={{ flex: 1 }}>
-                        <p style={{ fontSize: '11px', color: '#52c47a', fontWeight: 600, marginBottom: '2px' }}>GANHA</p>
-                        <p style={{ fontSize: '13px', color: 'var(--text)' }}>{t.ganha}</p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {thesis.justificativa && (
-                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '16px' }}>
-                  <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, marginBottom: '6px' }}>JUSTIFICATIVA</p>
-                  <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{thesis.justificativa}</p>
-                </div>
-              )}
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                <button className="btn-approve" onClick={handleApprove}>Trade-offs aceitos — Aprovar</button>
-                <button className="btn-skip" onClick={openEdit}>Editar inline</button>
-                <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
-                  {loading ? 'Regenerando...' : 'Regenerar com IA'}
-                </button>
-              </div>
-            </>
           )}
-          {!thesis && <button className="btn-skip" onClick={handleSkip} style={{ marginTop: '8px' }}>Pular</button>}
-        </>
+          {aiSuggestion.justificativa && (
+            <div style={{ padding: '12px 20px' }}>
+              <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '6px' }}>JUSTIFICATIVA</p>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', lineHeight: 1.6 }}>{aiSuggestion.justificativa}</p>
+            </div>
+          )}
+        </div>
       )}
+
+      {aiSuggestion && (
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+          <button className="btn-skip" style={{ fontSize: '11px' }} onClick={handleGenerateSuggestion} disabled={genLoading}>
+            {genLoading ? 'Regenerando...' : 'Regenerar'}
+          </button>
+        </div>
+      )}
+
+      {divider}
+
+      {/* ── ZONA 2: CHAT DE CO-CRIAÇÃO ────────────────────────────────────── */}
+      {zoneHeader('02', 'Co-criação', '— refine, tensione e formule com a IA')}
+
+      {/* Quick chips */}
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '12px' }}>
+        {QUICK_CHIPS.map((chip, i) => (
+          <button
+            key={i}
+            onClick={() => sendChatMessage(chip)}
+            disabled={chatLoading}
+            style={{
+              background: 'transparent', border: '1px solid var(--border)', borderRadius: '20px',
+              padding: '4px 12px', fontSize: '11px', color: 'var(--text-muted)', cursor: 'pointer',
+              transition: 'border-color 0.15s',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--gold)')}
+            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+          >
+            {['Testar contra dados', 'Variações de tom', 'Riscos', 'vs. Concorrentes', 'Simplificar'][i]}
+          </button>
+        ))}
+      </div>
+
+      {/* Histórico de mensagens */}
+      {chatMessages.length > 0 && (
+        <div style={{ maxHeight: '360px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: '8px', padding: '12px', marginBottom: '10px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+          {chatMessages.map((m, i) => (
+            <div key={i} style={{
+              alignSelf: m.role === 'user' ? 'flex-end' : 'flex-start',
+              maxWidth: '85%',
+              background: m.role === 'user' ? 'rgba(201,169,110,0.12)' : 'var(--card-bg)',
+              border: `1px solid ${m.role === 'user' ? 'rgba(201,169,110,0.3)' : 'var(--border)'}`,
+              borderRadius: '8px', padding: '10px 14px',
+            }}>
+              <p style={{ fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.6 }}>{m.content}</p>
+            </div>
+          ))}
+          {chatLoading && (
+            <div style={{ alignSelf: 'flex-start', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '8px', padding: '10px 14px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--text-muted)', margin: 0 }}>Pensando…</p>
+            </div>
+          )}
+          <div ref={chatEndRef} />
+        </div>
+      )}
+
+      {/* Input */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '4px' }}>
+        <textarea
+          value={chatInput}
+          onChange={e => setChatInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendChatMessage(); } }}
+          rows={2}
+          placeholder="Refine o posicionamento, peça variações, teste hipóteses… (Enter envia)"
+          style={{ flex: 1, background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px', fontSize: '13px', color: 'var(--text)', resize: 'none', fontFamily: 'inherit' }}
+        />
+        <button
+          className="btn-primary"
+          style={{ alignSelf: 'flex-end', padding: '10px 16px', minWidth: 'auto' }}
+          onClick={() => sendChatMessage()}
+          disabled={!chatInput.trim() || chatLoading}
+        >→</button>
+      </div>
+
+      {divider}
+
+      {/* ── ZONA 3: POSICIONAMENTO APROVADO ──────────────────────────────── */}
+      {zoneHeader('03', 'Posicionamento', '— o campo que ancora tudo que se segue')}
+
+      {aiSuggestion && (
+        <button
+          className="btn-skip"
+          style={{ fontSize: '11px', marginBottom: '14px' }}
+          onClick={applySuggestion}
+        >
+          ↓ Aplicar sugestão da IA
+        </button>
+      )}
+
+      {/* Afirmação central */}
+      <div style={{ background: 'rgba(201,169,110,0.06)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '16px 20px', marginBottom: '16px' }}>
+        <p style={{ fontSize: '10px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.1em', marginBottom: '8px' }}>AFIRMAÇÃO CENTRAL</p>
+        <textarea
+          value={draftAfirmacao}
+          onChange={e => setDraftAfirmacao(e.target.value)}
+          rows={2}
+          placeholder="Ex: doBrasil — Deciframos culturas e criamos comunidades"
+          style={{ width: '100%', background: 'transparent', border: 'none', fontSize: '15px', color: 'var(--text)', lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit', outline: 'none', fontWeight: 500 }}
+        />
+      </div>
+
+      {/* Trade-offs */}
+      <div style={{ marginBottom: '16px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+          <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.1em' }}>TRADE-OFFS</p>
+          <button className="btn-skip" style={{ fontSize: '11px', padding: '2px 10px' }} onClick={addTradeoff}>+ Trade-off</button>
+        </div>
+        {draftTradeoffs.map((t, i) => (
+          <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', gap: '8px', alignItems: 'start', marginBottom: '8px' }}>
+            <div style={{ border: '1px solid rgba(224,82,82,0.3)', borderRadius: '6px', padding: '8px 10px', background: 'rgba(224,82,82,0.04)' }}>
+              <p style={{ fontSize: '9px', color: '#e05252', fontWeight: 700, marginBottom: '4px', letterSpacing: '0.06em' }}>ABANDONA</p>
+              <textarea value={t.abandona} onChange={e => updateTradeoff(i, 'abandona', e.target.value)} rows={2}
+                style={{ width: '100%', background: 'transparent', border: 'none', fontSize: '12px', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', outline: 'none' }} />
+            </div>
+            <div style={{ paddingTop: '28px', color: 'var(--gold)', fontSize: '16px', textAlign: 'center' }}>→</div>
+            <div style={{ border: '1px solid rgba(82,196,122,0.3)', borderRadius: '6px', padding: '8px 10px', background: 'rgba(82,196,122,0.04)' }}>
+              <p style={{ fontSize: '9px', color: '#52c47a', fontWeight: 700, marginBottom: '4px', letterSpacing: '0.06em' }}>GANHA</p>
+              <textarea value={t.ganha} onChange={e => updateTradeoff(i, 'ganha', e.target.value)} rows={2}
+                style={{ width: '100%', background: 'transparent', border: 'none', fontSize: '12px', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit', outline: 'none' }} />
+            </div>
+            <button onClick={() => removeTradeoff(i)} style={{ marginTop: '28px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', fontSize: '14px', padding: '4px' }}>✕</button>
+          </div>
+        ))}
+      </div>
+
+      {/* Justificativa */}
+      <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '12px 16px', marginBottom: '20px' }}>
+        <p style={{ fontSize: '10px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.1em', marginBottom: '8px' }}>JUSTIFICATIVA ESTRATÉGICA</p>
+        <textarea
+          value={draftJustificativa}
+          onChange={e => setDraftJustificativa(e.target.value)}
+          rows={3}
+          placeholder="Por que este posicionamento — a lógica que conecta os dados da Escuta à afirmação central"
+          style={{ width: '100%', background: 'transparent', border: 'none', fontSize: '13px', color: 'var(--text)', lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit', outline: 'none' }}
+        />
+      </div>
+
+      {/* Ações finais */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+        <button
+          className="btn-approve"
+          onClick={handleApprove}
+          disabled={!draftAfirmacao.trim()}
+        >
+          Aplicar posicionamento — Aprovar
+        </button>
+        <button className="btn-skip" onClick={saveDraft} disabled={!draftAfirmacao.trim()}>
+          Salvar rascunho
+        </button>
+        <button className="btn-skip" onClick={() => onUpdate(skipStep(project, step.id))}>Pular</button>
+      </div>
+
     </div>
   );
 }
