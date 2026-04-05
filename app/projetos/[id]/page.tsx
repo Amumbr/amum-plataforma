@@ -39,6 +39,7 @@ import {
   computeStepInputHash,
   confirmStepHash,
   StepType,
+  MoodboardImage,
 } from '@/lib/store';
 import { fetchProjectFromSupabase } from '@/lib/db';
 
@@ -6037,7 +6038,7 @@ ${PROMPT_MARKER_END}`;
         if (data.error) { setError(`Erro imagem ${i + 1}: ${data.error}`); continue; }
 
         const imageId = `mb_${Date.now()}_${i}`;
-        const newImg: NonNullable<Project['visualDirection']>['moodboardImages'][number] = {
+        const newImg: MoodboardImage = {
           id: imageId,
           url: data.url || '',
           revisedPrompt: data.revised_prompt,
