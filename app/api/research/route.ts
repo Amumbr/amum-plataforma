@@ -961,6 +961,175 @@ Escreva em português. Seja denso e preciso — cada frase deve produzir avanço
       return NextResponse.json({ briefing, createdAt: new Date().toISOString() });
     }
 
+    // ── SÍNTESE DE FASE ───────────────────────────────────────────────────────────
+    if (action === 'phase_synthesis') {
+      const phase = body.phase as number;
+
+      const phasePrompts: Record<number, string> = {
+        1: `Você é o estrategista sênior da AMUM. Com base em todo o contexto abaixo, produza o Documento Síntese da Fase 1 — Escuta.
+
+Este documento deve compilar e articular os achados desta fase de forma clara, densa e pronta para ser apresentada ao cliente ou usada como memória estratégica do projeto.
+
+ESTRUTURA OBRIGATÓRIA:
+
+1. RETRATO DA MARCA — ESTADO ATUAL
+Como a marca se apresenta nos documentos institucionais, o que declara ser, e o que os dados externos revelam que ela realmente é. Tensão entre discurso e realidade.
+
+2. DIAGNÓSTICO DE CANAIS
+O que a auditoria dos canais próprios revelou sobre coerência, frequência, tom e território ocupado. Pontos fortes e incoerências identificadas.
+
+3. MAPA COMPETITIVO
+O que os concorrentes e referências estão comunicando, quais territórios estão saturados, e onde há espaço disponível para a marca.
+
+4. VOZ DO MERCADO
+O que a pesquisa de mercado, tendências e netnografia revelam sobre o setor, o público e o discurso de rua. O que as pessoas dizem sobre a marca e o setor fora dos canais oficiais.
+
+5. ACHADOS DAS ENTREVISTAS
+Síntese do que emergiu das conversas com a liderança e stakeholders. Padrões recorrentes, contradições internas, expectativas e medos.
+
+6. TENSÕES CENTRAIS IDENTIFICADAS
+As 3-5 tensões estruturais que este projeto precisará resolver. Formuladas como contradições reais, não como problemas técnicos.
+
+7. PERGUNTAS QUE A FASE 2 PRECISARÁ RESPONDER
+As questões abertas que o diagnóstico levanta e que a Decifração precisará endereçar.
+
+Escreva em português. Prosa densa, sem bullet points excessivos. Seja preciso e estratégico — cada parágrafo deve avançar o pensamento.`,
+
+        2: `Você é o estrategista sênior da AMUM. Com base em todo o contexto abaixo, produza o Documento Síntese da Fase 2 — Decifração.
+
+Este documento compila o diagnóstico estratégico profundo que orienta todas as decisões da Fase 3.
+
+ESTRUTURA OBRIGATÓRIA:
+
+1. MAPA DE INCOERÊNCIAS
+O que a marca declara ser, o que ela faz e o que ela comunica — e onde esses três planos divergem. Gap central identificado.
+
+2. AUDITORIA DE TOUCHPOINTS
+Inventário dos pontos de contato com scores de peso e coerência. Quick wins identificados. O que precisa mudar primeiro.
+
+3. DIAGNÓSTICO SIMBÓLICO
+Arquétipo dominante identificado, tensão central da marca, gaps principais entre o que é e o que quer ser.
+
+4. TERRITÓRIO DE POSICIONAMENTO
+O território escolhido formalmente. O que justifica esta escolha. O que foi descartado e por quê. Trade-offs explícitos.
+
+5. TESE DE POSICIONAMENTO
+A afirmação central. O que a marca abandona. O que passa a ganhar. Formulado como decisão irreversível, não aspiração.
+
+6. IMPLICAÇÕES PARA A RECONSTRUÇÃO
+O que este diagnóstico exige da Fase 3. Restrições, obrigações e liberdades que o reposicionamento impõe.
+
+7. GATE 1 — VALIDAÇÃO DA LIDERANÇA
+Registro formal: a liderança reconheceu a realidade descrita. Decisão tomada. Fase 3 autorizada.
+
+Escreva em português. Prosa densa e precisa. Este documento é a âncora estratégica de todo o processo.`,
+
+        3: `Você é o estrategista sênior da AMUM. Com base em todo o contexto abaixo, produza o Documento Síntese da Fase 3 — Reconstrução.
+
+Este é o documento-mãe do reposicionamento. Deve ser suficientemente completo para orientar qualquer decisão sobre a marca.
+
+ESTRUTURA OBRIGATÓRIA:
+
+1. ARQUITETURA DE MARCA
+Mapa de portfólio, regras de nomenclatura e brand-to-operating model. Quem é responsável por o quê.
+
+2. PLATAFORMA DE MARCA
+Propósito, essência, posicionamento e promessa. Valores com seus comportamentos operacionais concretos. Aprovada formalmente — Gate 3.
+
+3. CÓDIGO LINGUÍSTICO
+Tom de voz (é / não é). Vocabulário preferencial e proibido. Padrões de construção de frase. QA checklist integrado.
+
+4. NARRATIVA DE MARCA
+O manifesto que ancora toda a comunicação. Versão aprovada.
+
+5. BIBLIOTECA DE MENSAGENS
+Afirmações centrais por público com as provas que as sustentam.
+
+6. DIREÇÃO VISUAL
+Princípios simbólicos, paleta, tipografia, elementos gráficos e diretrizes para o designer.
+
+7. COMPROMISSOS ODS (se aplicável)
+Iniciativas verificáveis, indicadores, owners e cadência.
+
+8. O QUE ESTE REPOSICIONAMENTO EXIGE
+Mudanças operacionais concretas que a plataforma aprovada impõe à organização.
+
+Escreva em português. Este documento é o entregável central do projeto — trate-o com a densidade que merece.`,
+
+        4: `Você é o estrategista sênior da AMUM. Com base em todo o contexto abaixo, produza o Documento Síntese da Fase 4 — Travessia.
+
+Este é o plano de ativação — o documento que transforma posicionamento aprovado em comportamento real.
+
+ESTRUTURA OBRIGATÓRIA:
+
+1. PLANO DE ROLLOUT POR ONDAS
+Onda 1 (Interno), Onda 2 (Parceiros), Onda 3 (Mercado). Para cada onda: touchpoints, responsáveis, timeline e critérios de conclusão verificáveis.
+
+2. KIT DE HABILITAÇÃO
+FAQs respondidos, templates prontos, trilha de adoção por área, checklist de QA de linguagem.
+
+3. PROGRAMA DE TREINAMENTO
+Objetivos por público, formatos, agenda e materiais necessários.
+
+4. INDICADORES DE ADERÊNCIA
+Como medir se a marca está sendo aplicada corretamente. O que conta como sucesso em 30, 90, 180 dias.
+
+5. RISCOS E PLANOS DE CONTINGÊNCIA
+O que pode dar errado na implementação e como responder.
+
+6. GATE 4 — ROLLOUT EM ANDAMENTO
+Registro: cadência de monitoramento definida, owners nomeados, primeiros marcos estabelecidos.
+
+Escreva em português. Foco em operacionalidade — este documento precisa ser executável por quem não estava no processo estratégico.`,
+
+        5: `Você é o estrategista sênior da AMUM. Com base em todo o contexto abaixo, produza o Documento Síntese da Fase 5 — Regeneração.
+
+Este é o sistema de manutenção da marca — o que garante que o reposicionamento persiste e evolui.
+
+ESTRUTURA OBRIGATÓRIA:
+
+1. MONITOR DE COERÊNCIA
+Scorecard trimestral com dimensões, scores atuais, tendências e planos corretivos para cada dimensão abaixo da meta.
+
+2. AUDITORIA DE COMPLIANCE
+Resultados da amostragem de materiais produzidos. Percentual de conformidade por área. Backlog de correções priorizado.
+
+3. REVISÃO ANUAL — BUSINESS CASE DA MARCA
+KPIs conectados a resultados de negócio. Análise de ROI. Recomendações para o conselho ou diretoria.
+
+4. CADÊNCIA DE CUIDADO
+Ritmo definido: o que acontece mensalmente, trimestralmente e anualmente para manter a marca viva.
+
+5. CRITÉRIOS DE REPOSICIONAMENTO
+Em que condições a marca precisará passar por um novo ciclo AMUM. Sinais de que o posicionamento está obsoleto.
+
+6. GATE 5 — SISTEMA ATIVO
+Registro: a marca tem sistema de governança ativo. Fase 5 concluída.
+
+Escreva em português. Este documento marca a conclusão do ciclo e o início da maturidade da marca.`,
+      };
+
+      const phaseNames: Record<number, string> = {
+        1: 'Escuta', 2: 'Decifração', 3: 'Reconstrução', 4: 'Travessia', 5: 'Regeneração',
+      };
+
+      const prompt = phasePrompts[phase];
+      if (!prompt) return NextResponse.json({ error: 'Fase inválida' }, { status: 400 });
+
+      const r = await client.messages.create({
+        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: `${ctx}\n\n${prompt}` }],
+      });
+      const synthesis = extractText(r.content);
+      if (!synthesis) return NextResponse.json({ error: 'Resposta vazia' }, { status: 500 });
+      return NextResponse.json({
+        synthesis,
+        phase,
+        phaseName: phaseNames[phase],
+        createdAt: new Date().toISOString(),
+      });
+    }
+
     return NextResponse.json({ error: 'Acao invalida' }, { status: 400 });
 
   } catch (err) {

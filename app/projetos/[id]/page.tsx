@@ -7201,6 +7201,146 @@ function RefinementChat({
   );
 }
 
+// ─── PHASE SYNTHESIS BLOCK ───────────────────────────────────────────────────
+
+function PhaseSynthesisBlock({
+  fase,
+  project,
+  onUpdate,
+}: {
+  fase: number;
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const [open, setOpen] = React.useState(false);
+  const [generating, setGenerating] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  const PHASE_NAMES_LOCAL: Record<number, string> = {
+    1: 'Escuta', 2: 'Decifração', 3: 'Reconstrução', 4: 'Travessia', 5: 'Regeneração',
+  };
+
+  const saved = project.phaseSyntheses?.[fase] || '';
+  const phaseName = PHASE_NAMES_LOCAL[fase] || `Fase ${fase}`;
+
+  async function generate() {
+    setGenerating(true);
+    setError('');
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'phase_synthesis',
+          phase: fase,
+          projectContext: getProjectContext(project),
+        }),
+      });
+      const data = await res.json() as { synthesis?: string; error?: string };
+      if (data.error) throw new Error(data.error);
+      if (data.synthesis) {
+        const updated = {
+          ...project,
+          phaseSyntheses: { ...(project.phaseSyntheses || {}), [fase]: data.synthesis },
+        };
+        saveProject(updated);
+        onUpdate(updated);
+        setOpen(true);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  return (
+    <div style={{
+      margin: '8px 0 0 0',
+      borderTop: '1px solid var(--border)',
+      padding: '16px',
+      background: 'rgba(201,169,110,0.03)',
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+            Documento Síntese — {phaseName}
+          </span>
+          {saved && (
+            <span style={{ fontSize: '11px', color: '#6ab56a' }}>✓ Gerado</span>
+          )}
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+          {saved && (
+            <>
+              <DownloadButton
+                title={`Síntese Fase ${fase} — ${phaseName} — ${project.nome}`}
+                content={saved}
+              />
+              <button
+                className="btn-small"
+                style={{ opacity: 0.6 }}
+                onClick={() => setOpen(o => !o)}
+              >
+                {open ? '▲ Fechar' : '▼ Ver'}
+              </button>
+              <button
+                className="btn-small"
+                style={{ opacity: 0.5 }}
+                onClick={generate}
+                disabled={generating}
+              >
+                {generating ? '…' : '↺'}
+              </button>
+            </>
+          )}
+          {!saved && (
+            <button
+              className="btn-primary"
+              style={{ fontSize: '12px', padding: '6px 14px' }}
+              onClick={generate}
+              disabled={generating}
+            >
+              {generating ? 'Gerando síntese…' : `Gerar síntese da ${phaseName}`}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {error && (
+        <p style={{ fontSize: '12px', color: '#b56a6a', marginTop: '8px' }}>{error}</p>
+      )}
+
+      {generating && (
+        <div style={{ marginTop: '10px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '13px', animation: 'spin 2s linear infinite', display: 'inline-block' }}>◌</span>
+          <p style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+            Compilando dados da {phaseName} e gerando documento…
+          </p>
+        </div>
+      )}
+
+      {open && saved && (
+        <div style={{
+          marginTop: '14px',
+          padding: '16px 18px',
+          background: 'var(--surface)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          fontSize: '13px',
+          color: 'var(--text-secondary)',
+          lineHeight: 1.8,
+          whiteSpace: 'pre-wrap',
+          maxHeight: '500px',
+          overflowY: 'auto',
+        }}>
+          {saved}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function ProjetoPage() {
@@ -7437,6 +7577,7 @@ export default function ProjetoPage() {
                     </div>
                   );
                 })}
+                <PhaseSynthesisBlock fase={fase} project={project} onUpdate={handleUpdate} />
               </div>
             );
           })}

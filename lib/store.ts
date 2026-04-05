@@ -856,6 +856,7 @@ export interface Project {
   touchpointAudit?: TouchpointAudit;
   incoherenceMap?: IncoherenceMap;
   // Fase 4 — Novos
+  phaseSyntheses?: Record<number, string>;
   rolloutPlan?: RolloutPlan;
   enablementKit?: EnablementKit;
   trainingDesign?: TrainingDesign;
