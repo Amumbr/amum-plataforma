@@ -7432,17 +7432,7 @@ export default function ProjetoPage() {
                           {step.type === 'annual_review' && (
                             <StepAnnualReview project={project} step={step} onUpdate={handleUpdate} />
                           )}
-                          {step.type === 'chat' && (
-                            <StepChat project={project} step={step} onUpdate={handleUpdate} />
-                          )}
                         </>
-                      )}
-
-                      {/* Steps done/skipped: mostrar resumo */}
-                      {(step.status === 'done' || step.status === 'skipped') && step.type === 'chat' && !isExpanded && (
-                        <div style={{ padding: '0 16px 16px', color: 'var(--text-dim)', fontSize: '13px' }}>
-                          Chat disponível — clique no cabeçalho para expandir.
-                        </div>
                       )}
                     </div>
                   );
