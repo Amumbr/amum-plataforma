@@ -105,11 +105,15 @@ function StaleInputBadge({
   project,
   onReopen,
   onConfirm,
+  onReanalisar,
+  reanalisarLoading,
 }: {
   step: WorkflowStep;
   project: Project;
   onReopen: () => void;
   onConfirm: () => void;
+  onReanalisar?: () => void;
+  reanalisarLoading?: boolean;
 }) {
   // Só aplica em steps aprovados com hash salvo
   if (step.status !== 'done' || !step.inputHash) return null;
@@ -136,9 +140,26 @@ function StaleInputBadge({
     >
       <span style={{ fontSize: '13px' }}>⚠</span>
       <span style={{ fontWeight: 600 }}>Input alterado</span>
+      {onReanalisar && (
+        <>
+          <span style={{ opacity: 0.4 }}>·</span>
+          <span
+            style={{
+              cursor: reanalisarLoading ? 'not-allowed' : 'pointer',
+              textDecoration: 'underline',
+              color: reanalisarLoading ? '#c0a060' : '#7a5a10',
+              fontWeight: 700,
+              opacity: reanalisarLoading ? 0.6 : 1,
+            }}
+            onClick={(e) => { if (!reanalisarLoading) { e.stopPropagation(); onReanalisar(); } }}
+          >
+            {reanalisarLoading ? '✦ Reanalisando…' : '✦ Reanalisar com IA'}
+          </span>
+        </>
+      )}
+      <span style={{ opacity: 0.4 }}>·</span>
       <span
         style={{
-          marginLeft: '4px',
           cursor: 'pointer',
           textDecoration: 'underline',
           color: '#7a5a10',
@@ -163,6 +184,46 @@ function StaleInputBadge({
 }
 
 
+
+// ─── REANALISAR CONFIG ────────────────────────────────────────────────────────
+// Mapa de regeneração automática por step type.
+// Cada entrada define: qual action chamar, como verificar sucesso, e como aplicar o resultado.
+const REANALISAR_CONFIG: Partial<Record<string, {
+  action: string;
+  check: (d: Record<string, unknown>) => boolean;
+  apply: (p: Project, d: Record<string, unknown>) => Project;
+}>> = {
+  brand_architecture: {
+    action: 'brand_architecture',
+    check: (d) => !!(d.portfolioMap || d.brandToOperating),
+    apply: (p, d) => ({ ...p, brandArchitecture: { ...d, createdAt: new Date().toISOString() } as typeof p.brandArchitecture }),
+  },
+  brand_platform: {
+    action: 'brand_platform',
+    check: (d) => !!d.proposito,
+    apply: (p, d) => ({ ...p, brandPlatform: { ...d, createdAt: new Date().toISOString() } as typeof p.brandPlatform }),
+  },
+  linguistic_code: {
+    action: 'linguistic_code',
+    check: (d) => !!d.tomDeVoz,
+    apply: (p, d) => ({ ...p, linguisticCode: { ...d, createdAt: new Date().toISOString() } as typeof p.linguisticCode }),
+  },
+  brand_narrative: {
+    action: 'brand_narrative',
+    check: (d) => !!(d.versaoPrincipal || d.versaoAprovada || d.versoes),
+    apply: (p, d) => ({ ...p, brandNarrative: { ...d, createdAt: new Date().toISOString() } as typeof p.brandNarrative }),
+  },
+  rollout_plan: {
+    action: 'rollout_plan',
+    check: (d) => !!d.ondas,
+    apply: (p, d) => ({ ...p, rolloutPlan: { ...d, createdAt: new Date().toISOString() } as typeof p.rolloutPlan }),
+  },
+  ods_matrix: {
+    action: 'ods_matrix',
+    check: (d) => !!(d.items || d.resumo),
+    apply: (p, d) => ({ ...p, odsMatrix: { ...d, createdAt: new Date().toISOString() } as typeof p.odsMatrix }),
+  },
+};
 
 function getStepNotes(step: WorkflowStep): string {
   return (step.data?.userNotes as string) || '';
@@ -7891,6 +7952,7 @@ export default function ProjetoPage() {
   const router = useRouter();
   const [project, setProject] = useState<Project | null>(null);
   const [expandedSteps, setExpandedSteps] = useState<Set<string>>(new Set());
+  const [reanalisandoStepId, setReanalisandoStepId] = useState<string | null>(null);
 
   useEffect(() => {
     // Load from localStorage immediately
@@ -7925,6 +7987,33 @@ export default function ProjetoPage() {
     const updated = reopenStep(project, stepId);
     setProject({ ...updated });
     setExpandedSteps(prev => new Set(prev).add(stepId));
+  }
+
+  async function handleReanalisar(step: WorkflowStep) {
+    if (!project || reanalisandoStepId) return;
+    const config = REANALISAR_CONFIG[step.type];
+    if (!config) return;
+
+    setReanalisandoStepId(step.id);
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: config.action, projectContext: getProjectContext(project) }),
+      });
+      const data = await res.json() as Record<string, unknown>;
+      if (config.check(data)) {
+        // Aplica o resultado e recalcula o hash (confirmStepHash)
+        const withResult = config.apply(project, data);
+        const withHash = confirmStepHash(withResult, step.id);
+        saveProject(withHash);
+        setProject({ ...withHash });
+      }
+    } catch (e) {
+      console.error('Reanalisar error:', e);
+    } finally {
+      setReanalisandoStepId(null);
+    }
   }
 
   if (!project) {
@@ -8025,6 +8114,8 @@ export default function ProjetoPage() {
                               const updated = confirmStepHash(project, step.id);
                               handleUpdate(updated);
                             }}
+                            onReanalisar={REANALISAR_CONFIG[step.type] ? () => handleReanalisar(step) : undefined}
+                            reanalisarLoading={reanalisandoStepId === step.id}
                           />
                           <StepBadge status={step.status} />
                           {(step.status === 'done' || step.status === 'skipped') && (

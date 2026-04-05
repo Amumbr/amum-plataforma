@@ -923,10 +923,12 @@ const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> 
   brand_architecture: (p) => ({
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
     tradeoffs: p.positioningThesis?.tradeoffs?.map(t => t.abandona + t.ganha).join('|'),
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   ods_matrix: (p) => ({
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
     arquetipo: p.deepAnalysis.arquetipo,
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   brand_platform: (p) => ({
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
@@ -934,6 +936,7 @@ const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> 
     justificativa: p.positioningThesis?.justificativa?.slice(0, 100),
     narrativaNucleo: p.deepAnalysis.narrativaNucleo?.slice(0, 100),
     incoherenceCount: p.incoherenceMap?.items?.length,
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   linguistic_code: (p) => ({
     essencia: p.brandPlatform?.essencia,
@@ -957,12 +960,14 @@ const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> 
     posicionamento: p.brandPlatform?.posicionamento,
     arquetipo: p.deepAnalysis.arquetipo,
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   rollout_plan: (p) => ({
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
     essencia: p.brandPlatform?.essencia,
     posicionamento: p.brandPlatform?.posicionamento,
     principiosVisuais: p.visualDirection?.principiosSimbolicos?.join('|'),
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   enablement_kit: (p) => ({
     essencia: p.brandPlatform?.essencia,
@@ -977,6 +982,7 @@ const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> 
     essencia: p.brandPlatform?.essencia,
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
     valores: p.brandPlatform?.valores?.map(v => v.valor).join('|'),
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   compliance_audit: (p) => ({
     essencia: p.brandPlatform?.essencia,
@@ -985,6 +991,7 @@ const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> 
   annual_review: (p) => ({
     essencia: p.brandPlatform?.essencia,
     afirmacaoCentral: p.positioningThesis?.afirmacaoCentral,
+    novoPositionamento: p.positioningThesis?.novoPositionamento,
   }),
   incoherence_map: (p) => ({
     brandAuditDiagnostico: p.brandAuditSynthesis?.diagnostico?.slice(0, 100),
