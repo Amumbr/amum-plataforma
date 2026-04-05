@@ -5990,30 +5990,12 @@ function StepChat({
             </button>
           </div>
 
-          {messages.length > 0 && step.status !== 'done' && (
-            <ConceptValidation
+          {messages.length > 0 && (
+            <PhaseDocumentFlow
               step={step}
               project={project}
-              label={label}
               onUpdate={onUpdate}
             />
-          )}
-
-          {step.status === 'done' && step.data?.conceitoAprovado && (
-            <div style={{
-              marginTop: '20px',
-              padding: '16px',
-              background: 'var(--bg-secondary)',
-              border: '1px solid var(--border)',
-              borderRadius: '8px',
-            }}>
-              <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Conceito aprovado
-              </p>
-              <p style={{ fontSize: '13px', color: 'var(--text)', whiteSpace: 'pre-wrap', margin: 0, lineHeight: 1.7 }}>
-                {step.data.conceitoAprovado as string}
-              </p>
-            </div>
           )}
         </>
       )}
@@ -6021,55 +6003,214 @@ function StepChat({
   );
 }
 
-function ConceptValidation({
+function PhaseDocumentFlow({
   step,
   project,
-  label,
   onUpdate,
 }: {
   step: WorkflowStep;
   project: Project;
-  label: string;
   onUpdate: (p: Project) => void;
 }) {
-  const [conceito, setConceito] = useState<string>((step.data?.conceitoAprovado as string) || '');
+  const isDone = step.status === 'done';
+  const savedConceito = (step.data?.conceitoAprovado as string) || '';
+  const savedDoc = (step.data?.documentoEstrategico as string) || '';
+
+  const [conceito, setConceito] = useState(savedConceito);
+  const [documento, setDocumento] = useState(savedDoc);
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState('');
+
+  const label = step.id === 'chat_decifração'
+    ? 'Decifração → Reconstrução'
+    : step.id === 'chat_reconstrucao'
+    ? 'Reconstrução → Travessia'
+    : 'Conclusão do Projeto';
+
+  async function handleGenerate() {
+    if (!conceito.trim() || generating) return;
+    setGenerating(true);
+    setError('');
+    setDocumento('');
+
+    try {
+      const res = await fetch('/api/scripts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'generate_phase_document',
+          projectContext: getProjectContext(project),
+          conceito: conceito.trim(),
+          phase: step.id,
+        }),
+      });
+      const data = await res.json();
+      if (data.text) {
+        setDocumento(data.text);
+        const updated = updateStepData(project, step.id, {
+          conceitoAprovado: conceito.trim(),
+          documentoEstrategico: data.text,
+        });
+        onUpdate(updated);
+      } else {
+        setError('Erro ao gerar documento. Tente novamente.');
+      }
+    } catch {
+      setError('Falha na conexão. Tente novamente.');
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  function handleDocumentoChange(val: string) {
+    setDocumento(val);
+    const updated = updateStepData(project, step.id, {
+      conceitoAprovado: conceito.trim(),
+      documentoEstrategico: val,
+    });
+    onUpdate(updated);
+  }
 
   function handleApprove() {
-    if (!conceito.trim()) return;
-    const withConceito = updateStepData(project, step.id, { conceitoAprovado: conceito.trim() });
-    onUpdate(approveStep(withConceito, step.id));
+    if (!documento.trim()) return;
+    const withData = updateStepData(project, step.id, {
+      conceitoAprovado: conceito.trim(),
+      documentoEstrategico: documento.trim(),
+    });
+    onUpdate(approveStep(withData, step.id));
   }
 
   return (
     <div style={{
-      marginTop: '20px',
-      padding: '16px',
-      background: 'var(--bg-secondary)',
-      border: '1px solid var(--border)',
-      borderRadius: '8px',
+      marginTop: '28px',
+      borderTop: '1px solid var(--border)',
+      paddingTop: '24px',
     }}>
-      <p style={{ fontSize: '12px', color: 'var(--text-dim)', marginBottom: '10px', lineHeight: 1.6 }}>
-        Para avançar, registre o conceito central que emergiu desta co-criação. Pode ser uma formulação, uma tese, uma direção validada — o que sintetiza o que foi construído aqui.
+      <p style={{
+        fontSize: '11px',
+        color: 'var(--text-muted)',
+        textTransform: 'uppercase',
+        letterSpacing: '0.08em',
+        marginBottom: '16px',
+      }}>
+        Passagem de Fase — {label}
       </p>
-      <label style={{ fontSize: '11px', color: 'var(--text-muted)', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-        Conceito aprovado — {label}
-      </label>
-      <textarea
-        className="textarea"
-        value={conceito}
-        onChange={e => setConceito(e.target.value)}
-        placeholder={`Qual é o conceito central que emerge desta fase de ${label}? Registre a formulação que orienta os próximos passos.`}
-        rows={4}
-        style={{ width: '100%', marginBottom: '12px' }}
-      />
-      <button
-        className="btn-approve"
-        onClick={handleApprove}
-        disabled={!conceito.trim()}
-        style={{ opacity: conceito.trim() ? 1 : 0.4, cursor: conceito.trim() ? 'pointer' : 'not-allowed' }}
-      >
-        Validar conceito e avançar →
-      </button>
+
+      {/* Conceito */}
+      <div style={{ marginBottom: '20px' }}>
+        <label style={{ fontSize: '12px', color: 'var(--text-dim)', display: 'block', marginBottom: '8px' }}>
+          Conceito central emergente
+        </label>
+        {isDone ? (
+          <div style={{
+            padding: '12px 16px',
+            background: 'var(--bg-secondary)',
+            border: '1px solid var(--border)',
+            borderRadius: '6px',
+            fontSize: '13px',
+            color: 'var(--text)',
+            lineHeight: 1.7,
+            whiteSpace: 'pre-wrap',
+          }}>
+            {conceito}
+          </div>
+        ) : (
+          <textarea
+            className="textarea"
+            value={conceito}
+            onChange={e => setConceito(e.target.value)}
+            placeholder="Formule o conceito central que emergiu desta co-criação — a nomeação que orienta tudo que vem a seguir."
+            rows={3}
+            style={{ width: '100%' }}
+            disabled={generating}
+          />
+        )}
+      </div>
+
+      {/* Gerar documento */}
+      {!isDone && (
+        <button
+          className="btn-primary"
+          onClick={handleGenerate}
+          disabled={!conceito.trim() || generating}
+          style={{
+            marginBottom: '20px',
+            opacity: conceito.trim() && !generating ? 1 : 0.5,
+            cursor: conceito.trim() && !generating ? 'pointer' : 'not-allowed',
+          }}
+        >
+          {generating ? 'Gerando documento estratégico...' : 'Gerar documento estratégico →'}
+        </button>
+      )}
+
+      {error && (
+        <p style={{ color: '#e05050', fontSize: '12px', marginBottom: '12px' }}>{error}</p>
+      )}
+
+      {generating && (
+        <div style={{
+          padding: '24px',
+          background: 'var(--bg-secondary)',
+          border: '1px solid var(--border)',
+          borderRadius: '8px',
+          textAlign: 'center',
+          color: 'var(--text-muted)',
+          fontSize: '13px',
+          marginBottom: '20px',
+        }}>
+          Analisando todo o contexto do projeto e gerando o documento estratégico...<br />
+          <span style={{ fontSize: '11px', marginTop: '8px', display: 'block' }}>Este processo pode levar até 1 minuto.</span>
+        </div>
+      )}
+
+      {/* Documento gerado */}
+      {documento && (
+        <div style={{ marginBottom: '20px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <label style={{ fontSize: '12px', color: 'var(--text-dim)' }}>
+              Documento estratégico {isDone ? '(aprovado)' : '— revise e edite antes de aprovar'}
+            </label>
+            <DownloadButton
+              title={`Documento de Passagem — ${label}`}
+              content={documento}
+            />
+          </div>
+          {isDone ? (
+            <div style={{
+              padding: '20px',
+              background: 'var(--bg-secondary)',
+              border: '1px solid var(--border)',
+              borderRadius: '8px',
+              fontSize: '13px',
+              color: 'var(--text)',
+              lineHeight: 1.8,
+              whiteSpace: 'pre-wrap',
+              maxHeight: '500px',
+              overflowY: 'auto',
+            }}>
+              {documento}
+            </div>
+          ) : (
+            <textarea
+              className="textarea"
+              value={documento}
+              onChange={e => handleDocumentoChange(e.target.value)}
+              rows={28}
+              style={{ width: '100%', fontFamily: 'inherit', fontSize: '13px', lineHeight: 1.8 }}
+            />
+          )}
+        </div>
+      )}
+
+      {/* Aprovação */}
+      {documento && !isDone && (
+        <button
+          className="btn-approve"
+          onClick={handleApprove}
+        >
+          Aprovar documento e avançar para próxima fase →
+        </button>
+      )}
     </div>
   );
 }
