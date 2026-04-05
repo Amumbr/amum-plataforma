@@ -977,9 +977,11 @@ Retorne APENAS JSON válido, sem markdown, sem explicações:
     "achados": ["achado crítico em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
   },
   "retratoDaMarca": {
-    "comoSeApresenta": "2-3 frases sobre como a marca se apresenta nos documentos",
-    "oQueDadosMostram": "2-3 frases sobre o que os dados externos revelam",
-    "tensaoCentral": "1 frase precisa — a tensão estrutural central"
+    "comoSeApresenta": "Parágrafo denso de 120-180 palavras. Como a marca se apresenta nos documentos institucionais, o que esse autorretrato sinaliza sobre autopercepção, e o que ele omite ou suprime. Não liste — construa um argumento.",
+    "oQueDadosMostram": "2-3 frases sintéticas sobre o que os dados externos confirmam ou contradizem",
+    "tensaoCentral": "1 frase precisa — a contradição estrutural central identificada",
+    "oQueOsDadosRevelaram": "2 parágrafos separados por \\n\\n. Parágrafo 1: o que os dados externos (auditorias, pesquisa, netnografia) contradizem em relação ao autorretrato da marca — específico, não genérico. Parágrafo 2: o que essa divergência implica estruturalmente para o projeto — por que não é contornável sem intervenção.",
+    "logicaDiagnostica": "1 parágrafo de 80-120 palavras. Como os instrumentos desta fase foram combinados (transcrições de entrevistas + auditorias de canais + pesquisa de mercado + netnografia) e por que essa combinação é metodologicamente necessária — o que cada camada revela que a anterior não alcança."
   },
   "canais": [
     {"nome": "Nome do canal", "scoreCoerencia": 7, "scorePresenca": 8, "ponto": "achado em até 8 palavras"}
@@ -988,7 +990,7 @@ Retorne APENAS JSON válido, sem markdown, sem explicações:
     {"nome": "Nome", "territorio": "território que ocupa em até 6 palavras", "ameaca": "alta"}
   ],
   "tensoes": [
-    {"titulo": "Título da tensão em até 5 palavras", "descricao": "Descrição em 2 frases"}
+    {"titulo": "Título da tensão em até 5 palavras", "descricao": "3-4 frases: nomeie a tensão com precisão, identifique suas causas rastreáveis nos dados, explique o que ela bloqueia operacionalmente e por que precisa ser resolvida antes da Fase 2."}
   ],
   "perguntasParaFase2": ["Pergunta 1 que a Fase 2 precisa responder?", "Pergunta 2?", "Pergunta 3?"]
 }
@@ -1005,7 +1007,10 @@ Retorne APENAS JSON válido, sem markdown:
   "diagnostico": {
     "arquetipo": "Nome do arquétipo dominante",
     "tensaoCentral": "A tensão em 1 frase precisa",
-    "territorioEscolhido": "O território em 1 frase"
+    "territorioEscolhido": "O território em 1 frase",
+    "tensaoCentralExpandida": "2 parágrafos separados por \\n\\n. Parágrafo 1: a tensão como contradição estrutural — suas causas rastreáveis nos dados coletados, não uma abstração. Parágrafo 2: o que ela bloqueia operacionalmente e por que não é contornável sem mudança de posicionamento.",
+    "comoOArquetipoEmergiu": "1 parágrafo de 80-120 palavras. Quais sinais concretos nos dados (documentos, canais, entrevistas, comportamento de mercado) confirmaram este arquétipo. Não declare o arquétipo — demonstre como ele emergiu da análise.",
+    "logicaDaEscolha": "1-2 parágrafos separados por \\n\\n. Por que este território foi escolhido em detrimento dos outros avaliados: o raciocínio de eliminação, os critérios aplicados (diferenciação, viabilidade interna, espaço no mercado), e o que tornaria outro território estrategicamente inviável para este projeto."
   },
   "radarCoerencia": [
     {"dimensao": "Comunicação Digital", "scoreAtual": 5, "scorePotencial": 9},
@@ -1038,14 +1043,15 @@ Retorne APENAS JSON válido, sem markdown:
     "proposito": "O propósito aprovado",
     "essencia": "A essência aprovada (até 5 palavras)",
     "posicionamento": "O posicionamento em 1-2 frases",
-    "promessa": "A promessa em 1 frase"
+    "promessa": "A promessa em 1 frase",
+    "logicaDaDerivacao": "1-2 parágrafos separados por \\n\\n. Como propósito → essência → posicionamento → promessa → valores se constroem em cadeia verificável NESTE projeto específico. Não declare a cadeia — demonstre que ela é coerente: mostre como cada elemento ancora no anterior e como contradizer um comprometeria os subsequentes. Ancore nos dados da Fase 1 e na tese aprovada na Fase 2."
   },
   "tomDeVoz": {
     "e": ["adjetivo1", "adjetivo2", "adjetivo3", "adjetivo4", "adjetivo5"],
     "naoE": ["anti1", "anti2", "anti3", "anti4", "anti5"]
   },
   "valores": [
-    {"valor": "Nome do valor", "comportamento": "Comportamento operacional concreto em 1 frase"}
+    {"valor": "Nome do valor", "comportamento": "2-3 frases: como este valor se manifesta concretamente na operação da marca (com exemplo real ou próximo ao projeto), e como sua ausência se manifesta — o contrateste que confirma se o valor é real ou aspiracional."}
   ],
   "mensagens": [
     {"publico": "Público-alvo", "afirmacao": "Afirmação central para este público em 1 frase"}
@@ -1063,6 +1069,7 @@ Retorne APENAS JSON válido, sem markdown:
   "resumo": {
     "achados": ["ação prioritária em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
   },
+  "logicaDasOndas": "1-2 parágrafos separados por \\n\\n. Por que a sequência específica (Interno → Parceiros → Mercado) é necessária para este projeto — ancorada nos dados de capacidade interna revelados na Fase 1 e nos gaps do Mapa de Incoerências da Fase 2. Inclua: o que acontece operacionalmente se a sequência for invertida (e por que isso é um risco real neste caso específico).",
   "ondas": [
     {
       "nome": "Onda 1 — Interno",
@@ -1093,7 +1100,8 @@ Retorne APENAS JSON válido, sem markdown:
   ],
   "riscos": [
     {"risco": "Risco identificado em até 8 palavras", "nivel": "alto", "contingencia": "Como responder em 1 frase"}
-  ]
+  ],
+  "enablementRacional": "1-2 parágrafos separados por \\n\\n. O que o kit de ativação entregue nesta fase garante operacionalmente: quais decisões de branding a equipe da marca poderá tomar de forma autônoma, sem depender de consultores externos. Especifique o que justifica essa autonomia ser viável — quais ferramentas, critérios ou documentos foram criados para isso."
 }
 
 Nivel de risco: "alto", "medio" ou "baixo". Gere dados reais do projeto.`,
@@ -1105,6 +1113,7 @@ Retorne APENAS JSON válido, sem markdown:
   "resumo": {
     "achados": ["status do sistema em até 12 palavras", "achado 2 em até 12 palavras", "achado 3 em até 12 palavras"]
   },
+  "logicaDoScorecard": "1-2 parágrafos separados por \\n\\n. O que o conjunto de dimensões monitora como sistema — não cada uma isolada, mas o que o sistema completo detecta: desvio de identidade, erosão de coerência, acumulação de incoerências. Por que essas métricas são suficientes para detectar desvio antes que se torne crise. O que deliberadamente fica fora deste scorecard e por quê.",
   "scorecard": [
     {"dimensao": "Comunicação Digital", "score": 7, "meta": 9, "tendencia": "subindo", "acao": "Ação prioritária em 1 frase"},
     {"dimensao": "Identidade Visual", "score": 6, "meta": 9, "tendencia": "estavel", "acao": "Ação em 1 frase"},
@@ -1117,6 +1126,7 @@ Retorne APENAS JSON válido, sem markdown:
     {"frequencia": "Trimestral", "atividade": "O que acontece trimestralmente", "responsavel": "Responsável"},
     {"frequencia": "Anual", "atividade": "O que acontece anualmente", "responsavel": "Responsável"}
   ],
+  "gatilhosDeRevisao": "2-3 parágrafos separados por \\n\\n. Critérios concretos para distinguir quando AJUSTAR (calibração pontual — o território está correto mas a execução derivou) vs quando REPOSICIONAR (mudança de tese — o território em si perdeu validade). Inclua exemplos de sinais que pertencem claramente a cada categoria, e explique como identificar casos ambíguos. Esta seção é fundamentalmente diferente dos Critérios de Alerta — não são sinais de intervenção imediata, mas critérios de decisão estratégica sobre profundidade da intervenção.",
   "criteriosAlerta": [
     "Sinal de alerta que indica necessidade de intervenção",
     "Sinal 2",
@@ -1131,7 +1141,7 @@ Tendência: "subindo", "estavel" ou "caindo". Scores de 1-10. Gere dados reais d
       if (!prompt) return NextResponse.json({ error: 'Fase inválida' }, { status: 400 });
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: 'claude-sonnet-4-20250514', max_tokens: 5000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: `${ctx}\n\n${prompt}` }],
       });
 

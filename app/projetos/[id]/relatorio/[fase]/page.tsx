@@ -8,7 +8,13 @@ import { getProject, Project } from '@/lib/store';
 
 interface Fase1Data {
   resumo: { achados: string[] };
-  retratoDaMarca: { comoSeApresenta: string; oQueDadosMostram: string; tensaoCentral: string };
+  retratoDaMarca: {
+    comoSeApresenta: string;
+    oQueDadosMostram: string;
+    tensaoCentral: string;
+    oQueOsDadosRevelaram?: string;
+    logicaDiagnostica?: string;
+  };
   canais: { nome: string; scoreCoerencia: number; scorePresenca: number; ponto: string }[];
   competidores: { nome: string; territorio: string; ameaca: string }[];
   tensoes: { titulo: string; descricao: string }[];
@@ -17,7 +23,14 @@ interface Fase1Data {
 
 interface Fase2Data {
   resumo: { achados: string[] };
-  diagnostico: { arquetipo: string; tensaoCentral: string; territorioEscolhido: string };
+  diagnostico: {
+    arquetipo: string;
+    tensaoCentral: string;
+    territorioEscolhido: string;
+    tensaoCentralExpandida?: string;
+    comoOArquetipoEmergiu?: string;
+    logicaDaEscolha?: string;
+  };
   radarCoerencia: { dimensao: string; scoreAtual: number; scorePotencial: number }[];
   mapaIncoerencias: { dimensao: string; gap: string; nivel: string }[];
   tradeoffs: { abandona: string; ganha: string }[];
@@ -26,7 +39,7 @@ interface Fase2Data {
 
 interface Fase3Data {
   resumo: { achados: string[] };
-  plataforma: { proposito: string; essencia: string; posicionamento: string; promessa: string };
+  plataforma: { proposito: string; essencia: string; posicionamento: string; promessa: string; logicaDaDerivacao?: string };
   tomDeVoz: { e: string[]; naoE: string[] };
   valores: { valor: string; comportamento: string }[];
   mensagens: { publico: string; afirmacao: string }[];
@@ -38,6 +51,8 @@ interface Fase4Data {
   ondas: { nome: string; timeline: string; cor: string; touchpoints: string[]; criterio: string }[];
   kpis: { periodo: string; indicador: string; meta: string }[];
   riscos: { risco: string; nivel: string; contingencia: string }[];
+  logicaDasOndas?: string;
+  enablementRacional?: string;
 }
 
 interface Fase5Data {
@@ -45,6 +60,8 @@ interface Fase5Data {
   scorecard: { dimensao: string; score: number; meta: number; tendencia: string; acao: string }[];
   cadencia: { frequencia: string; atividade: string; responsavel: string }[];
   criteriosAlerta: string[];
+  logicaDoScorecard?: string;
+  gatilhosDeRevisao?: string;
 }
 
 // ─── SHARED CSS ───────────────────────────────────────────────────────────────
@@ -739,6 +756,12 @@ function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
             </div>
           </div>
         </div>
+        {data.retratoDaMarca?.oQueOsDadosRevelaram && (
+          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(201,169,110,0.15)' }}>
+            <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>O que os dados realmente revelaram</div>
+            <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.retratoDaMarca.oQueOsDadosRevelaram}</div>
+          </div>
+        )}
       </div>
 
       {/* Diagnóstico de Canais */}
@@ -793,6 +816,14 @@ function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
         ))}
       </div>
 
+      {data.retratoDaMarca?.logicaDiagnostica && (
+        <div className="report-section">
+          <div className="section-label">Seção 05</div>
+          <div className="section-title">Lógica do Diagnóstico</div>
+          <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.retratoDaMarca.logicaDiagnostica}</div>
+        </div>
+      )}
+
       <ReportFooter gateLabel="Gate 0 → Fase 1 concluída" />
       <MetodologiaSection project={project} fase={1} />
     </div>
@@ -825,6 +856,9 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
               <div className="data-card">
                 <div className="data-card-label">Arquétipo Dominante</div>
                 <div className="data-card-value" style={{ fontSize: '18px', fontWeight: 700, color: '#C9A96E' }}>{data.diagnostico?.arquetipo}</div>
+                {data.diagnostico?.comoOArquetipoEmergiu && (
+                  <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.65)', lineHeight: 1.7, marginTop: '10px', borderTop: '1px solid rgba(201,169,110,0.2)', paddingTop: '10px' }}>{data.diagnostico.comoOArquetipoEmergiu}</div>
+                )}
               </div>
               <div className="data-card">
                 <div className="data-card-label">Tensão Central</div>
@@ -853,6 +887,12 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
             </div>
           </div>
         </div>
+        {data.diagnostico?.tensaoCentralExpandida && (
+          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(201,169,110,0.15)' }}>
+            <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Leitura aprofundada da tensão</div>
+            <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.diagnostico.tensaoCentralExpandida}</div>
+          </div>
+        )}
       </div>
 
       {/* Mapa de Incoerências */}
@@ -877,6 +917,12 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
             ))}
           </tbody>
         </table>
+        {data.diagnostico?.logicaDaEscolha && (
+          <div style={{ marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(201,169,110,0.12)' }}>
+            <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Lógica da escolha territorial</div>
+            <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.diagnostico.logicaDaEscolha}</div>
+          </div>
+        )}
       </div>
 
       {/* Tese de Posicionamento */}
@@ -943,6 +989,15 @@ function ReportFase3({ project, data }: { project: Project; data: Fase3Data }) {
           </div>
         </div>
       </div>
+
+      {/* Tom de Voz + Valores */}
+      {data.plataforma?.logicaDaDerivacao && (
+        <div className="report-section">
+          <div className="section-label">Seção 01a</div>
+          <div className="section-title">Lógica de Derivação</div>
+          <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.plataforma.logicaDaDerivacao}</div>
+        </div>
+      )}
 
       {/* Tom de Voz + Valores */}
       <div className="report-section-alt">
@@ -1023,6 +1078,12 @@ function ReportFase4({ project, data }: { project: Project; data: Fase4Data }) {
         <div style={{ marginBottom: '24px' }}>
           <RolloutTimeline ondas={data.ondas || []} />
         </div>
+        {data.logicaDasOndas && (
+          <div style={{ marginBottom: '24px', padding: '20px 24px', background: 'rgba(201,169,110,0.06)', borderRadius: '8px', borderLeft: '3px solid rgba(201,169,110,0.4)' }}>
+            <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Por que esta sequência</div>
+            <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.logicaDasOndas}</div>
+          </div>
+        )}
         <div className="wave-cards">
           {(data.ondas || []).slice(0, 3).map((onda, i) => {
             const color = waveColors[i] || '#C9A96E';
@@ -1088,6 +1149,13 @@ function ReportFase4({ project, data }: { project: Project; data: Fase4Data }) {
       </div>
 
       <ReportFooter gateLabel="Gate 4 → Rollout em andamento, cadência definida" />
+      {data.enablementRacional && (
+        <div className="report-section">
+          <div className="section-label">Seção 03</div>
+          <div className="section-title">Enablement — Autonomia da Marca</div>
+          <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.enablementRacional}</div>
+        </div>
+      )}
       <MetodologiaSection project={project} fase={4} />
     </div>
   );
@@ -1116,6 +1184,12 @@ function ReportFase5({ project, data }: { project: Project; data: Fase5Data }) {
       <div className="report-section">
         <div className="section-label">Seção 01</div>
         <div className="section-title">Monitor de Coerência</div>
+        {data.logicaDoScorecard && (
+          <div style={{ marginBottom: '20px', padding: '18px 22px', background: 'rgba(201,169,110,0.06)', borderRadius: '8px', borderLeft: '3px solid rgba(201,169,110,0.35)' }}>
+            <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>O que este sistema monitora</div>
+            <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.logicaDoScorecard}</div>
+          </div>
+        )}
         <div style={{ marginBottom: '24px' }}>
           <ScorecardGauges scorecard={data.scorecard || []} />
         </div>
@@ -1165,6 +1239,14 @@ function ReportFase5({ project, data }: { project: Project; data: Fase5Data }) {
           </div>
         </div>
       </div>
+
+      {data.gatilhosDeRevisao && (
+        <div className="report-section">
+          <div className="section-label">Seção 04</div>
+          <div className="section-title">Gatilhos de Revisão — Ajustar vs. Reposicionar</div>
+          <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.gatilhosDeRevisao}</div>
+        </div>
+      )}
 
       <ReportFooter gateLabel="Gate 5 → Sistema de governança ativo" />
       <MoodboardSection project={project} />
