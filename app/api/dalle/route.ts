@@ -22,9 +22,10 @@ export async function POST(req: NextRequest) {
       quality: 'standard',
     });
 
+    const img = response.data?.[0];
     return NextResponse.json({
-      url: response.data[0].url,
-      revised_prompt: response.data[0].revised_prompt,
+      url: img?.url ?? '',
+      revised_prompt: img?.revised_prompt,
     });
   } catch (err) {
     console.error('[dalle]', err);
