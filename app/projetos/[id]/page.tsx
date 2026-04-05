@@ -4983,7 +4983,14 @@ function StepBrandPlatform({
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <RefinementChat
+                step={step}
+                project={project}
+                onUpdate={onUpdate}
+                stepLabel="Plataforma de Marca"
+                stepContent={bp ? `Propósito: ${bp.proposito}\nEssência: ${bp.essencia}\nPosicionamento: ${bp.posicionamento}\nPromessa: ${bp.promessa}\nValores: ${bp.valores?.map(v => v.valor).join(', ')}` : ''}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Plataforma assinada — Aprovar Gate 3</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
                   {loading ? 'Regenerando...' : 'Regenerar'}
@@ -5094,7 +5101,14 @@ function StepLinguisticCode({
                   ))}
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <RefinementChat
+                step={step}
+                project={project}
+                onUpdate={onUpdate}
+                stepLabel="Código Linguístico"
+                stepContent={lc ? `Tom de voz: ${lc.tomDeVoz.adjetivos.join(', ')} | Anti: ${lc.tomDeVoz.antiAdjetivos.join(', ')}\nVocabulário preferencial: ${lc.vocabularioPreferencial?.join(', ')}\nVocabulário proibido: ${lc.vocabularioProibido?.join(', ')}` : ''}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Código Linguístico</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
                   {loading ? 'Regenerando...' : 'Regenerar'}
@@ -5189,7 +5203,14 @@ function StepBrandNarrative({
                   <p key={i} style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.7, marginBottom: '16px' }}>{p}</p>
                 ))}
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <RefinementChat
+                step={step}
+                project={project}
+                onUpdate={onUpdate}
+                stepLabel="Narrativa de Marca"
+                stepContent={narrative ? narrative.manifesto : ''}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar versão final</button>
                 <button className="btn-skip" onClick={() => { setDraft(narrative.manifesto); setEditMode(true); }}>Editar</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -5269,7 +5290,14 @@ function StepMessageLibrary({
                   )}
                 </div>
               ))}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <RefinementChat
+                step={step}
+                project={project}
+                onUpdate={onUpdate}
+                stepLabel="Biblioteca de Mensagens"
+                stepContent={library ? library.items.map(item => `${item.publico}: ${item.afirmacaoCentral}`).join('\n') : ''}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Biblioteca</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
                   {loading ? 'Regenerando...' : 'Regenerar'}
@@ -5371,7 +5399,14 @@ function StepVisualDirection({
                   <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.7, whiteSpace: 'pre-wrap' }}>{vd.diretrizes}</p>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <RefinementChat
+                step={step}
+                project={project}
+                onUpdate={onUpdate}
+                stepLabel="Direção Visual"
+                stepContent={vd ? `Princípios simbólicos: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}` : ''}
+              />
+              <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Direção Visual</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
                   {loading ? 'Regenerando...' : 'Regenerar'}
@@ -6210,6 +6245,160 @@ function PhaseDocumentFlow({
         >
           Aprovar documento e avançar para próxima fase →
         </button>
+      )}
+    </div>
+  );
+}
+
+// ─── REFINEMENT CHAT (reutilizável nos steps de Reconstrução) ─────────────────
+
+function RefinementChat({
+  step,
+  project,
+  onUpdate,
+  stepLabel,
+  stepContent,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onUpdate: (p: Project) => void;
+  stepLabel: string;
+  stepContent: string;
+}) {
+  const savedHistory = (step.data?.refinementChat as { role: 'user' | 'assistant'; content: string }[]) || [];
+  const [messages, setMessages] = useState<{ role: 'user' | 'assistant'; content: string }[]>(savedHistory);
+  const [input, setInput] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(savedHistory.length > 0);
+  const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    endRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
+
+  async function sendMessage() {
+    if (!input.trim() || loading) return;
+    const userMsg = { role: 'user' as const, content: input };
+    const newMessages = [...messages, userMsg];
+    setMessages(newMessages);
+    setInput('');
+    setLoading(true);
+
+    const stepCtx = stepContent
+      ? `\n\nCONTEÚDO ATUAL DE ${stepLabel.toUpperCase()}:\n${stepContent}`
+      : '';
+
+    try {
+      const res = await fetch('/api/scripts', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'chat',
+          projectContext: getProjectContext(project) + stepCtx,
+          messages: newMessages,
+        }),
+      });
+      const data = await res.json();
+      const allMessages = [...newMessages, { role: 'assistant' as const, content: data.text }];
+      setMessages(allMessages);
+      const updated = updateStepData(project, step.id, { refinementChat: allMessages });
+      onUpdate(updated);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div style={{
+      marginTop: '20px',
+      borderTop: '1px solid var(--border)',
+      paddingTop: '16px',
+    }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px',
+          color: 'var(--text-dim)',
+          fontSize: '12px',
+          padding: 0,
+          marginBottom: open ? '16px' : 0,
+        }}
+      >
+        <span style={{ fontSize: '10px' }}>{open ? '▼' : '▶'}</span>
+        Co-criação — {stepLabel}
+        {messages.length > 0 && (
+          <span style={{ fontSize: '11px', color: 'var(--text-muted)' }}>({messages.length} mensagens)</span>
+        )}
+      </button>
+
+      {open && (
+        <>
+          {messages.length === 0 && (
+            <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '12px', lineHeight: 1.6 }}>
+              Refine o conteúdo gerado: tensione formulações, explore alternativas, ajuste tom, peça variações específicas. A IA tem contexto completo do projeto e do entregável acima.
+            </p>
+          )}
+
+          {messages.length > 0 && (
+            <div className="chat-messages" style={{ marginBottom: '12px' }}>
+              {messages.map((m, i) => (
+                <div key={i} className={`chat-msg ${m.role === 'user' ? 'chat-msg-user' : 'chat-msg-ai'}`}>
+                  <p style={{ fontSize: '13px', whiteSpace: 'pre-wrap', margin: 0 }}>{m.content}</p>
+                  {m.role === 'assistant' && m.content.length > 100 && (
+                    <div style={{ marginTop: '8px', display: 'flex', justifyContent: 'flex-end' }}>
+                      <DownloadButton title={`${stepLabel} — refinamento ${i + 1}`} content={m.content} />
+                    </div>
+                  )}
+                </div>
+              ))}
+              {loading && (
+                <div className="chat-msg chat-msg-ai">
+                  <p style={{ color: 'var(--text-muted)', fontSize: '13px', margin: 0 }}>Processando...</p>
+                </div>
+              )}
+              <div ref={endRef} />
+            </div>
+          )}
+
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <textarea
+              className="textarea"
+              value={input}
+              onChange={e => setInput(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); } }}
+              placeholder="Tensione, questione, peça alternativas... (Enter envia)"
+              rows={2}
+              style={{ flex: 1 }}
+            />
+            <button
+              className="btn-primary"
+              onClick={sendMessage}
+              disabled={!input.trim() || loading}
+              style={{ alignSelf: 'flex-end', padding: '8px 16px', minWidth: 'auto' }}
+            >
+              →
+            </button>
+          </div>
+
+          {messages.length > 0 && (
+            <button
+              className="btn-small"
+              style={{ marginTop: '8px', background: 'transparent', border: '1px solid var(--border)', color: 'var(--text-dim)', fontSize: '11px' }}
+              onClick={() => {
+                setMessages([]);
+                const updated = updateStepData(project, step.id, { refinementChat: [] });
+                onUpdate(updated);
+              }}
+            >
+              Limpar histórico
+            </button>
+          )}
+        </>
       )}
     </div>
   );
