@@ -4719,6 +4719,46 @@ function StepPositioningThesis({
   const [loading, setLoading] = React.useState(false);
   const thesis = project.positioningThesis;
 
+  // ── Edição inline ──────────────────────────────────────────────────────────
+  const [editing, setEditing] = React.useState(false);
+  const [draftAfirmacao, setDraftAfirmacao] = React.useState('');
+  const [draftJustificativa, setDraftJustificativa] = React.useState('');
+  const [draftTradeoffs, setDraftTradeoffs] = React.useState<{ abandona: string; ganha: string }[]>([]);
+
+  function openEdit() {
+    setDraftAfirmacao(thesis?.afirmacaoCentral || '');
+    setDraftJustificativa(thesis?.justificativa || '');
+    setDraftTradeoffs(thesis?.tradeoffs ? thesis.tradeoffs.map(t => ({ ...t })) : [{ abandona: '', ganha: '' }]);
+    setEditing(true);
+  }
+
+  function saveEdit() {
+    const updated = {
+      ...project,
+      positioningThesis: {
+        afirmacaoCentral: draftAfirmacao.trim(),
+        justificativa: draftJustificativa.trim(),
+        tradeoffs: draftTradeoffs.filter(t => t.abandona.trim() || t.ganha.trim()),
+        createdAt: thesis?.createdAt || new Date().toISOString(),
+      },
+    };
+    saveProject(updated);
+    onUpdate(updated);
+    setEditing(false);
+  }
+
+  function addTradeoff() {
+    setDraftTradeoffs(prev => [...prev, { abandona: '', ganha: '' }]);
+  }
+
+  function removeTradeoff(i: number) {
+    setDraftTradeoffs(prev => prev.filter((_, idx) => idx !== i));
+  }
+
+  function updateTradeoff(i: number, field: 'abandona' | 'ganha', val: string) {
+    setDraftTradeoffs(prev => prev.map((t, idx) => idx === i ? { ...t, [field]: val } : t));
+  }
+
   async function handleGenerate() {
     setLoading(true);
     try {
@@ -4739,12 +4779,89 @@ function StepPositioningThesis({
   function handleSkip() { onUpdate(skipStep(project, step.id)); }
   function handleReopen() { onUpdate(reopenStep(project, step.id)); }
 
+  // ── Modo edição inline ─────────────────────────────────────────────────────
+  if (editing) {
+    return (
+      <div style={{ padding: '0 16px 24px' }}>
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--gold)', borderRadius: '8px', padding: '20px', marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '8px' }}>AFIRMAÇÃO CENTRAL</p>
+          <textarea
+            value={draftAfirmacao}
+            onChange={e => setDraftAfirmacao(e.target.value)}
+            rows={3}
+            style={{
+              width: '100%', background: 'transparent', border: '1px solid var(--border)',
+              borderRadius: '6px', padding: '10px 12px', fontSize: '14px', color: 'var(--text)',
+              lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit',
+            }}
+            placeholder="Ex: doBrasil — Deciframos culturas e criamos comunidades"
+          />
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <p style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Trade-offs</p>
+            <button className="btn-skip" style={{ fontSize: '11px', padding: '3px 10px' }} onClick={addTradeoff}>+ Adicionar</button>
+          </div>
+          {draftTradeoffs.map((t, i) => (
+            <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr auto 1fr auto', gap: '8px', alignItems: 'start', marginBottom: '8px' }}>
+              <div>
+                <p style={{ fontSize: '10px', color: '#e05252', fontWeight: 700, marginBottom: '4px' }}>ABANDONA</p>
+                <textarea
+                  value={t.abandona}
+                  onChange={e => updateTradeoff(i, 'abandona', e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', fontSize: '12px', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+              <div style={{ paddingTop: '26px', color: 'var(--gold)', fontSize: '16px' }}>→</div>
+              <div>
+                <p style={{ fontSize: '10px', color: '#52c47a', fontWeight: 700, marginBottom: '4px' }}>GANHA</p>
+                <textarea
+                  value={t.ganha}
+                  onChange={e => updateTradeoff(i, 'ganha', e.target.value)}
+                  rows={2}
+                  style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '8px', fontSize: '12px', color: 'var(--text)', resize: 'vertical', fontFamily: 'inherit' }}
+                />
+              </div>
+              <button
+                onClick={() => removeTradeoff(i)}
+                style={{ marginTop: '26px', background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-dim)', fontSize: '16px', padding: '4px' }}
+                title="Remover"
+              >✕</button>
+            </div>
+          ))}
+        </div>
+
+        <div style={{ marginBottom: '16px' }}>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '6px' }}>JUSTIFICATIVA</p>
+          <textarea
+            value={draftJustificativa}
+            onChange={e => setDraftJustificativa(e.target.value)}
+            rows={4}
+            style={{ width: '100%', background: 'transparent', border: '1px solid var(--border)', borderRadius: '6px', padding: '10px 12px', fontSize: '13px', color: 'var(--text)', lineHeight: 1.6, resize: 'vertical', fontFamily: 'inherit' }}
+            placeholder="Por que este posicionamento e não outro? O que ele ativa simbolicamente?"
+          />
+        </div>
+
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button className="btn-approve" onClick={saveEdit} disabled={!draftAfirmacao.trim()}>Salvar edição</button>
+          <button className="btn-skip" onClick={() => setEditing(false)}>Cancelar</button>
+        </div>
+      </div>
+    );
+  }
+
+  // ── Modo visualização ──────────────────────────────────────────────────────
   return (
     <div style={{ padding: '0 16px 24px' }}>
       {step.status === 'done' ? (
         <div>
           {thesis && <p style={{ fontSize: '14px', color: 'var(--text)', fontStyle: 'italic', marginBottom: '12px' }}>"{thesis.afirmacaoCentral}"</p>}
-          <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button className="btn-skip" onClick={handleReopen}>Reabrir</button>
+            <button className="btn-skip" onClick={openEdit}>Editar inline</button>
+          </div>
         </div>
       ) : (
         <>
@@ -4753,9 +4870,12 @@ function StepPositioningThesis({
               <p style={{ color: 'var(--text-muted)', fontSize: '13px', marginBottom: '16px' }}>
                 Não apenas "para onde vamos" — mas "o que deixamos de ser e fazer". Trade-offs explícitos são obrigatórios.
               </p>
-              <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
-                {loading ? 'Gerando tese...' : 'Gerar Tese de Posicionamento'}
-              </button>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
+                <button className="btn-primary" onClick={handleGenerate} disabled={loading}>
+                  {loading ? 'Gerando tese...' : 'Gerar Tese com IA'}
+                </button>
+                <button className="btn-skip" onClick={openEdit}>Inserir manualmente</button>
+              </div>
             </div>
           ) : (
             <>
@@ -4787,10 +4907,11 @@ function StepPositioningThesis({
                   <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{thesis.justificativa}</p>
                 </div>
               )}
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 <button className="btn-approve" onClick={handleApprove}>Trade-offs aceitos — Aprovar</button>
+                <button className="btn-skip" onClick={openEdit}>Editar inline</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
-                  {loading ? 'Regenerando...' : 'Regenerar'}
+                  {loading ? 'Regenerando...' : 'Regenerar com IA'}
                 </button>
               </div>
             </>
