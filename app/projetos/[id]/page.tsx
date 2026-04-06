@@ -3842,7 +3842,7 @@ function StepInterviewScripts({
         onUpdate(proj);
       } else {
         const errMsg = data.error
-          ? `Erro da API: ${data.error}`
+          ? `Erro da API: ${data.error}${data.detail ? ` — ${data.detail}` : ''}`
           : 'A geração não retornou perguntas. Verifique se a minibiografia está preenchida e tente novamente.';
         setGeneratingError(prev => ({ ...prev, [iv.id]: errMsg }));
       }

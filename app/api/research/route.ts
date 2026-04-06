@@ -471,6 +471,12 @@ Retorne o relatório completo em texto markdown, sem JSON.`;
       const { interviewee } = body as { interviewee: { nome: string; cargo: string; minibio: string } };
       if (!interviewee) return NextResponse.json({ error: 'Interviewee data required' }, { status: 400 });
 
+      // Guard: truncate ctx if too large to prevent context window overflow
+      const MAX_CTX_CHARS = 24000;
+      const safeCtx = ctx.length > MAX_CTX_CHARS
+        ? ctx.slice(0, MAX_CTX_CHARS) + '\n\n[CONTEXTO TRUNCADO PARA CABER NO LIMITE — dados completos disponíveis nas etapas anteriores]'
+        : ctx;
+
       // Calibrar o ângulo baseado no cargo
       const cargoLower = interviewee.cargo.toLowerCase();
       let cargoAngulo = '';
@@ -486,7 +492,7 @@ Retorne o relatório completo em texto markdown, sem JSON.`;
         cargoAngulo = `ÂNGULO: Perspectiva específica do cargo de ${interviewee.cargo}, experiência vivida com a marca, percepções relevantes para branding e posicionamento.`;
       }
 
-      const prompt = `${ctx}
+      const prompt = `${safeCtx}
 ENTREVISTADO:
 Nome: ${interviewee.nome}
 Cargo: ${interviewee.cargo}
