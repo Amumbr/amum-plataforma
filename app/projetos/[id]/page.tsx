@@ -3783,6 +3783,7 @@ function StepInterviewScripts({
   const [formCargo, setFormCargo] = useState('');
   const [formBio, setFormBio] = useState('');
   const [generating, setGenerating] = useState<string | null>(null);
+  const [generatingError, setGeneratingError] = useState<Record<string, string>>({});
   const [expanded, setExpanded] = useState<string | null>(null);
   const [editingQ, setEditingQ] = useState<{ ivId: string; qi: number } | null>(null);
   const [editText, setEditText] = useState('');
@@ -3820,6 +3821,7 @@ function StepInterviewScripts({
 
   async function generateQuestions(iv: Interviewee) {
     setGenerating(iv.id);
+    setGeneratingError(prev => ({ ...prev, [iv.id]: '' }));
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
@@ -3831,14 +3833,24 @@ function StepInterviewScripts({
         }),
       });
       const data = await res.json();
-      if (data.perguntas) {
+      if (data.perguntas && Array.isArray(data.perguntas) && data.perguntas.length > 0) {
         const updated = (project.interviewees || []).map(i =>
           i.id === iv.id ? { ...i, questions: data.perguntas, generatedAt: new Date().toISOString() } : i
         );
         const proj = { ...project, interviewees: updated };
         saveProject(proj);
         onUpdate(proj);
+      } else {
+        const errMsg = data.error
+          ? `Erro da API: ${data.error}`
+          : 'A geração não retornou perguntas. Verifique se a minibiografia está preenchida e tente novamente.';
+        setGeneratingError(prev => ({ ...prev, [iv.id]: errMsg }));
       }
+    } catch (err) {
+      setGeneratingError(prev => ({
+        ...prev,
+        [iv.id]: `Erro de conexão: ${err instanceof Error ? err.message : 'Tente novamente.'}`,
+      }));
     } finally {
       setGenerating(null);
     }
@@ -3905,6 +3917,11 @@ function StepInterviewScripts({
             rows={3}
             style={{ fontSize: '13px', width: '100%', marginBottom: '10px', resize: 'vertical' }}
           />
+          {!formBio.trim() && (
+            <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: '8px' }}>
+              ⚠ A minibiografia melhora significativamente a qualidade das perguntas geradas. Recomendado.
+            </p>
+          )}
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn-approve" onClick={addInterviewee} disabled={!formNome.trim() || !formCargo.trim()}>Adicionar</button>
             <button className="btn-skip" onClick={() => { setShowForm(false); setFormNome(''); setFormCargo(''); setFormBio(''); }}>Cancelar</button>
@@ -3958,9 +3975,13 @@ function StepInterviewScripts({
           {/* Expanded content */}
           {expanded === iv.id && (
             <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
-              {iv.minibio && (
+              {iv.minibio ? (
                 <p style={{ fontSize: '12px', color: 'var(--text-dim)', fontStyle: 'italic', marginBottom: '12px', lineHeight: 1.5 }}>
                   {iv.minibio}
+                </p>
+              ) : (
+                <p style={{ fontSize: '12px', color: '#c9963a', marginBottom: '12px', fontStyle: 'italic' }}>
+                  ⚠ Minibiografia não preenchida — as perguntas geradas serão menos calibradas para este entrevistado.
                 </p>
               )}
 
@@ -3972,6 +3993,11 @@ function StepInterviewScripts({
               {generating === iv.id && (
                 <p style={{ fontSize: '13px', color: 'var(--gold)' }}>
                   Gerando perguntas calibradas para {iv.cargo}…
+                </p>
+              )}
+              {generatingError[iv.id] && (
+                <p style={{ fontSize: '13px', color: '#e06c6c', background: 'rgba(224,108,108,0.08)', border: '1px solid rgba(224,108,108,0.3)', borderRadius: '6px', padding: '10px 12px', marginTop: '8px' }}>
+                  ⚠ {generatingError[iv.id]}
                 </p>
               )}
 
