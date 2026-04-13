@@ -3,11 +3,6 @@ import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { setAuth, isAuthenticated } from '@/components/AuthGuard';
 
-const CREDENTIALS = {
-  email: 'felipe@amum.com.br',
-  password: 'amumbranding26',
-};
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState('');
@@ -21,23 +16,31 @@ export default function LoginPage() {
     }
   }, [router]);
 
-  function handleSubmit(e: React.FormEvent) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError('');
     setLoading(true);
 
-    setTimeout(() => {
-      if (
-        email.trim().toLowerCase() === CREDENTIALS.email &&
-        password === CREDENTIALS.password
-      ) {
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await res.json();
+
+      if (res.ok && data.success) {
         setAuth();
         router.replace('/projetos');
       } else {
-        setError('Credenciais inválidas.');
+        setError(data.error || 'Credenciais inválidas.');
         setLoading(false);
       }
-    }, 400);
+    } catch {
+      setError('Erro de conexão. Tente novamente.');
+      setLoading(false);
+    }
   }
 
   return (
