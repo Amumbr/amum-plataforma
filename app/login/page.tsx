@@ -31,7 +31,7 @@ export default function LoginPage() {
       const data = await res.json();
 
       if (res.ok && data.success) {
-        setAuth();
+        setAuth(data.email);
         router.replace('/projetos');
       } else {
         setError(data.error || 'Credenciais inválidas.');
