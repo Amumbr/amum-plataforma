@@ -511,6 +511,14 @@ export interface AnnualReview {
   createdAt: string;
 }
 
+export interface BrandManual {
+  url: string;
+  title: string;
+  version: number;
+  updatedAt: string;
+  notes?: string;
+}
+
 // ─── WORKFLOW ─────────────────────────────────────────────────────────────────
 
 export type StepStatus = 'pending' | 'active' | 'done' | 'skipped';
@@ -879,6 +887,7 @@ export interface Project {
   coherenceMonitor?: CoherenceMonitor;
   complianceAudit?: ComplianceAudit;
   annualReview?: AnnualReview;
+  manual?: BrandManual;
   finalReport?: { json: Record<string, unknown>; createdAt: string };
   deliverables: Deliverable[];
   driveFiles: DriveFile[];
@@ -1433,6 +1442,10 @@ export function getProjectContext(project: Project): string {
     project.intel.slice(0, 5).forEach(i => {
       parts.push(`- [${i.title}]: ${i.content.slice(0, 200)}`);
     });
+  }
+
+  if (project.manual) {
+    parts.push(`\nMANUAL DA MARCA: ${project.manual.title} (v${project.manual.version}) — ${project.manual.url}${project.manual.notes ? ` | Notas: ${project.manual.notes.slice(0, 200)}` : ''}`);
   }
 
   return parts.join('\n');

@@ -40,6 +40,7 @@ import {
   confirmStepHash,
   StepType,
   MoodboardImage,
+  BrandManual,
 } from '@/lib/store';
 import { fetchProjectFromSupabase } from '@/lib/db';
 
@@ -7971,6 +7972,229 @@ function PhaseSynthesisBlock({
   );
 }
 
+// ─── MANUAL DELIVERABLE BLOCK ─────────────────────────────────────────────────
+// Caminho C: o manual de marca vive como artifact externo do Claude.
+// A plataforma armazena o link, título, versão e notas — não o conteúdo.
+
+function ManualDeliverableBlock({
+  project,
+  onUpdate,
+}: {
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const existing = project.manual;
+  const [editing, setEditing] = useState(false);
+  const [url, setUrl] = useState(existing?.url ?? '');
+  const [title, setTitle] = useState(existing?.title ?? '');
+  const [notes, setNotes] = useState(existing?.notes ?? '');
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const mode: 'empty' | 'form' | 'filled' = !existing && !editing
+    ? 'empty'
+    : editing
+      ? 'form'
+      : 'filled';
+
+  function resetFormFromExisting() {
+    setUrl(existing?.url ?? '');
+    setTitle(existing?.title ?? '');
+    setNotes(existing?.notes ?? '');
+    setError(null);
+  }
+
+  function startForm() {
+    resetFormFromExisting();
+    setEditing(true);
+  }
+
+  function cancelForm() {
+    resetFormFromExisting();
+    setEditing(false);
+  }
+
+  function handleSave() {
+    const cleanUrl = url.trim();
+    const cleanTitle = title.trim();
+    const cleanNotes = notes.trim();
+
+    if (!cleanUrl) {
+      setError('O link do manual é obrigatório.');
+      return;
+    }
+    if (!/^https?:\/\//i.test(cleanUrl)) {
+      setError('O link deve começar com http:// ou https://');
+      return;
+    }
+    if (!cleanTitle) {
+      setError('O título do manual é obrigatório.');
+      return;
+    }
+
+    setSaving(true);
+    setError(null);
+
+    const nextVersion = existing ? existing.version + 1 : 1;
+    const manual: BrandManual = {
+      url: cleanUrl,
+      title: cleanTitle,
+      version: nextVersion,
+      updatedAt: new Date().toISOString(),
+      ...(cleanNotes ? { notes: cleanNotes } : {}),
+    };
+
+    const updated: Project = { ...project, manual };
+    try {
+      saveProject(updated);
+      onUpdate(updated);
+      setEditing(false);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Falha ao salvar o manual.');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // ─── EMPTY STATE ────────────────────────────────────────────────────────────
+  if (mode === 'empty') {
+    return (
+      <div className="manual-block manual-block-empty">
+        <div className="manual-block-head">
+          <div>
+            <p className="manual-block-label">Entregável · Caminho C</p>
+            <h2 className="manual-block-title-empty">Manual da Marca</h2>
+            <p className="manual-block-sub">
+              Nenhum manual publicado. Cole abaixo o link do artifact do Claude com o manual desta marca.
+            </p>
+          </div>
+          <button type="button" className="btn-primary btn-small" onClick={startForm}>
+            + Adicionar manual
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── FORM STATE ─────────────────────────────────────────────────────────────
+  if (mode === 'form') {
+    return (
+      <div className="manual-block manual-block-form">
+        <div className="manual-block-head">
+          <div>
+            <p className="manual-block-label">
+              Entregável · Caminho C {existing && `· Nova versão (v${existing.version + 1})`}
+            </p>
+            <h2 className="manual-block-title-empty">
+              {existing ? 'Atualizar Manual da Marca' : 'Publicar Manual da Marca'}
+            </h2>
+          </div>
+        </div>
+
+        <div className="manual-form">
+          <label className="manual-form-label">
+            Link do artifact (Claude)
+            <input
+              type="url"
+              className="manual-form-input"
+              placeholder="https://claude.ai/public/artifacts/..."
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              disabled={saving}
+            />
+          </label>
+
+          <label className="manual-form-label">
+            Título do manual
+            <input
+              type="text"
+              className="manual-form-input"
+              placeholder={`Manual da Marca ${project.nome}`}
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              disabled={saving}
+            />
+          </label>
+
+          <label className="manual-form-label">
+            Notas desta versão <span className="manual-form-optional">(opcional)</span>
+            <textarea
+              className="manual-form-textarea"
+              placeholder="O que mudou nesta versão? Ex.: ajuste no tom de voz, nova seção de aplicação em rede social..."
+              value={notes}
+              onChange={e => setNotes(e.target.value)}
+              rows={3}
+              disabled={saving}
+            />
+          </label>
+
+          {error && <p className="manual-form-error">{error}</p>}
+
+          <div className="manual-form-actions">
+            <button
+              type="button"
+              className="btn-skip btn-small"
+              onClick={cancelForm}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              className="btn-primary btn-small"
+              onClick={handleSave}
+              disabled={saving}
+            >
+              {saving ? 'Salvando...' : existing ? 'Salvar nova versão' : 'Publicar manual'}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // ─── FILLED STATE ───────────────────────────────────────────────────────────
+  const manual = existing!;
+  const updatedLabel = new Date(manual.updatedAt).toLocaleDateString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  return (
+    <div className="manual-block manual-block-filled">
+      <div className="manual-block-head">
+        <div style={{ minWidth: 0, flex: 1 }}>
+          <p className="manual-block-label">Entregável · Manual da Marca</p>
+          <h2 className="manual-block-title">{manual.title}</h2>
+          <div className="manual-block-meta">
+            <span className="manual-version-pill">v{manual.version}</span>
+            <span className="manual-block-meta-item">Atualizado em {updatedLabel}</span>
+          </div>
+          {manual.notes && <p className="manual-block-notes">{manual.notes}</p>}
+        </div>
+        <div className="manual-block-actions">
+          <a
+            href={manual.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn-primary btn-small"
+          >
+            Abrir manual ↗
+          </a>
+          <button
+            type="button"
+            className="btn-skip btn-small"
+            onClick={startForm}
+          >
+            Editar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── PÁGINA PRINCIPAL ─────────────────────────────────────────────────────────
 
 export default function ProjetoPage() {
@@ -8083,6 +8307,9 @@ export default function ProjetoPage() {
             </p>
           </div>
         </div>
+
+        {/* Manual de Marca (Caminho C — link externo) */}
+        <ManualDeliverableBlock project={project} onUpdate={setProject} />
 
         {/* Workflow */}
         <div className="workflow-container">
