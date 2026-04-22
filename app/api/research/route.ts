@@ -828,6 +828,13 @@ Retorne APENAS este JSON:
         'linguistic_code',
         'brand_narrative',
         'message_library',
+        'deep_analysis',
+        'brand_architecture',
+        'ods_matrix',
+        'rollout_plan',
+        'enablement_kit',
+        'coherence_monitor',
+        'annual_review',
       ]);
 
       const {

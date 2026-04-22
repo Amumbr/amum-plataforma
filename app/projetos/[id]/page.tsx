@@ -340,6 +340,203 @@ const INCORPORATION_CONFIG: Partial<Record<string, {
       return ml.items.map(i => `${i.publico}: ${i.afirmacaoCentral}`).join('\n');
     },
   },
+
+  deep_analysis: {
+    label: 'Analise de Decifracao',
+    getPayload: (p) => {
+      const d = p.deepAnalysis;
+      if (!d || d.status !== 'done') return null;
+      // status e campo interno de controle — nao expomos ao chat/IA
+      const { status: _status, ...rest } = d;
+      void _status;
+      return rest as unknown as Record<string, unknown>;
+    },
+    setPayload: (p, d) => {
+      const prev = p.deepAnalysis;
+      return {
+        ...p,
+        deepAnalysis: {
+          ...(d as unknown as NonNullable<Project['deepAnalysis']>),
+          status: 'done',
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => typeof d.arquetipo === 'string' && !!d.arquetipo,
+    schemaDescription: `{
+    "arquetipo": "Arquetipo dominante e relacao com secundario e sombra",
+    "tensaoCentral": "Tensao estrutural da marca em poucas linhas",
+    "territorios": [ { "nome": "...", "viabilidade": "..." } ],
+    "territorioRecomendado": "...",
+    "gapsPrincipais": ["..."],
+    "narrativaNucleo": "Narrativa-nucleo em prosa densa",
+    "proximosPassos": ["..."]
+  }`,
+    stepContent: (p) => {
+      const d = p.deepAnalysis;
+      if (!d || d.status !== 'done') return '';
+      return `Arquetipo: ${d.arquetipo}\nTensao central: ${d.tensaoCentral}\nTerritorio recomendado: ${d.territorioRecomendado}\nNarrativa nucleo: ${d.narrativaNucleo}`;
+    },
+  },
+
+  brand_architecture: {
+    label: 'Arquitetura de Marca',
+    getPayload: (p) => (p.brandArchitecture as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.brandArchitecture;
+      return {
+        ...p,
+        brandArchitecture: {
+          ...(d as unknown as NonNullable<Project['brandArchitecture']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.brandToOperating),
+    schemaDescription: `{
+    "portfolioMap": "Mapa do portfolio e relacoes entre submarcas",
+    "nomenclaturaRegras": "Regras de nomenclatura",
+    "brandToOperating": [ { "funcao": "...", "implicacao": "...", "responsavel": "...", "prioridade": "alta" } ],
+    "analise": "Analise estrategica da arquitetura"
+  }`,
+    stepContent: (p) => {
+      const a = p.brandArchitecture;
+      if (!a) return '';
+      return `Portfolio: ${a.portfolioMap?.slice(0, 200)}\nImplicacoes operacionais: ${a.brandToOperating?.map(b => `${b.funcao} (${b.prioridade})`).join(', ')}`;
+    },
+  },
+
+  ods_matrix: {
+    label: 'Matriz ODS',
+    getPayload: (p) => (p.odsMatrix as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.odsMatrix;
+      return {
+        ...p,
+        odsMatrix: {
+          ...(d as unknown as NonNullable<Project['odsMatrix']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.items),
+    schemaDescription: `{
+    "items": [ { "ods": "ODS X — Nome", "iniciativas": [ { "descricao": "...", "indicador": "...", "owner": "...", "cadencia": "..." } ] } ]
+  }`,
+    stepContent: (p) => {
+      const m = p.odsMatrix;
+      if (!m) return '';
+      return m.items.map(i => `${i.ods} — ${i.iniciativas.length} iniciativa(s)`).join('\n');
+    },
+  },
+
+  rollout_plan: {
+    label: 'Plano de Rollout',
+    getPayload: (p) => (p.rolloutPlan as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.rolloutPlan;
+      return {
+        ...p,
+        rolloutPlan: {
+          ...(d as unknown as NonNullable<Project['rolloutPlan']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.ondas) && (d.ondas as unknown[]).length > 0,
+    schemaDescription: `{
+    "ondas": [ { "onda": "Onda 1 — Interno", "touchpoints": ["..."], "responsaveis": ["..."], "timeline": "...", "criteriosConclusao": ["..."] } ]
+  }`,
+    stepContent: (p) => {
+      const r = p.rolloutPlan;
+      if (!r) return '';
+      return r.ondas.map(o => `${o.onda} · ${o.timeline}`).join('\n');
+    },
+  },
+
+  enablement_kit: {
+    label: 'Kit de Habilitacao',
+    getPayload: (p) => (p.enablementKit as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.enablementKit;
+      return {
+        ...p,
+        enablementKit: {
+          ...(d as unknown as NonNullable<Project['enablementKit']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.faqs) || Array.isArray(d.templates) || Array.isArray(d.trilhaAdocao),
+    schemaDescription: `{
+    "faqs": [ { "pergunta": "...", "resposta": "..." } ],
+    "templates": [ { "nome": "...", "descricao": "..." } ],
+    "trilhaAdocao": [ { "area": "...", "passos": ["..."] } ],
+    "checklistQA": ["..."]
+  }`,
+    stepContent: (p) => {
+      const k = p.enablementKit;
+      if (!k) return '';
+      return `FAQs: ${k.faqs?.length || 0} · Templates: ${k.templates?.length || 0} · Trilhas: ${k.trilhaAdocao?.length || 0}`;
+    },
+  },
+
+  coherence_monitor: {
+    label: 'Monitor de Coerencia',
+    getPayload: (p) => (p.coherenceMonitor as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.coherenceMonitor;
+      return {
+        ...p,
+        coherenceMonitor: {
+          ...(d as unknown as NonNullable<Project['coherenceMonitor']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.scores),
+    schemaDescription: `{
+    "trimestre": "2026-Q2",
+    "scores": [ { "dimensao": "...", "score": 7, "tendencia": "subindo", "planoCorretivo": "..." } ],
+    "analise": "Analise estrategica do trimestre",
+    "historicoTrimestres": [ { "trimestre": "...", "mediaGeral": 7 } ],
+    "cadencia": "...",
+    "owners": ["..."]
+  }`,
+    stepContent: (p) => {
+      const m = p.coherenceMonitor;
+      if (!m) return '';
+      return `Trimestre: ${m.trimestre}\nScores: ${m.scores?.map(s => `${s.dimensao}=${s.score}`).join(' · ')}`;
+    },
+  },
+
+  annual_review: {
+    label: 'Revisao Anual',
+    getPayload: (p) => (p.annualReview as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.annualReview;
+      return {
+        ...p,
+        annualReview: {
+          ...(d as unknown as NonNullable<Project['annualReview']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => typeof d.anoReferencia === 'string' || Array.isArray(d.kpisMarca),
+    schemaDescription: `{
+    "anoReferencia": "2026",
+    "kpisMarca": [ { "indicador": "...", "meta": "...", "realizado": "...", "conexaoNegocio": "..." } ],
+    "analiseROI": "Analise de retorno do investimento em marca",
+    "recomendacoes": ["..."],
+    "documentoExecutivo": "Texto do documento executivo da revisao"
+  }`,
+    stepContent: (p) => {
+      const r = p.annualReview;
+      if (!r) return '';
+      return `Ano: ${r.anoReferencia}\nKPIs: ${r.kpisMarca?.length || 0}`;
+    },
+  },
 };
 
 function getStepNotes(step: WorkflowStep): string {
@@ -4673,6 +4870,7 @@ function StepDeepAnalysis({
                   )}
                 </div>
               </div>
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px', marginTop: '12px', alignItems: 'center' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar análise e continuar</button>
                 <DownloadButton
@@ -5487,6 +5685,7 @@ function StepBrandArchitecture({
                   ))}
                 </div>
               )}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Owners nomeados — Aprovar Gate 2</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -5567,6 +5766,7 @@ function StepODSMatrix({
                   ))}
                 </div>
               ))}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Matriz ODS</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -7008,6 +7208,7 @@ function StepRolloutPlan({
                   )}
                 </div>
               ))}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Plano de Rollout · Gate 4</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -7103,6 +7304,7 @@ function StepEnablementKit({
                   ))}
                 </div>
               )}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Kit de Habilitação</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -7258,6 +7460,7 @@ function StepCoherenceMonitor({
                   </div>
                 ))}
               </div>
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Gate 5</button>
               </div>
@@ -7375,6 +7578,7 @@ function StepAnnualReview({
               )}
             </div>
           )}
+          <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
           <div style={{ display: 'flex', gap: '8px' }}>
             <button className="btn-approve" onClick={handleApprove}>Revisão anual concluída</button>
             <button className="btn-skip" onClick={handleSkip}>Pular</button>
