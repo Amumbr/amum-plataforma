@@ -807,25 +807,41 @@ Retorne APENAS este JSON:
       catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
     }
 
-    // ── INCORPORATE CHAT — protocolo de três tempos (piloto: brand_platform) ─────
+    // ── INCORPORATE CHAT — protocolo de incorporacao em tres tempos (generico) ──
     // Dois modos:
-    //   'synthesize' — lê o chat e produz uma leitura estruturada do que foi
+    //   'synthesize' — le o chat e produz uma leitura estruturada do que foi
     //                  discutido, em texto para o estrategista confirmar.
-    //   'apply'      — aplica as mudanças acordadas e retorna o payload completo
-    //                  (BrandPlatform) com nota curta do que mudou.
+    //   'apply'      — aplica as mudancas acordadas e retorna o payload completo
+    //                  com nota curta do que mudou.
     //
-    // Cache: ctx + payload atual + transcrição do chat ficam no bloco cacheado;
-    // a instrução do modo e o formato de saída ficam na parte live. Entre as duas
-    // chamadas (synthesize -> apply), o bloco cacheado é idêntico — hit certo.
+    // Aceita qualquer stepType da allowlist INCORPORATE_ALLOWED_STEPS. O cliente
+    // envia stepLabel (rotulo humano) e schemaDescription (schema JSON literal
+    // que vai direto no prompt do apply). Seguranca: autenticacao + system prompt
+    // + allowlist limitam o espaco de injecao.
+    //
+    // Cache: ctx + payload atual + transcricao do chat ficam no bloco cacheado;
+    // a instrucao do modo e o formato de saida ficam na parte live. Entre as
+    // duas chamadas (synthesize -> apply), o bloco cacheado e identico — hit certo.
     if (action === 'incorporate_chat') {
+      const INCORPORATE_ALLOWED_STEPS = new Set([
+        'brand_platform',
+        'linguistic_code',
+        'brand_narrative',
+        'message_library',
+      ]);
+
       const {
         mode,
         stepType,
+        stepLabel,
+        schemaDescription,
         currentPayload,
         chatMessages,
       } = body as {
         mode?: 'synthesize' | 'apply';
         stepType?: string;
+        stepLabel?: string;
+        schemaDescription?: string;
         currentPayload?: Record<string, unknown>;
         chatMessages?: { role: 'user' | 'assistant'; content: string }[];
       };
@@ -833,8 +849,11 @@ Retorne APENAS este JSON:
       if (mode !== 'synthesize' && mode !== 'apply') {
         return NextResponse.json({ error: 'mode invalido (synthesize|apply)' }, { status: 400 });
       }
-      if (stepType !== 'brand_platform') {
-        return NextResponse.json({ error: 'Piloto restrito a brand_platform nesta versao' }, { status: 400 });
+      if (!stepType || !INCORPORATE_ALLOWED_STEPS.has(stepType)) {
+        return NextResponse.json({ error: `stepType '${stepType}' nao habilitado para incorporacao` }, { status: 400 });
+      }
+      if (!stepLabel || typeof stepLabel !== 'string') {
+        return NextResponse.json({ error: 'stepLabel obrigatorio' }, { status: 400 });
       }
       if (!currentPayload || typeof currentPayload !== 'object') {
         return NextResponse.json({ error: 'currentPayload obrigatorio' }, { status: 400 });
@@ -842,12 +861,16 @@ Retorne APENAS este JSON:
       if (!Array.isArray(chatMessages) || chatMessages.length === 0) {
         return NextResponse.json({ error: 'chatMessages obrigatorio e nao-vazio' }, { status: 400 });
       }
+      if (mode === 'apply' && (!schemaDescription || typeof schemaDescription !== 'string')) {
+        return NextResponse.json({ error: 'schemaDescription obrigatorio no modo apply' }, { status: 400 });
+      }
 
       const transcript = chatMessages
         .map(m => `[${m.role === 'user' ? 'ESTRATEGISTA' : 'IA'}]\n${m.content}`)
         .join('\n\n');
 
-      const cachedBlock = `${ctx}PLATAFORMA DE MARCA ATUAL (aprovada ou em edicao):
+      const labelUpper = stepLabel.toUpperCase();
+      const cachedBlock = `${ctx}${labelUpper} ATUAL (aprovado ou em edicao):
 ${JSON.stringify(currentPayload, null, 2)}
 
 === TRANSCRICAO DO CHAT DE CO-CRIACAO ===
@@ -857,7 +880,7 @@ ${transcript}
       if (mode === 'synthesize') {
         const liveInstruction = `TAREFA — MODO SINTESE
 
-Voce acaba de ler a transcricao de um chat entre o estrategista e a IA sobre a Plataforma de Marca acima.
+Voce acaba de ler a transcricao de um chat entre o estrategista e a IA sobre o(a) ${stepLabel} acima.
 
 Sua tarefa nao e responder ao estrategista. E produzir uma LEITURA ESTRUTURADA do que foi discutido, para o estrategista confirmar antes de qualquer alteracao estrutural ser aplicada.
 
@@ -870,7 +893,7 @@ REGRAS:
 FORMATO DE SAIDA — texto limpo, sem JSON, sem markdown de codigo. Use esta estrutura:
 
 MUDANCAS PROPOSTAS
-- Campo: <nome do campo, ex: essencia>
+- Campo: <nome do campo>
   De: <trecho do atual>
   Para: <proposta>
   Por que: <razao curta, uma frase>
@@ -900,24 +923,18 @@ Nao adicione nada alem dessas tres secoes. Nao use aspas decorativas. Nao propon
       // mode === 'apply'
       const liveInstruction = `TAREFA — MODO APLICACAO
 
-Voce leu a transcricao do chat e a sintese ja foi confirmada pelo estrategista. Agora aplique as mudancas acordadas na Plataforma de Marca.
+Voce leu a transcricao do chat e a sintese ja foi confirmada pelo estrategista. Agora aplique as mudancas acordadas no(a) ${stepLabel}.
 
 REGRAS:
 - Preserve EXATAMENTE os campos que nao devem mudar. Nao reescreva por conta propria.
 - Aplique apenas o que foi discutido e consolidado no chat.
-- Mantenha o schema original — cinco campos: proposito, essencia, posicionamento, promessa, valores.
-- Valores sao array de objetos { valor, comportamentos[], provaOperacional?, odsAncora? } — preserve campos opcionais existentes quando nao forem modificados.
+- Mantenha o schema original — respeite a estrutura descrita abaixo.
+- Preserve campos opcionais existentes quando nao forem modificados.
 - Precisao lexical acima de elegancia. Palavra inevitavel, nao apenas sonora.
 
 Retorne APENAS este JSON:
 {
-  "payload": {
-    "proposito": "...",
-    "essencia": "...",
-    "posicionamento": "...",
-    "promessa": "...",
-    "valores": [ { "valor": "...", "comportamentos": ["..."], "provaOperacional": "...", "odsAncora": "..." } ]
-  },
+  "payload": ${schemaDescription},
   "note": "Nota curta (maximo 2 frases) do que mudou nesta incorporacao — factual, sem adjetivacao."
 }`;
 

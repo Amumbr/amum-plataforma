@@ -226,6 +226,122 @@ const REANALISAR_CONFIG: Partial<Record<string, {
   },
 };
 
+// ─── INCORPORATION CONFIG ─────────────────────────────────────────────────────
+// Mapa central do protocolo de incorporacao em tres tempos por step gerativo.
+// Cada entrada declara como o step ancora seu payload no project, como aplicar
+// novo payload preservando metadados, e qual o schema JSON que instrui o prompt
+// do modo apply. Adicionar uma entrada aqui e suficiente para habilitar o
+// protocolo em uma nova etapa — desde que o backend tambem tenha o stepType
+// na allowlist INCORPORATE_ALLOWED_STEPS em /api/research/route.ts.
+const INCORPORATION_CONFIG: Partial<Record<string, {
+  label: string;
+  getPayload: (p: Project) => Record<string, unknown> | null;
+  setPayload: (p: Project, newPayload: Record<string, unknown>) => Project;
+  check: (d: Record<string, unknown>) => boolean;
+  schemaDescription: string;
+  stepContent: (p: Project) => string;
+}>> = {
+  brand_platform: {
+    label: 'Plataforma de Marca',
+    getPayload: (p) => (p.brandPlatform as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.brandPlatform;
+      return {
+        ...p,
+        brandPlatform: {
+          ...(d as unknown as NonNullable<Project['brandPlatform']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+          ...(prev?.aprovadoEm ? { aprovadoEm: prev.aprovadoEm } : {}),
+        },
+      };
+    },
+    check: (d) => !!d.proposito && !!d.essencia,
+    schemaDescription: `{
+    "proposito": "...",
+    "essencia": "...",
+    "posicionamento": "...",
+    "promessa": "...",
+    "valores": [ { "valor": "...", "comportamentos": ["..."], "provaOperacional": "...", "odsAncora": "..." } ]
+  }`,
+    stepContent: (p) => {
+      const bp = p.brandPlatform;
+      if (!bp) return '';
+      return `Proposito: ${bp.proposito}\nEssencia: ${bp.essencia}\nPosicionamento: ${bp.posicionamento}\nPromessa: ${bp.promessa}\nValores: ${bp.valores?.map(v => v.valor).join(', ')}`;
+    },
+  },
+  linguistic_code: {
+    label: 'Codigo Linguistico',
+    getPayload: (p) => (p.linguisticCode as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.linguisticCode;
+      return {
+        ...p,
+        linguisticCode: {
+          ...(d as unknown as NonNullable<Project['linguisticCode']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => !!d.tomDeVoz,
+    schemaDescription: `{
+    "tomDeVoz": { "adjetivos": ["..."], "antiAdjetivos": ["..."] },
+    "vocabularioPreferencial": ["..."],
+    "vocabularioProibido": ["..."],
+    "padroesConstrutivos": ["..."],
+    "exemplosAplicacao": [ { "contexto": "...", "exemplo": "..." } ],
+    "qaChecklist": ["..."]
+  }`,
+    stepContent: (p) => {
+      const lc = p.linguisticCode;
+      if (!lc) return '';
+      return `Tom de voz: ${lc.tomDeVoz.adjetivos.join(', ')} | Anti: ${lc.tomDeVoz.antiAdjetivos.join(', ')}\nVocabulario preferencial: ${lc.vocabularioPreferencial?.join(', ')}\nVocabulario proibido: ${lc.vocabularioProibido?.join(', ')}`;
+    },
+  },
+  brand_narrative: {
+    label: 'Narrativa de Marca',
+    getPayload: (p) => (p.brandNarrative as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.brandNarrative;
+      return {
+        ...p,
+        brandNarrative: {
+          ...(d as unknown as NonNullable<Project['brandNarrative']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+          ...(prev?.versaoAprovada ? { versaoAprovada: prev.versaoAprovada } : {}),
+        },
+      };
+    },
+    check: (d) => typeof d.manifesto === 'string' && (d.manifesto as string).length > 0,
+    schemaDescription: `{
+    "manifesto": "Texto completo do manifesto — multi-paragrafo, separado por quebras de linha duplas (\\n\\n)."
+  }`,
+    stepContent: (p) => p.brandNarrative?.manifesto || '',
+  },
+  message_library: {
+    label: 'Biblioteca de Mensagens',
+    getPayload: (p) => (p.messageLibrary as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.messageLibrary;
+      return {
+        ...p,
+        messageLibrary: {
+          ...(d as unknown as NonNullable<Project['messageLibrary']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.items) && (d.items as unknown[]).length > 0,
+    schemaDescription: `{
+    "items": [ { "publico": "...", "afirmacaoCentral": "...", "provas": ["..."] } ]
+  }`,
+    stepContent: (p) => {
+      const ml = p.messageLibrary;
+      if (!ml) return '';
+      return ml.items.map(i => `${i.publico}: ${i.afirmacaoCentral}`).join('\n');
+    },
+  },
+};
+
 function getStepNotes(step: WorkflowStep): string {
   return (step.data?.userNotes as string) || '';
 }
@@ -5543,7 +5659,7 @@ function StepBrandPlatform({
                   ))}
                 </div>
               )}
-              <BrandPlatformChat
+              <IncorporationChat
                 step={step}
                 project={project}
                 onUpdate={onUpdate}
@@ -5659,12 +5775,10 @@ function StepLinguisticCode({
                   ))}
                 </div>
               )}
-              <RefinementChat
+              <IncorporationChat
                 step={step}
                 project={project}
                 onUpdate={onUpdate}
-                stepLabel="Código Linguístico"
-                stepContent={lc ? `Tom de voz: ${lc.tomDeVoz.adjetivos.join(', ')} | Anti: ${lc.tomDeVoz.antiAdjetivos.join(', ')}\nVocabulário preferencial: ${lc.vocabularioPreferencial?.join(', ')}\nVocabulário proibido: ${lc.vocabularioProibido?.join(', ')}` : ''}
               />
               <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Código Linguístico</button>
@@ -5761,12 +5875,10 @@ function StepBrandNarrative({
                   <p key={i} style={{ fontSize: '14px', color: 'var(--text)', lineHeight: 1.7, marginBottom: '16px' }}>{p}</p>
                 ))}
               </div>
-              <RefinementChat
+              <IncorporationChat
                 step={step}
                 project={project}
                 onUpdate={onUpdate}
-                stepLabel="Narrativa de Marca"
-                stepContent={narrative ? narrative.manifesto : ''}
               />
               <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar versão final</button>
@@ -5848,12 +5960,10 @@ function StepMessageLibrary({
                   )}
                 </div>
               ))}
-              <RefinementChat
+              <IncorporationChat
                 step={step}
                 project={project}
                 onUpdate={onUpdate}
-                stepLabel="Biblioteca de Mensagens"
-                stepContent={library ? library.items.map(item => `${item.publico}: ${item.afirmacaoCentral}`).join('\n') : ''}
               />
               <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Biblioteca</button>
@@ -7804,23 +7914,25 @@ function RefinementChat({
   );
 }
 
-// ─── BRAND PLATFORM CHAT — protocolo de incorporacao em tres tempos ──────────
-// Especializacao do chat de co-criacao com ciclo synthesize -> review -> apply.
-// Encapsula RefinementChat (conversa livre) e adiciona o protocolo por cima:
-// 1) estrategista conversa livre (Haiku via /api/scripts);
-// 2) clica "Incorporar este raciocinio" -> Sonnet produz sintese estruturada;
-// 3) estrategista confirma -> Sonnet aplica patch no project.brandPlatform.
-// Snapshot do payload anterior vai para step.data.history para undo.
-// Ao aplicar, refinementChat e zerado — nova sessao de refinamento comeca sobre
-// o payload atualizado, evitando duplicacao de mudancas ja incorporadas.
+// ─── INCORPORATION CHAT — protocolo de tres tempos (generico por step) ──────
+// Componente generico que encapsula RefinementChat (conversa livre) e adiciona
+// o ciclo synthesize -> review -> apply por cima. Le INCORPORATION_CONFIG por
+// step.type para saber como ler/escrever o payload, quais campos validar e qual
+// schema JSON passar ao prompt do modo apply.
+//
+// Fallback seguro: se nao houver config para o step.type, renderiza apenas o
+// RefinementChat sem o protocolo — drop-in replacement.
+//
+// Ao aplicar, refinementChat e zerado para evitar duplicar mudancas ja
+// incorporadas em chamadas subsequentes.
 
-type BrandPlatformSnapshot = {
-  payload: import('@/lib/store').BrandPlatform;
+type StepPayloadSnapshot = {
+  payload: Record<string, unknown>;
   at: string;
   synthesisNote: string;
 };
 
-function BrandPlatformChat({
+function IncorporationChat({
   step,
   project,
   onUpdate,
@@ -7829,31 +7941,39 @@ function BrandPlatformChat({
   project: Project;
   onUpdate: (p: Project) => void;
 }) {
-  const bp = project.brandPlatform;
+  const config = INCORPORATION_CONFIG[step.type];
+
   const messages = (step.data?.refinementChat as { role: 'user' | 'assistant'; content: string }[]) || [];
-  const history = (step.data?.history as BrandPlatformSnapshot[]) || [];
+  const history = (step.data?.history as StepPayloadSnapshot[]) || [];
 
   const [mode, setMode] = React.useState<'chat' | 'reviewing' | 'applying'>('chat');
   const [synthesis, setSynthesis] = React.useState('');
   const [synthLoading, setSynthLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  // Conteudo do chat atual para o RefinementChat encapsulado
-  const stepContent = bp
-    ? `Proposito: ${bp.proposito}
-Essencia: ${bp.essencia}
-Posicionamento: ${bp.posicionamento}
-Promessa: ${bp.promessa}
-Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
-    : '';
+  // Sem config: so conversa livre, sem protocolo
+  if (!config) {
+    return (
+      <RefinementChat
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        stepLabel={step.type}
+        stepContent=""
+      />
+    );
+  }
+
+  const currentPayload = config.getPayload(project);
+  const label = config.label;
 
   // Numero minimo de mensagens para habilitar o botao Incorporar.
   // Escolha: 2 = pelo menos um par (user + assistant) — abaixo disso a sintese
   // nao tem materia suficiente para produzir leitura util.
-  const canIncorporate = bp && messages.length >= 2 && mode === 'chat' && !synthLoading;
+  const canIncorporate = !!currentPayload && messages.length >= 2 && mode === 'chat' && !synthLoading;
 
   async function handleSynthesize() {
-    if (!bp) return;
+    if (!currentPayload || !config) return;
     setSynthLoading(true);
     setError('');
     try {
@@ -7863,9 +7983,10 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
         body: JSON.stringify({
           action: 'incorporate_chat',
           mode: 'synthesize',
-          stepType: 'brand_platform',
+          stepType: step.type,
+          stepLabel: label,
           projectContext: getProjectContext(project),
-          currentPayload: bp,
+          currentPayload,
           chatMessages: messages,
         }),
       });
@@ -7884,7 +8005,7 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
   }
 
   async function handleApply() {
-    if (!bp) return;
+    if (!currentPayload || !config) return;
     setMode('applying');
     setError('');
     try {
@@ -7894,9 +8015,11 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
         body: JSON.stringify({
           action: 'incorporate_chat',
           mode: 'apply',
-          stepType: 'brand_platform',
+          stepType: step.type,
+          stepLabel: label,
+          schemaDescription: config.schemaDescription,
           projectContext: getProjectContext(project),
-          currentPayload: bp,
+          currentPayload,
           chatMessages: messages,
         }),
       });
@@ -7906,30 +8029,29 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
         setMode('reviewing');
         return;
       }
+      if (!config.check(data.payload)) {
+        setError('Payload retornado nao passou na validacao do schema.');
+        setMode('reviewing');
+        return;
+      }
 
       // Snapshot do estado anterior
-      const snapshot: BrandPlatformSnapshot = {
-        payload: bp,
+      const snapshot: StepPayloadSnapshot = {
+        payload: currentPayload,
         at: new Date().toISOString(),
         synthesisNote: data.note || '',
       };
       const newHistory = [...history, snapshot];
 
-      // Aplica novo payload preservando metadados relevantes
-      const newBP: typeof bp = {
-        ...(data.payload as unknown as typeof bp),
-        createdAt: bp.createdAt,
-        ...(bp.aprovadoEm ? { aprovadoEm: bp.aprovadoEm } : {}),
-      };
-
-      const projWithBP = { ...project, brandPlatform: newBP };
+      // Aplica novo payload preservando metadados via config.setPayload
+      const projWithPayload = config.setPayload(project, data.payload);
       // Zera refinementChat e registra snapshot em step.data.history
-      const projWithData = updateStepData(projWithBP, step.id, {
+      const projWithData = updateStepData(projWithPayload, step.id, {
         refinementChat: [],
         history: newHistory,
       });
       // Recalcula inputHash apenas se step ja estava aprovado —
-      // caso contrario evita gravar hash em etapa ainda nao-done (seria sujo semanticamente).
+      // caso contrario evita gravar hash em etapa ainda nao-done.
       const finalProj = step.status === 'done'
         ? confirmStepHash(projWithData, step.id)
         : projWithData;
@@ -7951,11 +8073,11 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
   }
 
   function handleUndo() {
-    if (history.length === 0) return;
+    if (history.length === 0 || !config) return;
     const last = history[history.length - 1];
     const newHistory = history.slice(0, -1);
-    const projWithBP = { ...project, brandPlatform: last.payload };
-    const projWithData = updateStepData(projWithBP, step.id, { history: newHistory });
+    const projWithPayload = config.setPayload(project, last.payload);
+    const projWithData = updateStepData(projWithPayload, step.id, { history: newHistory });
     const finalProj = step.status === 'done'
       ? confirmStepHash(projWithData, step.id)
       : projWithData;
@@ -7969,8 +8091,8 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
         step={step}
         project={project}
         onUpdate={onUpdate}
-        stepLabel="Plataforma de Marca"
-        stepContent={stepContent}
+        stepLabel={label}
+        stepContent={config.stepContent(project)}
       />
 
       {/* Linha de protocolo: Incorporar / Reverter — so aparece quando faz sentido */}
@@ -8044,7 +8166,7 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
             marginBottom: '12px',
           }}>{synthesis}</pre>
           <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.5 }}>
-            Ao confirmar, o payload atual vai para o historico (reversivel) e a plataforma e reescrita conforme a sintese acima. O chat sera zerado.
+            Ao confirmar, o payload atual vai para o historico (reversivel) e o(a) {label.toLowerCase()} e reescrito(a) conforme a sintese acima. O chat sera zerado.
           </p>
           <div style={{ display: 'flex', gap: '8px' }}>
             <button
@@ -8074,7 +8196,7 @@ Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
           fontSize: '12px',
           color: 'var(--text-muted)',
         }}>
-          Aplicando mudancas a plataforma...
+          Aplicando mudancas ao(a) {label.toLowerCase()}...
         </div>
       )}
 
