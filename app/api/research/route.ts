@@ -835,6 +835,10 @@ Retorne APENAS este JSON:
         'enablement_kit',
         'coherence_monitor',
         'annual_review',
+        'touchpoint_audit',
+        'incoherence_map',
+        'training_design',
+        'visual_direction',
       ]);
 
       const {

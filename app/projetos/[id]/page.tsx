@@ -537,6 +537,139 @@ const INCORPORATION_CONFIG: Partial<Record<string, {
       return `Ano: ${r.anoReferencia}\nKPIs: ${r.kpisMarca?.length || 0}`;
     },
   },
+
+  touchpoint_audit: {
+    label: 'Auditoria de Touchpoints',
+    getPayload: (p) => (p.touchpointAudit as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.touchpointAudit;
+      return {
+        ...p,
+        touchpointAudit: {
+          ...(d as unknown as NonNullable<Project['touchpointAudit']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.touchpoints),
+    schemaDescription: `{
+    "touchpoints": [ { "id": "...", "touchpoint": "...", "canal": "digital", "peso": 4, "scoreCoerencia": 3, "observacao": "...", "quickWin": true } ],
+    "quickWins": ["..."],
+    "analise": "Analise estrategica do cenario de touchpoints"
+  }`,
+    stepContent: (p) => {
+      const t = p.touchpointAudit;
+      if (!t) return '';
+      return `${t.touchpoints?.length || 0} touchpoints mapeados · ${t.quickWins?.length || 0} quick wins`;
+    },
+  },
+
+  incoherence_map: {
+    label: 'Mapa de Incoerencias',
+    getPayload: (p) => (p.incoherenceMap as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.incoherenceMap;
+      return {
+        ...p,
+        incoherenceMap: {
+          ...(d as unknown as NonNullable<Project['incoherenceMap']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.items),
+    schemaDescription: `{
+    "items": [ { "dimensao": "...", "eDeclara": "...", "eFaz": "...", "eFala": "...", "discrepancia": "...", "risco": "..." } ],
+    "implicacoesEstrategicas": ["..."],
+    "analise": "Analise estrategica da incoerencia"
+  }`,
+    stepContent: (p) => {
+      const im = p.incoherenceMap;
+      if (!im) return '';
+      return `${im.items?.length || 0} incoerencias mapeadas · ${im.implicacoesEstrategicas?.length || 0} implicacoes`;
+    },
+  },
+
+  training_design: {
+    label: 'Programa de Treinamento',
+    getPayload: (p) => (p.trainingDesign as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.trainingDesign;
+      return {
+        ...p,
+        trainingDesign: {
+          ...(d as unknown as NonNullable<Project['trainingDesign']>),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.objetivosPorPublico) || Array.isArray(d.agenda),
+    schemaDescription: `{
+    "objetivosPorPublico": [ { "publico": "...", "objetivos": ["..."] } ],
+    "formatos": ["..."],
+    "agenda": [ { "bloco": "...", "duracao": "...", "formato": "..." } ],
+    "materiaisNecessarios": ["..."]
+  }`,
+    stepContent: (p) => {
+      const t = p.trainingDesign;
+      if (!t) return '';
+      return `${t.objetivosPorPublico?.length || 0} publicos · ${t.agenda?.length || 0} blocos`;
+    },
+  },
+
+  visual_direction: {
+    label: 'Direcao Visual',
+    // Expoe apenas os campos textuais ao chat/IA.
+    // Imagens (brandImages, moodboardImages) e visualBriefing sao pesados e
+    // nao textuais — ficam preservados pelo setPayload sem entrar no prompt.
+    getPayload: (p) => {
+      const vd = p.visualDirection;
+      if (!vd) return null;
+      return {
+        principiosSimbolicos: vd.principiosSimbolicos,
+        paleta: vd.paleta,
+        tipografia: vd.tipografia,
+        elementosGraficos: vd.elementosGraficos,
+        moodboardReferencias: vd.moodboardReferencias,
+        diretrizes: vd.diretrizes,
+      } as unknown as Record<string, unknown>;
+    },
+    setPayload: (p, d) => {
+      const prev = p.visualDirection;
+      const next = d as unknown as Partial<NonNullable<Project['visualDirection']>>;
+      return {
+        ...p,
+        visualDirection: {
+          principiosSimbolicos: next.principiosSimbolicos || prev?.principiosSimbolicos || [],
+          paleta: next.paleta || prev?.paleta || '',
+          tipografia: next.tipografia || prev?.tipografia || '',
+          elementosGraficos: next.elementosGraficos || prev?.elementosGraficos || [],
+          moodboardReferencias: next.moodboardReferencias || prev?.moodboardReferencias || [],
+          diretrizes: next.diretrizes || prev?.diretrizes || '',
+          // Preserva campos visuais pesados — nao foram expostos ao chat
+          ...(prev?.brandImages ? { brandImages: prev.brandImages } : {}),
+          ...(prev?.moodboardImages ? { moodboardImages: prev.moodboardImages } : {}),
+          ...(prev?.moodboardPrompt ? { moodboardPrompt: prev.moodboardPrompt } : {}),
+          ...(prev?.visualBriefing ? { visualBriefing: prev.visualBriefing } : {}),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => typeof d.paleta === 'string' || Array.isArray(d.principiosSimbolicos),
+    schemaDescription: `{
+    "principiosSimbolicos": ["..."],
+    "paleta": "Descricao da paleta e logica simbolica",
+    "tipografia": "Descricao da tipografia e logica simbolica",
+    "elementosGraficos": ["..."],
+    "moodboardReferencias": ["..."],
+    "diretrizes": "Diretrizes para o designer"
+  }`,
+    stepContent: (p) => {
+      const vd = p.visualDirection;
+      if (!vd) return '';
+      return `Principios: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}`;
+    },
+  },
 };
 
 function getStepNotes(step: WorkflowStep): string {
@@ -4994,6 +5127,7 @@ function StepTouchpointAudit({
                   <p style={{ fontSize: '13px', color: 'var(--text)', lineHeight: 1.6 }}>{audit.analise}</p>
                 </div>
               )}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar e continuar</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -5099,6 +5233,7 @@ function StepIncoherenceMap({
                   ))}
                 </div>
               )}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Liderança reconhece — Aprovar Gate 1</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -6872,6 +7007,13 @@ Não seja um assistente genérico de design. Atue por tensão semiótica, justif
               Limpar histórico
             </button>
           )}
+          <IncorporationActions
+            step={step}
+            project={project}
+            onUpdate={onUpdate}
+            messages={messages}
+            chatField="visualChatHistory"
+          />
         </>
       )}
     </div>
@@ -7395,6 +7537,7 @@ function StepTrainingDesign({
                   ))}
                 </div>
               )}
+              <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
               <div style={{ display: 'flex', gap: '8px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Aprovar Programa de Treinamento</button>
                 <button className="btn-skip" onClick={handleGenerate} disabled={loading}>
@@ -8136,18 +8279,29 @@ type StepPayloadSnapshot = {
   synthesisNote: string;
 };
 
-function IncorporationChat({
+// ─── INCORPORATION ACTIONS — camada pura de protocolo ───────────────────────
+// Subcomponente que contem APENAS a UI + logica do protocolo de tres tempos
+// (botao Incorporar, bloco de review, aplicacao, undo). Nao renderiza chat.
+// Recebe as mensagens como prop para permitir diferentes fontes:
+//  - 'refinementChat' (usado por IncorporationChat padrao)
+//  - 'visualChatHistory' (usado por VisualDirectionChat)
+//  - outros no futuro (ex: chatHistory do positioning_thesis)
+// Ao aplicar, zera o campo de chat identificado por chatField.
+
+function IncorporationActions({
   step,
   project,
   onUpdate,
+  messages,
+  chatField,
 }: {
   step: WorkflowStep;
   project: Project;
   onUpdate: (p: Project) => void;
+  messages: { role: 'user' | 'assistant'; content: string }[];
+  chatField: string;
 }) {
   const config = INCORPORATION_CONFIG[step.type];
-
-  const messages = (step.data?.refinementChat as { role: 'user' | 'assistant'; content: string }[]) || [];
   const history = (step.data?.history as StepPayloadSnapshot[]) || [];
 
   const [mode, setMode] = React.useState<'chat' | 'reviewing' | 'applying'>('chat');
@@ -8155,18 +8309,7 @@ function IncorporationChat({
   const [synthLoading, setSynthLoading] = React.useState(false);
   const [error, setError] = React.useState('');
 
-  // Sem config: so conversa livre, sem protocolo
-  if (!config) {
-    return (
-      <RefinementChat
-        step={step}
-        project={project}
-        onUpdate={onUpdate}
-        stepLabel={step.type}
-        stepContent=""
-      />
-    );
-  }
+  if (!config) return null;
 
   const currentPayload = config.getPayload(project);
   const label = config.label;
@@ -8239,7 +8382,6 @@ function IncorporationChat({
         return;
       }
 
-      // Snapshot do estado anterior
       const snapshot: StepPayloadSnapshot = {
         payload: currentPayload,
         at: new Date().toISOString(),
@@ -8247,15 +8389,12 @@ function IncorporationChat({
       };
       const newHistory = [...history, snapshot];
 
-      // Aplica novo payload preservando metadados via config.setPayload
       const projWithPayload = config.setPayload(project, data.payload);
-      // Zera refinementChat e registra snapshot em step.data.history
+      // Zera o chat identificado por chatField e registra snapshot em history.
       const projWithData = updateStepData(projWithPayload, step.id, {
-        refinementChat: [],
+        [chatField]: [],
         history: newHistory,
       });
-      // Recalcula inputHash apenas se step ja estava aprovado —
-      // caso contrario evita gravar hash em etapa ainda nao-done.
       const finalProj = step.status === 'done'
         ? confirmStepHash(projWithData, step.id)
         : projWithData;
@@ -8291,15 +8430,6 @@ function IncorporationChat({
 
   return (
     <>
-      <RefinementChat
-        step={step}
-        project={project}
-        onUpdate={onUpdate}
-        stepLabel={label}
-        stepContent={config.stepContent(project)}
-      />
-
-      {/* Linha de protocolo: Incorporar / Reverter — so aparece quando faz sentido */}
       {mode === 'chat' && (canIncorporate || history.length > 0) && (
         <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
           {canIncorporate && (
@@ -8339,7 +8469,6 @@ function IncorporationChat({
         </div>
       )}
 
-      {/* Bloco de revisao da sintese */}
       {mode === 'reviewing' && (
         <div
           style={{
@@ -8417,6 +8546,54 @@ function IncorporationChat({
           {error}
         </div>
       )}
+    </>
+  );
+}
+
+// ─── INCORPORATION CHAT — RefinementChat + IncorporationActions ─────────────
+// Combinacao padrao: chat via RefinementChat (persiste em refinementChat) +
+// protocolo via IncorporationActions. Fallback seguro se nao houver config.
+
+function IncorporationChat({
+  step,
+  project,
+  onUpdate,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const config = INCORPORATION_CONFIG[step.type];
+  const messages = (step.data?.refinementChat as { role: 'user' | 'assistant'; content: string }[]) || [];
+
+  if (!config) {
+    return (
+      <RefinementChat
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        stepLabel={step.type}
+        stepContent=""
+      />
+    );
+  }
+
+  return (
+    <>
+      <RefinementChat
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        stepLabel={config.label}
+        stepContent={config.stepContent(project)}
+      />
+      <IncorporationActions
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        messages={messages}
+        chatField="refinementChat"
+      />
     </>
   );
 }
