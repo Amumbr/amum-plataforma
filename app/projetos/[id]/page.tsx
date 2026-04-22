@@ -8508,6 +8508,7 @@ function IncorporationActions({
   const [synthesis, setSynthesis] = React.useState('');
   const [synthLoading, setSynthLoading] = React.useState(false);
   const [error, setError] = React.useState('');
+  const [lastNote, setLastNote] = React.useState('');
 
   if (!config) return null;
 
@@ -8523,6 +8524,7 @@ function IncorporationActions({
     if (!currentPayload || !config) return;
     setSynthLoading(true);
     setError('');
+    setLastNote('');
     try {
       const res = await fetch('/api/research', {
         method: 'POST',
@@ -8568,6 +8570,7 @@ function IncorporationActions({
           projectContext: getProjectContext(project),
           currentPayload,
           chatMessages: messages,
+          synthesis, // contrato vinculante: a sintese ja confirmada pelo estrategista
         }),
       });
       const data = await res.json() as { payload?: Record<string, unknown>; note?: string; error?: string };
@@ -8602,6 +8605,7 @@ function IncorporationActions({
       saveProject(finalProj);
       onUpdate(finalProj);
 
+      setLastNote(data.note || 'Mudancas aplicadas.');
       setSynthesis('');
       setMode('chat');
     } catch (e) {
@@ -8666,6 +8670,39 @@ function IncorporationActions({
               ↶ Reverter ultima incorporacao ({history.length})
             </button>
           )}
+        </div>
+      )}
+
+      {mode === 'chat' && lastNote && (
+        <div
+          style={{
+            marginTop: '10px',
+            padding: '8px 12px',
+            border: '1px solid rgba(106,181,106,0.35)',
+            borderRadius: '6px',
+            fontSize: '12px',
+            color: '#6ab56a',
+            background: 'rgba(106,181,106,0.06)',
+            lineHeight: 1.5,
+          }}
+        >
+          <span style={{ fontWeight: 600, marginRight: '6px' }}>✓ Incorporado:</span>
+          {lastNote}
+          <button
+            onClick={() => setLastNote('')}
+            style={{
+              marginLeft: '10px',
+              background: 'transparent',
+              border: 'none',
+              color: 'var(--text-dim)',
+              cursor: 'pointer',
+              fontSize: '11px',
+              padding: 0,
+            }}
+            title="Dispensar"
+          >
+            ✕
+          </button>
         </div>
       )}
 

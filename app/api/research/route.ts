@@ -853,6 +853,7 @@ Retorne APENAS este JSON:
         schemaDescription,
         currentPayload,
         chatMessages,
+        synthesis: confirmedSynthesis,
       } = body as {
         mode?: 'synthesize' | 'apply';
         stepType?: string;
@@ -860,6 +861,7 @@ Retorne APENAS este JSON:
         schemaDescription?: string;
         currentPayload?: Record<string, unknown>;
         chatMessages?: { role: 'user' | 'assistant'; content: string }[];
+        synthesis?: string;
       };
 
       if (mode !== 'synthesize' && mode !== 'apply') {
@@ -937,7 +939,35 @@ Nao adicione nada alem dessas tres secoes. Nao use aspas decorativas. Nao propon
       }
 
       // mode === 'apply'
-      const liveInstruction = `TAREFA — MODO APLICACAO
+      // Se o cliente enviar a sintese ja confirmada pelo estrategista, ela vira
+      // o contrato vinculante: aplicar exatamente o que esta nela, sem
+      // re-interpretar o chat. Isso resolve o caso em que o modelo, por ser
+      // conservador demais no prompt antigo, devolvia payload quase intocado.
+      const synthesisBlock = confirmedSynthesis && confirmedSynthesis.trim().length > 0
+        ? `\n\n=== SINTESE CONFIRMADA PELO ESTRATEGISTA (CONTRATO DE APLICACAO) ===
+${confirmedSynthesis.trim()}
+=== FIM DA SINTESE ===\n`
+        : '';
+
+      const liveInstruction = confirmedSynthesis && confirmedSynthesis.trim().length > 0
+        ? `TAREFA — MODO APLICACAO
+
+A sintese acima ja foi confirmada pelo estrategista. Ela e o CONTRATO: aplique EXATAMENTE as mudancas listadas em "MUDANCAS PROPOSTAS", no(a) ${stepLabel}.
+
+REGRAS:
+- A sintese confirmada tem prioridade absoluta sobre sua leitura do chat. Nao re-interprete o chat por conta propria.
+- Para cada item em MUDANCAS PROPOSTAS, escreva no payload o valor novo (apos "Para:"), substituindo o valor antigo (apos "De:").
+- Os campos listados em CAMPOS INTOCADOS permanecem identicos ao payload atual, sem nenhuma alteracao.
+- Se a sintese diz "Nenhuma mudanca concreta foi consolidada", retorne o payload atual inalterado e coloque isso na nota.
+- Mantenha o schema — respeite a estrutura descrita abaixo.
+- Precisao lexical: preserve a redacao exata da sintese ao transpor para o payload.
+
+Retorne APENAS este JSON:
+{
+  "payload": ${schemaDescription},
+  "note": "Nota curta (maximo 2 frases) listando factualmente o que mudou — ou 'Nenhuma mudanca aplicada' se a sintese nao trouxe mudanca concreta."
+}`
+        : `TAREFA — MODO APLICACAO
 
 Voce leu a transcricao do chat e a sintese ja foi confirmada pelo estrategista. Agora aplique as mudancas acordadas no(a) ${stepLabel}.
 
@@ -958,7 +988,7 @@ Retorne APENAS este JSON:
         model: MODEL_SONNET,
         max_tokens: 3000,
         system: AMUM_SYSTEM,
-        messages: [cachedUserMessage(cachedBlock, liveInstruction)],
+        messages: [cachedUserMessage(cachedBlock + synthesisBlock, liveInstruction)],
       });
 
       try {
