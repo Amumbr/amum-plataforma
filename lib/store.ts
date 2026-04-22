@@ -460,10 +460,27 @@ export interface EnablementKit {
   createdAt: string;
 }
 
+export interface TrainingBlockConhecimento {
+  competencia?: string;
+  entrega?: string;
+  evidencia?: string;
+  ferramentas?: string[];
+}
+
+export interface TrainingBlock {
+  bloco: string;
+  duracao: string;
+  formato: string;
+  // Detalhamento pedagogico opcional. As chaves sao livres (ex: 'semiotica_aplicada',
+  // 'diagnostico_cultural') e cada entrada descreve competencia/entrega/evidencia/
+  // ferramentas do sub-modulo. Opcional para compatibilidade com payloads antigos.
+  conhecimentos?: Record<string, TrainingBlockConhecimento>;
+}
+
 export interface TrainingDesign {
   objetivosPorPublico: { publico: string; objetivos: string[] }[];
   formatos: string[];
-  agenda: { bloco: string; duracao: string; formato: string }[];
+  agenda: TrainingBlock[];
   materiaisNecessarios: string[];
   createdAt: string;
 }

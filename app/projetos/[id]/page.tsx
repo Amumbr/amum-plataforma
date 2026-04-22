@@ -608,9 +608,29 @@ const INCORPORATION_CONFIG: Partial<Record<string, {
     schemaDescription: `{
     "objetivosPorPublico": [ { "publico": "...", "objetivos": ["..."] } ],
     "formatos": ["..."],
-    "agenda": [ { "bloco": "...", "duracao": "...", "formato": "..." } ],
+    "agenda": [
+      {
+        "bloco": "...",
+        "duracao": "...",
+        "formato": "...",
+        "conhecimentos": {
+          "nome_do_submodulo_em_snake_case": {
+            "competencia": "O que o participante passa a saber fazer apos este submodulo",
+            "entrega": "O que ele entrega concretamente ao fim",
+            "evidencia": "Como se comprova que aprendeu — artefato observavel",
+            "ferramentas": ["Nome da ferramenta ou metodo 1", "..."]
+          }
+        }
+      }
+    ],
     "materiaisNecessarios": ["..."]
-  }`,
+  }
+
+Notas sobre o campo 'conhecimentos' (opcional por bloco):
+- Use para explicitar o detalhamento pedagogico de cada bloco. Preencha quando o chat pedir aprofundamento de conteudos, competencias ou evidencias de aprendizagem.
+- As chaves sao livres (snake_case), ex: "semiotica_aplicada", "diagnostico_cultural", "venda_consultiva". Escolha nomes precisos.
+- Se o payload atual ja tem 'conhecimentos' preenchidos em algum bloco, PRESERVE-OS — so reescreva os que foram discutidos no chat ou na sintese.
+- Se o chat nao pediu detalhamento pedagogico, NAO invente 'conhecimentos' onde nao havia antes. Mantenha o bloco com apenas bloco/duracao/formato.`,
     stepContent: (p) => {
       const t = p.trainingDesign;
       if (!t) return '';
@@ -7726,15 +7746,60 @@ function StepTrainingDesign({
               {td.agenda?.length > 0 && (
                 <div style={{ border: '1px solid var(--border)', borderRadius: '8px', padding: '14px 16px', marginBottom: '12px' }}>
                   <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 700, letterSpacing: '0.08em', marginBottom: '10px' }}>AGENDA</p>
-                  {td.agenda.map((bloco, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '12px', alignItems: 'flex-start', padding: '8px 0', borderBottom: i < td.agenda.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
-                      <span style={{ minWidth: '40px', fontSize: '12px', color: 'var(--text-muted)' }}>{bloco.duracao}</span>
-                      <div>
-                        <p style={{ fontSize: '13px', color: 'var(--text)' }}>{bloco.bloco}</p>
-                        <p style={{ fontSize: '11px', color: 'var(--text-muted)' }}>{bloco.formato}</p>
+                  {td.agenda.map((bloco, i) => {
+                    const conhecimentos = bloco.conhecimentos;
+                    const hasConhecimentos = conhecimentos && Object.keys(conhecimentos).length > 0;
+                    return (
+                      <div key={i} style={{ padding: '10px 0', borderBottom: i < td.agenda.length - 1 ? '1px solid var(--border-subtle)' : 'none' }}>
+                        <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-start' }}>
+                          <span style={{ minWidth: '40px', fontSize: '12px', color: 'var(--text-muted)' }}>{bloco.duracao}</span>
+                          <div style={{ flex: 1 }}>
+                            <p style={{ fontSize: '13px', color: 'var(--text)', fontWeight: 600 }}>{bloco.bloco}</p>
+                            <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginTop: '2px' }}>{bloco.formato}</p>
+                          </div>
+                        </div>
+                        {hasConhecimentos && (
+                          <div style={{ marginTop: '10px', marginLeft: '52px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                            {Object.entries(conhecimentos!).map(([chave, c]) => (
+                              <div
+                                key={chave}
+                                style={{
+                                  padding: '8px 12px',
+                                  background: 'rgba(201,169,110,0.04)',
+                                  borderLeft: '2px solid rgba(201,169,110,0.35)',
+                                  borderRadius: '0 6px 6px 0',
+                                }}
+                              >
+                                <p style={{ fontSize: '11px', color: 'var(--gold)', fontWeight: 600, letterSpacing: '0.04em', marginBottom: '6px', textTransform: 'uppercase' }}>
+                                  {chave.replace(/_/g, ' ')}
+                                </p>
+                                {c.competencia && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px', lineHeight: 1.5 }}>
+                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Competência: </span>{c.competencia}
+                                  </p>
+                                )}
+                                {c.entrega && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px', lineHeight: 1.5 }}>
+                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Entrega: </span>{c.entrega}
+                                  </p>
+                                )}
+                                {c.evidencia && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '4px', lineHeight: 1.5 }}>
+                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Evidência: </span>{c.evidencia}
+                                  </p>
+                                )}
+                                {c.ferramentas && c.ferramentas.length > 0 && (
+                                  <p style={{ fontSize: '12px', color: 'var(--text)', marginBottom: '0', lineHeight: 1.5 }}>
+                                    <span style={{ color: 'var(--text-muted)', fontWeight: 600 }}>Ferramentas: </span>{c.ferramentas.join(' · ')}
+                                  </p>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
               <IncorporationChat step={step} project={project} onUpdate={onUpdate} />
