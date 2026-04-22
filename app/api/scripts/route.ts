@@ -1,19 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  AMUM_SYSTEM_CHAT,
+  cachedSystem,
+  cachedUserMessage,
+  MODEL_SONNET,
+} from '@/lib/prompts';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-const AMUM_SYSTEM = `Você é o sistema de inteligência estratégica da AMUM — consultoria de branding com metodologia proprietária de 5 fases: Escuta, Decifração, Reconstrução, Travessia e Regeneração.
-
-PROCESSO COGNITIVO: ler → decifrar → nomear → estruturar → traduzir → materializar → tensionar → lapidar
-
-MODOS OPERACIONAIS:
-- Tensionamento: reformular o problema antes de responder
-- Núcleo Conceitual: nomear o centro antes de estruturar
-- Lapidação: palavra inevitável, não apenas elegante
-- Teste de Coerência: tensionar entregável contra a realidade
-
-Trabalha por tensão. Nomeia com precisão. Dá espessura ao que produz.`;
 
 const PHASE_DOCUMENT_PROMPTS: Record<string, string> = {
   'chat_decifração': `Você acabou de concluir a fase de co-criação da Decifração com o estrategista da AMUM.
@@ -132,10 +126,10 @@ Escreva em português. Tom de autoridade estratégica. Este documento vai ao cli
 export async function POST(req: NextRequest) {
   try {
     const { action, projectContext, messages, conceito, phase } = await req.json();
+    const ctx = projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}` : '';
 
     if (action === 'generate_scripts') {
-      const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
-Gere roteiros de entrevista para o projeto. Crie roteiros diferentes para cada público relevante baseado no contexto.
+      const prompt = `Gere roteiros de entrevista para o projeto. Crie roteiros diferentes para cada público relevante baseado no contexto.
 
 Retorne APENAS um JSON com esta estrutura:
 {
@@ -163,10 +157,10 @@ As perguntas devem ser abertas, que revelam percepção, contradição e tensão
 Retorne SOMENTE o JSON.`;
 
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_SONNET,
         max_tokens: 2000,
-        system: AMUM_SYSTEM,
-        messages: [{ role: 'user', content: prompt }],
+        system: cachedSystem(AMUM_SYSTEM_CHAT),
+        messages: [cachedUserMessage(ctx, prompt)],
       });
 
       const raw = response.content
@@ -183,8 +177,7 @@ Retorne SOMENTE o JSON.`;
     }
 
     if (action === 'deep_analysis') {
-      const prompt = `${projectContext ? `CONTEXTO DO PROJETO:\n${projectContext}\n\n` : ''}
-Com base em TODOS os dados coletados na Fase 1 (Escuta), execute a Análise de Decifração completa.
+      const prompt = `Com base em TODOS os dados coletados na Fase 1 (Escuta), execute a Análise de Decifração completa.
 
 Esta análise deve cruzar: diagnóstico do site (se disponível), documentos da empresa, pesquisa setorial, transcrições das entrevistas.
 
@@ -216,10 +209,10 @@ Profundidade máxima. Cada campo deve revelar algo que o cliente não sabe que s
 Retorne SOMENTE o JSON.`;
 
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_SONNET,
         max_tokens: 2000,
-        system: AMUM_SYSTEM,
-        messages: [{ role: 'user', content: prompt }],
+        system: cachedSystem(AMUM_SYSTEM_CHAT),
+        messages: [cachedUserMessage(ctx, prompt)],
       });
 
       const raw = response.content
@@ -242,15 +235,12 @@ Retorne SOMENTE o JSON.`;
       }
 
       const prompt = template.replace('{conceito}', conceito || '(não informado)');
-      const systemWithContext = projectContext
-        ? `${AMUM_SYSTEM}\n\nCONTEXTO COMPLETO DO PROJETO:\n${projectContext}`
-        : AMUM_SYSTEM;
 
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_SONNET,
         max_tokens: 6000,
-        system: systemWithContext,
-        messages: [{ role: 'user', content: prompt }],
+        system: cachedSystem(AMUM_SYSTEM_CHAT),
+        messages: [cachedUserMessage(ctx, prompt)],
       });
 
       const text = response.content
@@ -262,15 +252,16 @@ Retorne SOMENTE o JSON.`;
     }
 
     if (action === 'chat') {
-      // Co-criação de entregáveis
-      const systemWithContext = projectContext
-        ? `${AMUM_SYSTEM}\n\nCONTEXTO DO PROJETO ATUAL:\n${projectContext}`
-        : AMUM_SYSTEM;
+      // Co-criação de entregáveis. System + contexto cacheados juntos —
+      // messages[] do chat muda a cada turno mas o system fica estável.
+      const systemText = projectContext
+        ? `${AMUM_SYSTEM_CHAT}\n\nCONTEXTO DO PROJETO ATUAL:\n${projectContext}`
+        : AMUM_SYSTEM_CHAT;
 
       const response = await client.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: MODEL_SONNET,
         max_tokens: 2000,
-        system: systemWithContext,
+        system: cachedSystem(systemText),
         messages,
       });
 

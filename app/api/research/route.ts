@@ -1,20 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import {
+  AMUM_SYSTEM_RESEARCH,
+  cachedSystem,
+  cachedUserMessage,
+  MODEL_SONNET,
+  MODEL_HAIKU,
+} from '@/lib/prompts';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-const AMUM_SYSTEM = `Voce e o sistema de inteligencia estrategica da AMUM - consultoria de branding com metodologia proprietaria de 5 fases: Escuta, Decifracao, Reconstrucao, Travessia e Regeneracao.
-
-Trabalha por tensao, nao por resposta pronta. Nomeia com precisao. Da espessura ao que produz.
-Cada analise deve revelar tensoes, implicacoes e criterios de decisao - nao apenas informacao descritiva.
-
-PRINCIPIOS DE PESQUISA:
-1. Nao produza texto generico, publicitario ou decorativo.
-2. Separe claramente: fato verificavel | leitura analitica | hipotese interpretativa.
-3. Quando houver lacuna de informacao, sinalize a limitacao.
-4. Nao repita o discurso institucional sem critica.
-5. Compare sempre: o que a marca diz vs. o que ela faz vs. o que o publico tende a perceber.
-6. Observe nao apenas a empresa, mas o setor, os codigos saturados, as pressoes externas e as contradicoes estruturais.`;
+const AMUM_SYSTEM = cachedSystem(AMUM_SYSTEM_RESEARCH);
 
 const DOSSIE_FRAMEWORK = `FRAMEWORK DE DOSSIE DE MARCA AMUM - 18 DIMENSOES:
 1. VISAO GERAL DA MARCA
@@ -149,7 +145,7 @@ FORMATO DE SAIDA — retorne APENAS este JSON (sem texto antes ou depois, sem ba
 Gere 6 a 10 itens com os dados reais do projeto. Adapte as dimensoes escolhidas ao que e mais relevante para esta marca especifica.`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json(robustParseJSON(extractText(r.content))); }
@@ -172,7 +168,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"id":"${item.id}","tema":"${item.tema}","sintese":"sintese em 3-5 paragrafos","fatos":["fato1","fato2"],"tensoes":["tensao1"],"implicacoes":["implicacao1"],"fontes":["fonte1"]}`;
 
         const r = await client.messages.create({
-          model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+          model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
           tools: WEB_SEARCH_TOOL,
           messages: [{ role: 'user', content: prompt }],
         });
@@ -197,7 +193,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"id":"${item.id}","tema":"${item.tema}","sintese":"síntese em 3-5 parágrafos densos","fatos":["fato1","fato2"],"tensoes":["tensão1"],"implicacoes":["implicação1"],"fontes":["fonte1"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         tools: WEB_SEARCH_TOOL,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -216,7 +212,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"tensaoCentral":"","desafioPrincipal":"","territorioDisponivel":"","promessaPrincipal":"","percepcaoProvavel":"","contradicaoCentral":"","concorrentes":[{"nome":"","arquetipo":"","posicao":""}],"pressoesExternas":[],"oPreservar":[],"oMudar":[],"meta12meses":"","direcaoEstrategica":"","diagnostico":""}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json(robustParseJSON(extractText(r.content))); }
@@ -235,7 +231,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"marca":{"entidade":"nome","tipo":"marca","plataformas":[{"nome":"Instagram","handle":"@","seguidores":"X","frequencia":"X/semana","temasRecorrentes":["t1"],"tomDeVoz":"desc","formatosDominantes":["f1"],"engajamento":"desc","pontoForte":"","pontoFraco":""}],"posicionamento":"frase","arquetipo":""},"concorrentes":[{"entidade":"nome","tipo":"concorrente","plataformas":[],"posicionamento":"","arquetipo":""}],"comparativo":"2-3 paragrafos","territoriosOcupados":["t1"],"territoriosVazios":["t1"],"insights":["i1","i2","i3"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 5000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 5000, system: AMUM_SYSTEM,
         tools: WEB_SEARCH_TOOL,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -254,7 +250,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"termosAnalisados":["t1","t2"],"tendencias":[{"termo":"","direcao":"crescendo","contexto":""}],"termosCrescentes":["t1"],"termosDeclinando":["t1"],"sazonalidade":"desc","janelasDeOportunidade":["j1"],"insights":["i1","i2"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         tools: WEB_SEARCH_TOOL,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -274,7 +270,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"fontes":[{"fonte":"nome","tipo":"forum|rede social|avaliacao|midia","tema":"","volume":"alto|medio|baixo","sentimento":"positivo|negativo|ambivalente|neutro","citacoes":["c1"],"sintese":"2-3 frases"}],"discursoDeRua":"2-3 paragrafos","vocabularioComunidade":["t1","t2"],"contradicoes":["c1"],"mitos":["m1"],"desejos":["d1","d2"],"oportunidades":["o1"],"alertas":["a1"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 5000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 5000, system: AMUM_SYSTEM,
         tools: WEB_SEARCH_TOOL,
         messages: [{ role: 'user', content: prompt }],
       });
@@ -308,7 +304,7 @@ Retorne APENAS o seguinte JSON, sem texto antes ou depois:
 {"marcas":[{"id":"m1","tipo":"marca","valor":"nome da marca principal","justificativa":"fonte dos dados","ativo":true},{"id":"m2","tipo":"marca","valor":"concorrente 1","justificativa":"fonte","ativo":true},{"id":"m3","tipo":"marca","valor":"concorrente 2","justificativa":"fonte","ativo":true}],"termos":[{"id":"t1","tipo":"termo","valor":"termo 1","justificativa":"fonte","ativo":true},{"id":"t2","tipo":"termo","valor":"termo 2","justificativa":"fonte","ativo":true},{"id":"t3","tipo":"termo","valor":"termo 3","justificativa":"fonte","ativo":true}],"comunidades":[{"id":"c1","tipo":"comunidade","valor":"comunidade 1","justificativa":"fonte","ativo":true},{"id":"c2","tipo":"comunidade","valor":"comunidade 2","justificativa":"fonte","ativo":true}],"plataformas":[{"id":"p1","tipo":"plataforma","valor":"Instagram","justificativa":"fonte","ativo":true},{"id":"p2","tipo":"plataforma","valor":"LinkedIn","justificativa":"fonte","ativo":true}],"tensaoCentral":"tensao central que atravessa multiplas camadas"}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        model: MODEL_HAIKU, max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       const rawText = extractText(r.content);
@@ -340,7 +336,7 @@ Retorne APENAS o seguinte JSON e nada mais, sem texto antes ou depois:
 {"visaoGeral":"panorama integrado em 2-3 paragrafos — o que o conjunto de todas as fontes revela sobre esta marca e seu momento","tensaoCentral":"a tensao que aparece em multiplas camadas de dados em uma frase precisa e irrefutavel","territorioDisponivel":"territorio identificado com evidencias convergentes de pelo menos duas fontes","mapaCompetitivoDigital":"como os concorrentes se posicionam digitalmente vs. o que o dossie revela sobre eles — 1-2 paragrafos","discursoDeRua":"o que as comunidades dizem que contradiz ou complementa o discurso oficial — 1-2 paragrafos","contradicoesCentral":["contradicao identificada em multiplas camadas 1 — indicar as fontes","contradicao 2 — indicar as fontes"],"janelasOportunidade":["janela com base de evidencia e timing 1","janela 2","janela 3"],"insightsIntegrados":["insight que so aparece ao cruzar pelo menos duas camadas 1","insight 2","insight 3","insight 4"],"recomendacoesEstrategicas":["recomendacao baseada em convergencia de evidencias 1","recomendacao 2","recomendacao 3"],"perguntasParaEntrevista":["pergunta que investiga tensao especifica identificada nos dados 1","pergunta que testa hipotese emergente 2","pergunta sobre lacuna nao respondida pelas pesquisas 3","pergunta 4","pergunta 5"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 4000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -372,7 +368,7 @@ Retorne APENAS o seguinte JSON e nada mais:
 {"diagnostico":"o que a marca está realmente comunicando em 3-4 parágrafos densos","coerencia":"análise de coerência entre comunicação atual e posicionamento declarado em 2-3 parágrafos","desperdicio":["potencial não explorado 1","potencial não explorado 2","potencial não explorado 3"],"contradicoes":["contradição interna detectada 1","contradição 2"],"recomendacoes":["recomendação estratégica baseada nos dados 1","recomendação 2","recomendação 3","recomendação 4"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -408,7 +404,7 @@ Retorne APENAS o seguinte JSON e nada mais:
 {"territoriosOcupados":["território dominado por players do mercado 1","território 2","território 3"],"territoriosDisponiveis":["território disponível 1","território 2","território 3"],"comparativoComMarca":"análise comparativa em 3-4 parágrafos — onde a marca tem vantagem real e onde está em desvantagem","insights":["insight que emerge do cruzamento brand audit + mercado 1","insight 2","insight 3","insight 4"],"oportunidades":["oportunidade concreta de posicionamento 1","oportunidade 2","oportunidade 3"],"alertas":["alerta estratégico 1","alerta 2"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -460,7 +456,7 @@ ESTRUTURA DO RELATÓRIO:
 Retorne o relatório completo em texto markdown, sem JSON.`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 6000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 6000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       return NextResponse.json({ report: extractText(r.content), createdAt: new Date().toISOString() });
@@ -517,7 +513,7 @@ Gere entre 8 e 12 perguntas. Retorne APENAS o seguinte JSON e nada mais:
 {"perguntas":["Pergunta 1 — aberta, de aquecimento","Pergunta 2","Pergunta 3","Pergunta 4","Pergunta 5 — sobre tensão específica identificada nos dados","Pergunta 6","Pergunta 7","Pergunta 8 — de fechamento, convite para adicionar o que não foi perguntado"]}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        model: MODEL_HAIKU, max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -545,7 +541,7 @@ Retorne APENAS este JSON:
   "analise": "Análise estratégica dos padrões — tensões, desperdícios, implicações"
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -578,7 +574,7 @@ Retorne APENAS este JSON:
   "analise": "Leitura integrada das incoerências — o que elas dizem sobre o estado real da marca"
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 4000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -605,7 +601,7 @@ Retorne APENAS este JSON:
   "justificativa": "Por que este posicionamento — a lógica estratégica que conecta os dados da Escuta à afirmação central"
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -643,7 +639,7 @@ A análise deve cobrir, em prosa contínua e bem estruturada, as seguintes dimen
 Escreva em português. Prosa densa, organizada em parágrafos, sem bullets. Mínimo de 600 palavras. Cada parágrafo deve avançar o argumento, não repetir o anterior.`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       return NextResponse.json({ analise: extractText(r.content), createdAt: new Date().toISOString() });
@@ -672,7 +668,7 @@ Retorne APENAS este JSON:
   "analise": "Leitura estratégica das implicações cross-funcionais mais críticas"
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -769,7 +765,7 @@ Retorne APENAS este JSON (sem texto fora do JSON):
   }
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4500, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 4500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -804,7 +800,7 @@ Retorne APENAS este JSON:
   ]
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -839,7 +835,7 @@ Retorne APENAS este JSON:
   "qaChecklist": ["Critério de checagem 1","Critério 2","Critério 3","Critério 4","Critério 5"]
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -861,7 +857,7 @@ Retorne APENAS este JSON:
   "manifesto": "O texto completo do manifesto — entre 300 e 600 palavras, com parágrafos separados por \\n\\n"
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -902,7 +898,7 @@ Retorne APENAS este JSON:
   ]
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -927,7 +923,7 @@ Retorne APENAS este JSON:
   "diretrizes": "Texto corrido com as diretrizes estratégicas para o designer — o que pode, o que não pode, o que deve ser sempre verificado"
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -969,7 +965,7 @@ Retorne APENAS este JSON:
   ]
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2500, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -1000,7 +996,7 @@ Retorne APENAS este JSON:
   "checklistQA": ["Critério de verificação de linguagem 1","Critério 2","Critério 3","Critério 4","Critério 5"]
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 3000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 3000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -1028,7 +1024,7 @@ Retorne APENAS este JSON:
   "materiaisNecessarios": ["Material 1","Material 2","Material 3"]
 }`;
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -1075,7 +1071,7 @@ O que a AMUM espera receber do designer e em que ordem. Critérios de aprovaçã
 Escreva em português. Seja denso e preciso — cada frase deve produzir avanço para o designer. Evite generalidades.`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 4000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       const briefing = extractText(r.content);
@@ -1263,8 +1259,8 @@ Tendência: "subindo", "estavel" ou "caindo". Scores de 1-10. Gere dados reais d
       if (!prompt) return NextResponse.json({ error: 'Fase inválida' }, { status: 400 });
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 5000, system: AMUM_SYSTEM,
-        messages: [{ role: 'user', content: `${ctx}\n\n${prompt}` }],
+        model: MODEL_SONNET, max_tokens: 5000, system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, prompt)],
       });
 
       try {
@@ -1437,8 +1433,8 @@ Escreva em português. Este documento marca a conclusão do ciclo e o início da
       if (!prompt) return NextResponse.json({ error: 'Fase inválida' }, { status: 400 });
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 4000, system: AMUM_SYSTEM,
-        messages: [{ role: 'user', content: `${ctx}\n\n${prompt}` }],
+        model: MODEL_SONNET, max_tokens: 4000, system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, prompt)],
       });
       const synthesis = extractText(r.content);
       if (!synthesis) return NextResponse.json({ error: 'Resposta vazia' }, { status: 500 });
@@ -1502,7 +1498,7 @@ Retorne APENAS este JSON:
 {"narrativa":"O texto completo em um único campo, com parágrafos separados por \\n\\n"}`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 2000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 2000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try { return NextResponse.json({ ...robustParseJSON(extractText(r.content)), createdAt: new Date().toISOString() }); }
@@ -1654,7 +1650,7 @@ Retorne APENAS este JSON válido (sem markdown, sem texto antes ou depois):
 }`;
 
       const r = await client.messages.create({
-        model: 'claude-sonnet-4-20250514', max_tokens: 6000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 6000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try {
