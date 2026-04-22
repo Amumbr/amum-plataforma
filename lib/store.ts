@@ -1016,14 +1016,54 @@ const STEP_INPUT_EXTRACTORS: Partial<Record<StepType, (p: Project) => unknown>> 
 };
 
 /**
+ * Mapa de dependências composicionais: declarar aqui quando o hash de um step
+ * deve herdar o hash dos steps upstream, para cascata automática de recalibração.
+ *
+ * Escopo atual (Passo 1 — piloto): apenas brand_platform.
+ * Propagação para as outras etapas gerativas ocorre no Passo 2.
+ *
+ * Princípio: manter o extractor próprio (granularidade sobre edições diretas
+ * dos campos primários) e adicionar o hash dos upstream (cascata transitiva).
+ */
+export const STEP_UPSTREAM_DEPS: Partial<Record<StepType, StepType[]>> = {
+  brand_platform: ['positioning_thesis', 'deep_analysis', 'incoherence_map'],
+};
+
+/**
  * Computa o hash dos inputs relevantes de um step dado o estado atual do projeto.
- * Retorna string vazia se o step não tiver extrator definido (inputs primários).
+ *
+ * Combina:
+ *  - payload do extractor próprio (quando declarado) — sensível a edições diretas
+ *    nos campos primários que o step consome;
+ *  - hashes atuais dos upstream declarados em STEP_UPSTREAM_DEPS — propaga
+ *    staleness em cascata sem exigir extractors redundantes.
+ *
+ * Retorna string vazia se o step não tiver extrator nem deps upstream
+ * (inputs primários da Fase 1).
+ *
+ * Observação sobre recursão: STEP_UPSTREAM_DEPS precisa ser um DAG. A piloto
+ * declara apenas brand_platform, e seus upstream não declaram nenhum — sem risco
+ * na versão atual. Propagação futura deve manter essa invariante.
  */
 export function computeStepInputHash(project: Project, stepType: StepType): string {
   const extractor = STEP_INPUT_EXTRACTORS[stepType];
-  if (!extractor) return '';
-  const payload = extractor(project);
-  return _hashString(JSON.stringify(payload));
+  const upstreamDeps = STEP_UPSTREAM_DEPS[stepType];
+
+  const hasExtractor = !!extractor;
+  const hasUpstream = !!upstreamDeps && upstreamDeps.length > 0;
+
+  if (!hasExtractor && !hasUpstream) return '';
+
+  const ownPayload = extractor ? extractor(project) : null;
+
+  const upstreamHashes: Record<string, string> = {};
+  if (upstreamDeps) {
+    for (const depType of upstreamDeps) {
+      upstreamHashes[depType] = computeStepInputHash(project, depType);
+    }
+  }
+
+  return _hashString(JSON.stringify({ own: ownPayload, upstream: upstreamHashes }));
 }
 
 // ─── SEED ─────────────────────────────────────────────────────────────────────

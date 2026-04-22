@@ -807,6 +807,142 @@ Retorne APENAS este JSON:
       catch (e) { return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 }); }
     }
 
+    // ── INCORPORATE CHAT — protocolo de três tempos (piloto: brand_platform) ─────
+    // Dois modos:
+    //   'synthesize' — lê o chat e produz uma leitura estruturada do que foi
+    //                  discutido, em texto para o estrategista confirmar.
+    //   'apply'      — aplica as mudanças acordadas e retorna o payload completo
+    //                  (BrandPlatform) com nota curta do que mudou.
+    //
+    // Cache: ctx + payload atual + transcrição do chat ficam no bloco cacheado;
+    // a instrução do modo e o formato de saída ficam na parte live. Entre as duas
+    // chamadas (synthesize -> apply), o bloco cacheado é idêntico — hit certo.
+    if (action === 'incorporate_chat') {
+      const {
+        mode,
+        stepType,
+        currentPayload,
+        chatMessages,
+      } = body as {
+        mode?: 'synthesize' | 'apply';
+        stepType?: string;
+        currentPayload?: Record<string, unknown>;
+        chatMessages?: { role: 'user' | 'assistant'; content: string }[];
+      };
+
+      if (mode !== 'synthesize' && mode !== 'apply') {
+        return NextResponse.json({ error: 'mode invalido (synthesize|apply)' }, { status: 400 });
+      }
+      if (stepType !== 'brand_platform') {
+        return NextResponse.json({ error: 'Piloto restrito a brand_platform nesta versao' }, { status: 400 });
+      }
+      if (!currentPayload || typeof currentPayload !== 'object') {
+        return NextResponse.json({ error: 'currentPayload obrigatorio' }, { status: 400 });
+      }
+      if (!Array.isArray(chatMessages) || chatMessages.length === 0) {
+        return NextResponse.json({ error: 'chatMessages obrigatorio e nao-vazio' }, { status: 400 });
+      }
+
+      const transcript = chatMessages
+        .map(m => `[${m.role === 'user' ? 'ESTRATEGISTA' : 'IA'}]\n${m.content}`)
+        .join('\n\n');
+
+      const cachedBlock = `${ctx}PLATAFORMA DE MARCA ATUAL (aprovada ou em edicao):
+${JSON.stringify(currentPayload, null, 2)}
+
+=== TRANSCRICAO DO CHAT DE CO-CRIACAO ===
+${transcript}
+=== FIM DA TRANSCRICAO ===`;
+
+      if (mode === 'synthesize') {
+        const liveInstruction = `TAREFA — MODO SINTESE
+
+Voce acaba de ler a transcricao de um chat entre o estrategista e a IA sobre a Plataforma de Marca acima.
+
+Sua tarefa nao e responder ao estrategista. E produzir uma LEITURA ESTRUTURADA do que foi discutido, para o estrategista confirmar antes de qualquer alteracao estrutural ser aplicada.
+
+REGRAS:
+- Identifique APENAS o que o estrategista quer efetivamente mudar, reformular ou adicionar. Ignore exploracao livre que nao se consolidou em decisao.
+- Se uma ideia foi levantada mas descartada no proprio chat, nao inclua.
+- Se o estrategista pediu alternativas e escolheu uma, reporte a escolha final.
+- Se nao houver mudanca concreta a propor, diga isso explicitamente — nao invente ajustes.
+
+FORMATO DE SAIDA — texto limpo, sem JSON, sem markdown de codigo. Use esta estrutura:
+
+MUDANCAS PROPOSTAS
+- Campo: <nome do campo, ex: essencia>
+  De: <trecho do atual>
+  Para: <proposta>
+  Por que: <razao curta, uma frase>
+
+(repita por campo que muda; se nenhum, escreva "Nenhuma mudanca concreta foi consolidada no chat.")
+
+CAMPOS INTOCADOS
+- <liste por nome apenas os campos que nao sofrem alteracao>
+
+OBSERVACAO DO ESTRATEGISTA
+<uma frase curta reconhecendo o movimento do chat, sem bajulacao. Se houver tensao nao resolvida, nomeie.>
+
+Nao adicione nada alem dessas tres secoes. Nao use aspas decorativas. Nao proponha mudancas que o estrategista nao pediu.`;
+
+        const r = await client.messages.create({
+          model: MODEL_SONNET,
+          max_tokens: 2000,
+          system: AMUM_SYSTEM,
+          messages: [cachedUserMessage(cachedBlock, liveInstruction)],
+        });
+        return NextResponse.json({
+          mode: 'synthesize',
+          synthesis: extractText(r.content),
+        });
+      }
+
+      // mode === 'apply'
+      const liveInstruction = `TAREFA — MODO APLICACAO
+
+Voce leu a transcricao do chat e a sintese ja foi confirmada pelo estrategista. Agora aplique as mudancas acordadas na Plataforma de Marca.
+
+REGRAS:
+- Preserve EXATAMENTE os campos que nao devem mudar. Nao reescreva por conta propria.
+- Aplique apenas o que foi discutido e consolidado no chat.
+- Mantenha o schema original — cinco campos: proposito, essencia, posicionamento, promessa, valores.
+- Valores sao array de objetos { valor, comportamentos[], provaOperacional?, odsAncora? } — preserve campos opcionais existentes quando nao forem modificados.
+- Precisao lexical acima de elegancia. Palavra inevitavel, nao apenas sonora.
+
+Retorne APENAS este JSON:
+{
+  "payload": {
+    "proposito": "...",
+    "essencia": "...",
+    "posicionamento": "...",
+    "promessa": "...",
+    "valores": [ { "valor": "...", "comportamentos": ["..."], "provaOperacional": "...", "odsAncora": "..." } ]
+  },
+  "note": "Nota curta (maximo 2 frases) do que mudou nesta incorporacao — factual, sem adjetivacao."
+}`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 3000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(cachedBlock, liveInstruction)],
+      });
+
+      try {
+        const parsed = robustParseJSON(extractText(r.content)) as { payload?: Record<string, unknown>; note?: string };
+        if (!parsed.payload || typeof parsed.payload !== 'object') {
+          return NextResponse.json({ error: 'Resposta sem payload valido', raw: extractText(r.content) }, { status: 500 });
+        }
+        return NextResponse.json({
+          mode: 'apply',
+          payload: parsed.payload,
+          note: parsed.note || '',
+        });
+      } catch (e) {
+        return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 });
+      }
+    }
+
     // ── LINGUISTIC CODE ───────────────────────────────────────────────────────────
     if (action === 'linguistic_code') {
       const prompt = `${ctx}

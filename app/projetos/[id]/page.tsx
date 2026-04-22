@@ -5543,12 +5543,10 @@ function StepBrandPlatform({
                   ))}
                 </div>
               )}
-              <RefinementChat
+              <BrandPlatformChat
                 step={step}
                 project={project}
                 onUpdate={onUpdate}
-                stepLabel="Plataforma de Marca"
-                stepContent={bp ? `Propósito: ${bp.proposito}\nEssência: ${bp.essencia}\nPosicionamento: ${bp.posicionamento}\nPromessa: ${bp.promessa}\nValores: ${bp.valores?.map(v => v.valor).join(', ')}` : ''}
               />
               <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
                 <button className="btn-approve" onClick={handleApprove}>Plataforma assinada — Aprovar Gate 3</button>
@@ -7803,6 +7801,297 @@ function RefinementChat({
         </>
       )}
     </div>
+  );
+}
+
+// ─── BRAND PLATFORM CHAT — protocolo de incorporacao em tres tempos ──────────
+// Especializacao do chat de co-criacao com ciclo synthesize -> review -> apply.
+// Encapsula RefinementChat (conversa livre) e adiciona o protocolo por cima:
+// 1) estrategista conversa livre (Haiku via /api/scripts);
+// 2) clica "Incorporar este raciocinio" -> Sonnet produz sintese estruturada;
+// 3) estrategista confirma -> Sonnet aplica patch no project.brandPlatform.
+// Snapshot do payload anterior vai para step.data.history para undo.
+// Ao aplicar, refinementChat e zerado — nova sessao de refinamento comeca sobre
+// o payload atualizado, evitando duplicacao de mudancas ja incorporadas.
+
+type BrandPlatformSnapshot = {
+  payload: import('@/lib/store').BrandPlatform;
+  at: string;
+  synthesisNote: string;
+};
+
+function BrandPlatformChat({
+  step,
+  project,
+  onUpdate,
+}: {
+  step: WorkflowStep;
+  project: Project;
+  onUpdate: (p: Project) => void;
+}) {
+  const bp = project.brandPlatform;
+  const messages = (step.data?.refinementChat as { role: 'user' | 'assistant'; content: string }[]) || [];
+  const history = (step.data?.history as BrandPlatformSnapshot[]) || [];
+
+  const [mode, setMode] = React.useState<'chat' | 'reviewing' | 'applying'>('chat');
+  const [synthesis, setSynthesis] = React.useState('');
+  const [synthLoading, setSynthLoading] = React.useState(false);
+  const [error, setError] = React.useState('');
+
+  // Conteudo do chat atual para o RefinementChat encapsulado
+  const stepContent = bp
+    ? `Proposito: ${bp.proposito}
+Essencia: ${bp.essencia}
+Posicionamento: ${bp.posicionamento}
+Promessa: ${bp.promessa}
+Valores: ${bp.valores?.map(v => v.valor).join(', ')}`
+    : '';
+
+  // Numero minimo de mensagens para habilitar o botao Incorporar.
+  // Escolha: 2 = pelo menos um par (user + assistant) — abaixo disso a sintese
+  // nao tem materia suficiente para produzir leitura util.
+  const canIncorporate = bp && messages.length >= 2 && mode === 'chat' && !synthLoading;
+
+  async function handleSynthesize() {
+    if (!bp) return;
+    setSynthLoading(true);
+    setError('');
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'incorporate_chat',
+          mode: 'synthesize',
+          stepType: 'brand_platform',
+          projectContext: getProjectContext(project),
+          currentPayload: bp,
+          chatMessages: messages,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) {
+        setError(data.error);
+        return;
+      }
+      setSynthesis(data.synthesis || '');
+      setMode('reviewing');
+    } catch (e) {
+      setError(String(e));
+    } finally {
+      setSynthLoading(false);
+    }
+  }
+
+  async function handleApply() {
+    if (!bp) return;
+    setMode('applying');
+    setError('');
+    try {
+      const res = await fetch('/api/research', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'incorporate_chat',
+          mode: 'apply',
+          stepType: 'brand_platform',
+          projectContext: getProjectContext(project),
+          currentPayload: bp,
+          chatMessages: messages,
+        }),
+      });
+      const data = await res.json() as { payload?: Record<string, unknown>; note?: string; error?: string };
+      if (data.error || !data.payload) {
+        setError(data.error || 'Resposta sem payload');
+        setMode('reviewing');
+        return;
+      }
+
+      // Snapshot do estado anterior
+      const snapshot: BrandPlatformSnapshot = {
+        payload: bp,
+        at: new Date().toISOString(),
+        synthesisNote: data.note || '',
+      };
+      const newHistory = [...history, snapshot];
+
+      // Aplica novo payload preservando metadados relevantes
+      const newBP: typeof bp = {
+        ...(data.payload as unknown as typeof bp),
+        createdAt: bp.createdAt,
+        ...(bp.aprovadoEm ? { aprovadoEm: bp.aprovadoEm } : {}),
+      };
+
+      const projWithBP = { ...project, brandPlatform: newBP };
+      // Zera refinementChat e registra snapshot em step.data.history
+      const projWithData = updateStepData(projWithBP, step.id, {
+        refinementChat: [],
+        history: newHistory,
+      });
+      // Recalcula inputHash apenas se step ja estava aprovado —
+      // caso contrario evita gravar hash em etapa ainda nao-done (seria sujo semanticamente).
+      const finalProj = step.status === 'done'
+        ? confirmStepHash(projWithData, step.id)
+        : projWithData;
+
+      saveProject(finalProj);
+      onUpdate(finalProj);
+
+      setSynthesis('');
+      setMode('chat');
+    } catch (e) {
+      setError(String(e));
+      setMode('reviewing');
+    }
+  }
+
+  function handleReject() {
+    setSynthesis('');
+    setMode('chat');
+  }
+
+  function handleUndo() {
+    if (history.length === 0) return;
+    const last = history[history.length - 1];
+    const newHistory = history.slice(0, -1);
+    const projWithBP = { ...project, brandPlatform: last.payload };
+    const projWithData = updateStepData(projWithBP, step.id, { history: newHistory });
+    const finalProj = step.status === 'done'
+      ? confirmStepHash(projWithData, step.id)
+      : projWithData;
+    saveProject(finalProj);
+    onUpdate(finalProj);
+  }
+
+  return (
+    <>
+      <RefinementChat
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        stepLabel="Plataforma de Marca"
+        stepContent={stepContent}
+      />
+
+      {/* Linha de protocolo: Incorporar / Reverter — so aparece quando faz sentido */}
+      {mode === 'chat' && (canIncorporate || history.length > 0) && (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '10px', flexWrap: 'wrap' }}>
+          {canIncorporate && (
+            <button
+              className="btn-small"
+              onClick={handleSynthesize}
+              disabled={synthLoading}
+              style={{
+                background: 'rgba(201,169,110,0.12)',
+                border: '1px solid rgba(201,169,110,0.45)',
+                color: '#a07830',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: synthLoading ? 'not-allowed' : 'pointer',
+                opacity: synthLoading ? 0.6 : 1,
+              }}
+              title="Ler o chat e propor as mudancas estruturais para confirmacao"
+            >
+              {synthLoading ? '✦ Lendo conversa...' : '✦ Incorporar este raciocinio'}
+            </button>
+          )}
+          {history.length > 0 && (
+            <button
+              className="btn-small"
+              onClick={handleUndo}
+              style={{
+                background: 'transparent',
+                border: '1px solid var(--border)',
+                color: 'var(--text-dim)',
+                fontSize: '11px',
+              }}
+              title={`Ultimo snapshot: ${new Date(history[history.length - 1].at).toLocaleString('pt-BR')}`}
+            >
+              ↶ Reverter ultima incorporacao ({history.length})
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* Bloco de revisao da sintese */}
+      {mode === 'reviewing' && (
+        <div
+          style={{
+            marginTop: '14px',
+            border: '1px solid rgba(201,169,110,0.45)',
+            borderRadius: '8px',
+            padding: '14px 16px',
+            background: 'rgba(201,169,110,0.06)',
+          }}
+        >
+          <p style={{
+            fontSize: '11px',
+            color: '#a07830',
+            fontWeight: 700,
+            letterSpacing: '0.08em',
+            marginBottom: '10px',
+            textTransform: 'uppercase',
+          }}>
+            Sintese proposta — confirme antes de aplicar
+          </p>
+          <pre style={{
+            whiteSpace: 'pre-wrap',
+            fontFamily: 'inherit',
+            fontSize: '13px',
+            lineHeight: 1.6,
+            color: 'var(--text)',
+            margin: 0,
+            marginBottom: '12px',
+          }}>{synthesis}</pre>
+          <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '10px', lineHeight: 1.5 }}>
+            Ao confirmar, o payload atual vai para o historico (reversivel) e a plataforma e reescrita conforme a sintese acima. O chat sera zerado.
+          </p>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              className="btn-primary"
+              onClick={handleApply}
+              style={{ fontSize: '12px' }}
+            >
+              Confirmar e aplicar
+            </button>
+            <button
+              className="btn-skip"
+              onClick={handleReject}
+              style={{ fontSize: '12px' }}
+            >
+              Recusar — continuar conversa
+            </button>
+          </div>
+        </div>
+      )}
+
+      {mode === 'applying' && (
+        <div style={{
+          marginTop: '14px',
+          padding: '10px 14px',
+          border: '1px solid var(--border)',
+          borderRadius: '6px',
+          fontSize: '12px',
+          color: 'var(--text-muted)',
+        }}>
+          Aplicando mudancas a plataforma...
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          marginTop: '10px',
+          padding: '8px 12px',
+          border: '1px solid rgba(224,82,82,0.4)',
+          borderRadius: '6px',
+          fontSize: '12px',
+          color: '#e05252',
+          background: 'rgba(224,82,82,0.06)',
+        }}>
+          {error}
+        </div>
+      )}
+    </>
   );
 }
 
