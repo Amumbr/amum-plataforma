@@ -839,6 +839,11 @@ Retorne APENAS este JSON:
         'incoherence_map',
         'training_design',
         'visual_direction',
+        'positioning_thesis',
+        'documents',
+        'brand_audit',
+        'social_research',
+        'research_report',
       ]);
 
       const {

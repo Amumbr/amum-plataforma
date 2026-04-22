@@ -41,6 +41,7 @@ import {
   StepType,
   MoodboardImage,
   BrandManual,
+  PositioningThesis,
 } from '@/lib/store';
 import { fetchProjectFromSupabase } from '@/lib/db';
 
@@ -669,6 +670,168 @@ const INCORPORATION_CONFIG: Partial<Record<string, {
       if (!vd) return '';
       return `Principios: ${vd.principiosSimbolicos?.join(' | ')}\nPaleta: ${vd.paleta}\nTipografia: ${vd.tipografia}`;
     },
+  },
+
+  positioning_thesis: {
+    label: 'Tese de Posicionamento',
+    // Expoe apenas os 4 campos centrais ao chat/IA. posicionamentoAnalise e
+    // gerado por action especifica (positioning_deep_analysis) com prompt proprio
+    // — deixar o chat sobrescreve-lo fragmentaria a autoria. Preservado pelo
+    // setPayload junto com createdAt.
+    getPayload: (p) => {
+      const t = p.positioningThesis;
+      if (!t) return null;
+      return {
+        afirmacaoCentral: t.afirmacaoCentral,
+        tradeoffs: t.tradeoffs,
+        justificativa: t.justificativa,
+        novoPositionamento: t.novoPositionamento,
+      } as unknown as Record<string, unknown>;
+    },
+    setPayload: (p, d) => {
+      const prev = p.positioningThesis;
+      const next = d as unknown as Partial<PositioningThesis>;
+      return {
+        ...p,
+        positioningThesis: {
+          afirmacaoCentral: next.afirmacaoCentral || prev?.afirmacaoCentral || '',
+          tradeoffs: next.tradeoffs || prev?.tradeoffs || [],
+          justificativa: next.justificativa || prev?.justificativa || '',
+          ...(next.novoPositionamento !== undefined
+            ? { novoPositionamento: next.novoPositionamento }
+            : prev?.novoPositionamento ? { novoPositionamento: prev.novoPositionamento } : {}),
+          // Preserva analise — gerada por action propria, nao deve ser
+          // sobrescrita por incorporacao de chat.
+          ...(prev?.posicionamentoAnalise ? { posicionamentoAnalise: prev.posicionamentoAnalise } : {}),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => typeof d.afirmacaoCentral === 'string' && (d.afirmacaoCentral as string).trim().length > 0,
+    schemaDescription: `{
+    "afirmacaoCentral": "Afirmacao central do posicionamento — precisa, memoravel, com abandono implicito",
+    "tradeoffs": [ { "abandona": "...", "ganha": "..." } ],
+    "justificativa": "Logica que conecta dados da Escuta a afirmacao central",
+    "novoPositionamento": "Declaracao formal e descritiva do novo posicionamento (opcional)"
+  }`,
+    stepContent: (p) => {
+      const t = p.positioningThesis;
+      if (!t) return '';
+      const tradeoffsTxt = t.tradeoffs?.map(x => `abandona "${x.abandona}" → ganha "${x.ganha}"`).join(' | ') || '';
+      return `Afirmacao central: ${t.afirmacaoCentral}\nTrade-offs: ${tradeoffsTxt}\nJustificativa: ${t.justificativa}${t.novoPositionamento ? `\nNovo posicionamento: ${t.novoPositionamento}` : ''}`;
+    },
+  },
+
+  documents: {
+    label: 'Sintese de Documentos',
+    // O protocolo atua sobre documentSynthesis (leitura analitica), nao sobre os
+    // arquivos carregados. Arquivos sao dados brutos, a sintese e interpretacao —
+    // e a interpretacao que o chat refina.
+    getPayload: (p) => (p.documentSynthesis as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.documentSynthesis;
+      return {
+        ...p,
+        documentSynthesis: {
+          ...(d as unknown as DocumentSynthesis),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => typeof d.apresentacao === 'string' && !!d.apresentacao,
+    schemaDescription: `{
+    "apresentacao": "Como a empresa se apresenta nos documentos",
+    "linguagem": "Analise da linguagem usada",
+    "arquetipo": { "dominante": "...", "secundario": "...", "sombra": "..." },
+    "tensoes": ["..."],
+    "signos_fortes": ["..."],
+    "signos_conflito": ["..."],
+    "potencia_latente": "O que poderia emergir mas ainda nao emergiu",
+    "hipoteses_estrategicas": ["..."],
+    "perguntas_para_entrevista": ["..."]
+  }`,
+    stepContent: (p) => {
+      const s = p.documentSynthesis;
+      if (!s) return '';
+      return `Apresentacao: ${s.apresentacao?.slice(0, 200)}\nArquetipo dominante: ${s.arquetipo?.dominante}\nTensoes: ${s.tensoes?.slice(0, 3).join(' · ')}`;
+    },
+  },
+
+  brand_audit: {
+    label: 'Sintese da Auditoria de Canais',
+    getPayload: (p) => (p.brandAuditSynthesis as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.brandAuditSynthesis;
+      return {
+        ...p,
+        brandAuditSynthesis: {
+          ...(d as unknown as BrandAuditSynthesis),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => typeof d.diagnostico === 'string' && !!d.diagnostico,
+    schemaDescription: `{
+    "diagnostico": "O que a marca esta efetivamente comunicando",
+    "coerencia": "E coerente com o que declara ser?",
+    "desperdicio": ["..."],
+    "contradicoes": ["..."],
+    "recomendacoes": ["..."]
+  }`,
+    stepContent: (p) => {
+      const s = p.brandAuditSynthesis;
+      if (!s) return '';
+      return `Diagnostico: ${s.diagnostico?.slice(0, 200)}\nCoerencia: ${s.coerencia?.slice(0, 200)}\nContradicoes: ${s.contradicoes?.length || 0} · Recomendacoes: ${s.recomendacoes?.length || 0}`;
+    },
+  },
+
+  social_research: {
+    label: 'Sintese da Pesquisa de Redes Sociais',
+    getPayload: (p) => (p.socialResearchSynthesis as unknown as Record<string, unknown>) || null,
+    setPayload: (p, d) => {
+      const prev = p.socialResearchSynthesis;
+      return {
+        ...p,
+        socialResearchSynthesis: {
+          ...(d as unknown as SocialResearchSynthesis),
+          createdAt: prev?.createdAt || new Date().toISOString(),
+        },
+      };
+    },
+    check: (d) => Array.isArray(d.territoriosOcupados) || typeof d.comparativoComMarca === 'string',
+    schemaDescription: `{
+    "territoriosOcupados": ["..."],
+    "territoriosDisponiveis": ["..."],
+    "comparativoComMarca": "Diferencial real vs. brand audit",
+    "insights": ["..."],
+    "oportunidades": ["..."],
+    "alertas": ["..."]
+  }`,
+    stepContent: (p) => {
+      const s = p.socialResearchSynthesis;
+      if (!s) return '';
+      return `Territorios ocupados: ${s.territoriosOcupados?.slice(0, 3).join(' · ')}\nDisponiveis: ${s.territoriosDisponiveis?.slice(0, 3).join(' · ')}\nComparativo: ${s.comparativoComMarca?.slice(0, 200)}`;
+    },
+  },
+
+  research_report: {
+    label: 'Relatorio Consolidado de Pesquisa',
+    // Caso especial: consolidatedReport e string, nao objeto estruturado.
+    // Payload sintetico { consolidatedReport: string } para manter contrato do
+    // protocolo; setPayload escreve direto no campo string do project.
+    getPayload: (p) => {
+      if (!p.consolidatedReport) return null;
+      return { consolidatedReport: p.consolidatedReport } as Record<string, unknown>;
+    },
+    setPayload: (p, d) => ({
+      ...p,
+      consolidatedReport: typeof d.consolidatedReport === 'string' ? d.consolidatedReport : p.consolidatedReport,
+    }),
+    check: (d) => typeof d.consolidatedReport === 'string' && (d.consolidatedReport as string).trim().length > 0,
+    schemaDescription: `{
+    "consolidatedReport": "Texto completo do relatorio consolidado — multi-paragrafo, separado por quebras de linha duplas (\\n\\n)"
+  }`,
+    stepContent: (p) => p.consolidatedReport?.slice(0, 400) || '',
   },
 };
 
@@ -1940,6 +2103,13 @@ function StepDocuments({
       )}
       <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Indique o que priorizar na análise, contexto sobre os documentos, ou informações que não estão nos arquivos..." />
       <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Documentos da empresa" />
+      <IncorporationActions
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        messages={getStepChatHistory(step)}
+        chatField="chatHistory"
+      />
     </div>
   );
 }
@@ -3854,6 +4024,13 @@ function StepBrandAudit({
       )}
       <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Canais prioritários, aspectos específicos a observar, comparação com período anterior..." />
       <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Auditoria de Canais da Marca" />
+      <IncorporationActions
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        messages={getStepChatHistory(step)}
+        chatField="chatHistory"
+      />
     </div>
   );
 }
@@ -4110,6 +4287,13 @@ function StepSocialResearch({
       )}
       <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Concorrentes prioritários, plataformas específicas, ângulos de comparação..." />
       <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Pesquisa de Redes Sociais" />
+      <IncorporationActions
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        messages={getStepChatHistory(step)}
+        chatField="chatHistory"
+      />
     </div>
   );
 }
@@ -4210,6 +4394,13 @@ function StepResearchReport({
       )}
       <StepNotes step={step} project={project} onUpdate={onUpdate} placeholder="Ajustes no relatório, seções a reforçar, dados a incluir manualmente..." />
       <StepInlineChat step={step} project={project} onUpdate={onUpdate} stepLabel="Relatório Consolidado" />
+      <IncorporationActions
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        messages={getStepChatHistory(step)}
+        chatField="chatHistory"
+      />
     </div>
   );
 }
@@ -5610,6 +5801,15 @@ Princípios desta sessão:
           disabled={!chatInput.trim() || chatLoading}
         >→</button>
       </div>
+
+      {/* Protocolo de incorporacao — atua sobre chatHistory (nao refinementChat) */}
+      <IncorporationActions
+        step={step}
+        project={project}
+        onUpdate={onUpdate}
+        messages={chatMessages}
+        chatField="chatHistory"
+      />
 
       {divider}
 
