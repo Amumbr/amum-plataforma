@@ -184,3 +184,214 @@ export const REPORT_SHARED_CSS = `
   }
 }
 `;
+
+/**
+ * CSS do componente <AfirmacaoHero>. Tratamento hero do posicionamento
+ * aprovado — statement em 44-82px sobre fundo ink, linha A em branco e
+ * linha B em gold, glosa em border-left dourado logo abaixo.
+ *
+ * Desenhado para ocupar a largura plena da .section pai (margin lateral
+ * negativa de 80px, espelhando o padding horizontal da .section).
+ */
+export const REPORT_AFIRMACAO_CSS = `
+.report .afirmacao {
+  margin: 0 -80px 56px;
+  padding: 88px 80px 72px;
+  background: var(--ink);
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+  border-top: 4px solid var(--dest);
+}
+.report .afirmacao::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 60% 70% at 90% 20%, rgba(74,93,58,0.20) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 50% at 10% 90%, rgba(201,169,110,0.08) 0%, transparent 55%);
+  pointer-events: none;
+}
+.report .afirmacao::after {
+  content: '';
+  position: absolute;
+  left: 80px;
+  top: 56px;
+  width: 48px;
+  height: 2px;
+  background: var(--gold);
+}
+.report .afirmacao-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--gold);
+  margin-bottom: 40px;
+  font-weight: 600;
+  position: relative;
+}
+.report .afirmacao-statement {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 500;
+  font-size: clamp(44px, 6.2vw, 82px);
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  color: #fff;
+  max-width: 960px;
+  position: relative;
+  margin-bottom: 44px;
+}
+.report .afirmacao-statement .linha { display: block; }
+.report .afirmacao-statement .linha-b { color: var(--gold); }
+
+.report .afirmacao-glosa {
+  font-family: 'Inter', sans-serif;
+  font-size: 16px;
+  line-height: 1.7;
+  color: rgba(255,255,255,0.78);
+  max-width: 720px;
+  font-weight: 400;
+  position: relative;
+  padding-left: 20px;
+  border-left: 2px solid rgba(201,169,110,0.35);
+}
+.report .afirmacao-attr {
+  margin-top: 40px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.20em;
+  color: rgba(255,255,255,0.5);
+  text-transform: uppercase;
+  position: relative;
+}
+`;
+
+/**
+ * CSS do componente <PlataformaSFC>. Tabela do instrumento
+ * Ser · Fazer · Comunicar — cabeçalhos coloridos por coluna, célula de
+ * discrepância destacada em tijolo queimado, implicações em bloco com
+ * border-left dourado.
+ *
+ * Nomenclatura visível usa Ser / Fazer / Comunicar (nomes conceituais
+ * definitivos). A Frente 2 fará a renomeação interna dos campos de
+ * tipos/prompts; este componente já aceita ambos os shapes via adapter
+ * no componente React (ver app/projetos/[id]/relatorio/_shared/PlataformaSFC.tsx).
+ */
+export const REPORT_SFC_CSS = `
+.report .sfc-intro {
+  margin-bottom: 32px;
+  max-width: 720px;
+  font-size: 14.5px;
+  line-height: 1.72;
+  color: var(--ink-soft);
+}
+.report .sfc-legend {
+  display: flex;
+  gap: 22px;
+  margin-bottom: 22px;
+  flex-wrap: wrap;
+}
+.report .sfc-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  color: var(--ink-mute);
+  font-weight: 500;
+}
+.report .sfc-legend-item .ll-dot {
+  width: 10px; height: 10px; border-radius: 2px;
+}
+.report .ll-ser { background: #D5CBA4; }
+.report .ll-fazer { background: #B8A57A; }
+.report .ll-comunicar { background: #8B7940; }
+.report .ll-desc { background: var(--diag); }
+
+.report .sfc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  border: 1px solid var(--line);
+  background: #fff;
+}
+.report .sfc-table thead th {
+  background: var(--cream);
+  padding: 16px 14px;
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 500;
+  color: var(--ink);
+  border-bottom: 2px solid var(--ink);
+  vertical-align: bottom;
+}
+.report .sfc-table thead th.th-ser { border-bottom-color: #D5CBA4; color: var(--gold-dark); }
+.report .sfc-table thead th.th-fazer { border-bottom-color: #B8A57A; color: var(--gold-dark); }
+.report .sfc-table thead th.th-comunicar { border-bottom-color: #8B7940; color: var(--gold-dark); }
+.report .sfc-table thead th.th-desc { border-bottom-color: var(--diag); color: var(--diag); }
+
+.report .sfc-table tbody td {
+  padding: 20px 14px;
+  vertical-align: top;
+  line-height: 1.55;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink-soft);
+}
+.report .sfc-table tbody tr:last-child td { border-bottom: none; }
+.report .sfc-table td.dim-cell {
+  font-weight: 600;
+  color: var(--ink);
+  font-size: 13.5px;
+}
+.report .sfc-table td.disc-cell {
+  background: var(--diag-soft);
+  border-left: 2px solid var(--diag);
+  color: var(--diag);
+  font-weight: 500;
+}
+.report .sfc-table td.risk-cell {
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.report .sfc-implicacoes {
+  margin-top: 36px;
+  padding: 28px 32px;
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--gold);
+  background: var(--cream);
+}
+.report .sfc-implicacoes-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--gold-dark);
+  margin-bottom: 16px;
+  font-weight: 600;
+}
+.report .sfc-implicacoes ul {
+  list-style: none;
+  padding: 0;
+}
+.report .sfc-implicacoes li {
+  font-size: 14px;
+  line-height: 1.68;
+  color: var(--ink-soft);
+  padding-left: 22px;
+  position: relative;
+  margin-bottom: 14px;
+}
+.report .sfc-implicacoes li:last-child { margin-bottom: 0; }
+.report .sfc-implicacoes li::before {
+  content: '→';
+  position: absolute;
+  left: 0;
+  color: var(--gold);
+  font-weight: 600;
+}
+`;
