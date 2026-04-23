@@ -6,58 +6,126 @@ import { getProject, getProjectContext, Project } from '@/lib/store';
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 
-interface FaseJornada {
-  fase: number;
-  nome: string;
-  premissaMetodologica?: string;
-  achadoCritico: string;
-  oQueRevelou?: string;
-  processo?: string;
-  decisaoChave: string;
-  entregaveis?: string[];
-  dados: string;
-}
-
 interface FinalReportJSON {
   capa: { tagline: string; subtitulo: string };
-  pontoDepartida: {
-    estadoInicial: string;
-    tensoesDiagnosticadas: string[];
+
+  abertura: string;
+
+  pontoDePartida: {
+    notaDeLeitura: string;
+    retratoDaMarca: {
+      comoSeApresenta: string;
+      oQueDadosMostram: string;
+      tensaoCentral: string;
+    };
+    mapaIFazFala: {
+      dimensoes: { dimensao: string; eDeclara: string; eFaz: string; eFala: string; discrepancia: string; risco: string }[];
+      implicacoesEstrategicas: string[];
+    };
+    diagnosticoTouchpoints: {
+      touchpointsCriticos: { touchpoint: string; canal: string; peso: number; scoreCoerencia: number; observacao: string }[];
+      quickWins: string[];
+    };
+    tensoesEstruturais: { titulo: string; descricao: string }[];
     perguntaFundadora: string;
   };
-  premissaMetodologicaGeral?: string;
-  jornada: FaseJornada[];
-  posicionamento: {
-    afirmacaoCentral: string;
-    logicaSimbolicaCompleta: string;
+
+  decifracao: {
+    notaDeLeitura: string;
+    arquetipo: {
+      nome: string;
+      signosQueConfirmaram: string;
+    };
+    territorios: {
+      avaliados: { nome: string; viabilidade: string }[];
+      escolhido: string;
+      porQueEsteTerritorio: string;
+    };
     tradeoffs: { abandona: string; ganha: string }[];
-    arquetipo: string;
-    territorioEscolhido: string;
-    porQueEsteTerritorio: string;
+    afirmacaoCentral: string;
+    arquiteturaDeMarca: {
+      portfolioMap: string;
+      nomenclaturaRegras: string;
+      brandToOperating: { funcao: string; implicacao: string; responsavel: string; prioridade: string }[];
+    };
+    matrizODS: {
+      items: {
+        ods: string;
+        classificacao?: string;
+        riscoGreenwashing?: string;
+        iniciativas: { descricao: string; indicador: string; owner: string; cadencia: string }[];
+      }[];
+    };
   };
-  plataforma: {
-    proposito: string;
-    essencia: string;
-    posicionamento: string;
-    promessa: string;
-    valores: { valor: string; comportamento: string }[];
-    tomDeVoz: { e: string[]; naoE: string[] };
+
+  novaMarca: {
+    notaDeLeitura: string;
+    plataforma: {
+      proposito: string;
+      essencia: string;
+      posicionamento: string;
+      promessa: string;
+      valores: { valor: string; comportamentos: string[] }[];
+    };
+    codigoLinguistico: {
+      tomDeVoz: { e: string[]; naoE: string[] };
+      vocabularioPreferencial: string[];
+      vocabularioProibido: string[];
+      padroesConstrutivos: string[];
+      exemplosAplicacao: { contexto: string; exemplo: string }[];
+      qaChecklist: string[];
+    };
+    bibliotecaDeMensagens: { publico: string; afirmacaoCentral: string; provas: string[] }[];
     manifesto: string;
+    direcaoVisual: {
+      principiosSimbolicos: string[];
+      paleta: string;
+      tipografia: string;
+      elementosGraficos: string[];
+      diretrizes: string;
+      descricaoMoodboard: string;
+    };
   };
-  sistemaVisual: {
-    principiosSimbolicos: string[];
-    direcaoPaleta: string;
-    direcaoTipografia: string;
-    descricaoMoodboard: string;
+
+  travessia: {
+    notaDeLeitura: string;
+    ondas: { onda: string; timeline: string; touchpoints: string[]; responsaveis: string[]; criteriosConclusao: string[] }[];
+    kpis: { periodo: string; indicador: string; meta: string }[];
+    riscos: { risco: string; nivel: string; contingencia: string }[];
+    enablementKit: {
+      faqs: { pergunta: string; resposta: string }[];
+      templates: { nome: string; descricao: string }[];
+      trilhaAdocao: { area: string; passos: string[] }[];
+      checklistQA: string[];
+    };
+    trainingDesign: {
+      objetivosPorPublico: { publico: string; objetivos: string[] }[];
+      agenda: { bloco: string; duracao: string; formato: string; detalhamento?: string }[];
+      materiaisNecessarios: string[];
+    };
   };
-  ativacao: {
-    ondas: { onda: string; timeline: string; foco: string }[];
-    kpis: { periodo: string; meta: string }[];
-    criteriosSucesso: string[];
+
+  regeneracao: {
+    notaDeLeitura: string;
+    scorecard: { dimensao: string; score: number; meta: number; tendencia: string; acao?: string }[];
+    cadencia: { frequencia: string; atividade: string; responsavel: string }[];
+    criteriosAlerta: string[];
+    gatilhosDeRevisao: string;
+    protocoloCompliance: {
+      percentualConformidadeAlvo: string;
+      touchpointsAuditados: string[];
+      backlogPrioritario: string[];
+    };
+    escopoRevisaoAnual: {
+      kpisMarca: { indicador: string; meta: string }[];
+      recomendacoes: string[];
+    };
+    referenciaManual?: { url?: string; version?: number };
   };
-  proximosPassos?: { prioridade: number; acao: string; owner: string; prazo: string }[];
-  proximosPasass?: { prioridade: number; acao: string; owner: string; prazo: string }[];
+
   narrativaSimbolica: string;
+
+  proximosPassos?: { prioridade: number; acao: string; owner: string; prazo: string }[];
 }
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
@@ -241,6 +309,18 @@ const FINAL_CSS = `
   .generating-sub { font-size: 13px; color: rgba(255,255,255,0.4); line-height: 1.5; }
   .generating-step { font-size: 12px; color: #C9A96E; margin-top: 16px; }
 
+
+  .faz-fala-table { border: 1px solid #e8e4da; border-radius: 8px; overflow: hidden; font-size: 12px; }
+  .faz-fala-head { display: grid; grid-template-columns: 150px 1fr 1fr 1fr 1fr 140px; gap: 10px; padding: 10px 14px; background: #1C1F2A; color: rgba(201,169,110,0.8); font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; font-size: 10px; }
+  .faz-fala-row { display: grid; grid-template-columns: 150px 1fr 1fr 1fr 1fr 140px; gap: 10px; padding: 12px 14px; border-top: 1px solid #f0ede8; color: #3D4054; line-height: 1.5; }
+  .faz-fala-row:nth-child(even) { background: #fafaf8; }
+  .touchpoint-row { display: grid; grid-template-columns: 1fr 100px 200px 1.2fr; gap: 12px; padding: 10px 14px; background: #fff; border: 1px solid #e8e4da; border-radius: 8px; margin-bottom: 6px; font-size: 13px; align-items: center; }
+  .touchpoint-nome { font-weight: 600; color: #1C1F2A; }
+  .touchpoint-canal { font-size: 11px; color: #9990A0; text-transform: uppercase; letter-spacing: 0.06em; }
+  .touchpoint-scores { display: flex; gap: 6px; }
+  .touchpoint-obs { color: #3D4054; line-height: 1.5; font-size: 12px; }
+  .score-pill { font-size: 10px; font-weight: 700; padding: 3px 9px; border-radius: 10px; text-transform: uppercase; letter-spacing: 0.06em; white-space: nowrap; }
+
   @media print {
     body { background: #fff; }
     .print-btn { display: none !important; }
@@ -300,8 +380,8 @@ function TableOfContents() {
     { num: 5, name: 'Regeneração', color: PHASE_COLORS[4] },
   ];
   const sections = [
-    'Ponto de Partida', 'Fundação Metodológica', 'A Jornada em 5 Movimentos',
-    'O Posicionamento', 'A Nova Marca', 'Sistema Visual', 'Plano de Ativação', 'Próximos 90 Dias'
+    'Abertura', 'Ponto de Partida', 'Decifração', 'Nova Marca',
+    'Travessia', 'Regeneração', 'Síntese Final', 'Próximos Passos'
   ];
   return (
     <div className="toc">
@@ -321,374 +401,782 @@ function TableOfContents() {
   );
 }
 
-// ─── PONTO DE PARTIDA ─────────────────────────────────────────────────────────
+// ─── NOTA DE LEITURA (frase-ponte didática, sem revelar mecanismo) ─────────────
 
-function PontoDepartida({ data }: { data: FinalReportJSON }) {
-  const pd = data.pontoDepartida;
+function NotaDeLeitura({ text }: { text: string }) {
+  if (!text) return null;
   return (
-    <div className="section">
-      <div className="section-label">01 · Ponto de Partida</div>
-      <div className="section-title">A Marca Antes do Processo</div>
-      <Prose text={pd.estadoInicial} />
-
-      {pd.perguntaFundadora && (
-        <div style={{ margin: '28px 0', background: '#1C1F2A', borderRadius: '10px', padding: '24px 32px', borderLeft: '4px solid #C9A96E' }}>
-          <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '12px' }}>A pergunta fundadora</div>
-          <div style={{ fontSize: '16px', color: '#fff', lineHeight: 1.6, fontStyle: 'italic' }}>"{pd.perguntaFundadora}"</div>
-        </div>
-      )}
-
-      {pd.tensoesDiagnosticadas?.length > 0 && (
-        <>
-          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginTop: '28px', marginBottom: '12px' }}>Tensões diagnosticadas</div>
-          <div className="tension-list">
-            {pd.tensoesDiagnosticadas.map((t, i) => <div key={i} className="tension-item">{t}</div>)}
-          </div>
-        </>
-      )}
+    <div style={{ fontSize: '13px', color: '#5A5A70', lineHeight: 1.7, fontStyle: 'italic', marginBottom: '28px', paddingLeft: '16px', borderLeft: '2px solid #C9A96E' }}>
+      {text}
     </div>
   );
 }
 
-// ─── PREMISSA METODOLÓGICA ────────────────────────────────────────────────────
+// ─── ABERTURA ─────────────────────────────────────────────────────────────────
 
-function PremissaMetodologica({ data }: { data: FinalReportJSON }) {
-  if (!data.premissaMetodologicaGeral) return null;
+function Abertura({ data }: { data: FinalReportJSON }) {
+  if (!data.abertura) return null;
   return (
     <div className="section-alt">
-      <div className="section-label">02 · Fundação Metodológica</div>
-      <div className="section-title">Por Que Este Processo Funciona</div>
+      <div className="section-label">01 · Abertura</div>
+      <div className="section-title">O princípio que orienta este trabalho</div>
       <div className="premissa-box">
-        <div className="premissa-label">Premissa AMUM</div>
-        <div className="premissa-title">A aposta epistemológica por trás das 5 fases</div>
         <div className="premissa-text">
-          {data.premissaMetodologicaGeral.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
+          {data.abertura.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
         </div>
       </div>
     </div>
   );
 }
 
-// ─── FASE EXPANDIDA ───────────────────────────────────────────────────────────
+// ─── PONTO DE PARTIDA (condensado Fase 1) ─────────────────────────────────────
 
-function FaseExpandida({ fase, index }: { fase: FaseJornada; index: number }) {
-  const color = PHASE_COLORS[index] || '#C9A96E';
-  return (
-    <div className="phase-block">
-      <div className="phase-header">
-        <div className="phase-num-col" style={{ background: color }}>
-          <div className="phase-circle">{fase.fase}</div>
-        </div>
-        <div className="phase-header-content">
-          <div className="phase-name" style={{ color }}>{fase.nome}</div>
-          <div className="phase-achado">{fase.achadoCritico}</div>
-        </div>
-      </div>
-
-      <div className="phase-body">
-        {fase.premissaMetodologica && (
-          <>
-            <div className="phase-sub-label">Por que esta fase existe</div>
-            <SubText text={fase.premissaMetodologica} />
-          </>
-        )}
-        {fase.oQueRevelou && (
-          <>
-            <div className="phase-sub-label">O que esta fase revelou</div>
-            <SubText text={fase.oQueRevelou} />
-          </>
-        )}
-        {fase.processo && (
-          <>
-            <div className="phase-sub-label">Como a análise foi conduzida</div>
-            <div className="phase-sub-text"><p>{fase.processo}</p></div>
-          </>
-        )}
-        <div className="phase-sub-label">Decisão-chave</div>
-        <div className="phase-decisao">{fase.decisaoChave}</div>
-      </div>
-
-      <div className="phase-footer">
-        {fase.entregaveis && fase.entregaveis.length > 0 && (
-          <div style={{ flex: 2 }}>
-            <div style={{ fontSize: '9px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '8px' }}>Entregáveis</div>
-            <div className="phase-entregaveis">
-              {fase.entregaveis.map((e, i) => <span key={i} className="phase-entregavel-tag">{e}</span>)}
-            </div>
-          </div>
-        )}
-        {fase.dados && (
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: '9px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '8px' }}>Evidências</div>
-            <div className="phase-dados">{fase.dados}</div>
-          </div>
-        )}
-      </div>
-    </div>
-  );
-}
-
-// ─── A JORNADA ────────────────────────────────────────────────────────────────
-
-function AJornada({ data }: { data: FinalReportJSON }) {
-  const fases = data.jornada || [];
+function PontoDePartida({ data }: { data: FinalReportJSON }) {
+  const pd = data.pontoDePartida;
+  if (!pd) return null;
   return (
     <div className="section">
-      <div className="section-label">03 · A Jornada</div>
-      <div className="section-title">5 Movimentos Estratégicos</div>
+      <div className="section-label">02 · Ponto de Partida</div>
+      <div className="section-title">A marca antes da intervenção</div>
+      <NotaDeLeitura text={pd.notaDeLeitura} />
 
-      <svg viewBox="0 0 800 70" style={{ width: '100%', overflow: 'visible', marginBottom: '36px' }}>
-        <line x1={40} y1={30} x2={760} y2={30} stroke="#e8e4da" strokeWidth="2" />
-        {fases.map((f, i) => {
-          const x = 40 + i * (720 / Math.max(fases.length - 1, 1));
-          const color = PHASE_COLORS[i] || '#C9A96E';
-          return (
-            <g key={i}>
-              <circle cx={x} cy={30} r={16} fill={color} />
-              <text x={x} y={35} textAnchor="middle" fontSize="13" fill="#fff" fontWeight="800" fontFamily="Inter, system-ui">{f.fase}</text>
-              <text x={x} y={58} textAnchor="middle" fontSize="10" fill={color} fontWeight="700" fontFamily="Inter, system-ui">{f.nome}</text>
-            </g>
-          );
-        })}
-      </svg>
-
-      {fases.map((f, i) => <FaseExpandida key={i} fase={f} index={i} />)}
-    </div>
-  );
-}
-
-// ─── O POSICIONAMENTO ─────────────────────────────────────────────────────────
-
-function OPosicionamento({ data }: { data: FinalReportJSON }) {
-  const pos = data.posicionamento;
-  if (!pos) return null;
-  return (
-    <div className="pos-hero">
-      <div className="pos-hero-label">04 · O Posicionamento · Seção Central</div>
-      <div className="pos-hero-statement">"{pos.afirmacaoCentral}"</div>
-
-      <div className="pos-meta-grid">
-        {pos.arquetipo && (
-          <div className="pos-meta-card">
-            <div className="pos-meta-label">Arquétipo</div>
-            <div className="pos-meta-value" style={{ color: '#C9A96E', fontWeight: 700, fontSize: '15px' }}>{pos.arquetipo}</div>
-          </div>
-        )}
-        {pos.territorioEscolhido && (
-          <div className="pos-meta-card">
-            <div className="pos-meta-label">Território</div>
-            <div className="pos-meta-value">{pos.territorioEscolhido}</div>
-          </div>
-        )}
-        {pos.porQueEsteTerritorio && (
-          <div className="pos-meta-card">
-            <div className="pos-meta-label">Lógica da escolha</div>
-            <div className="pos-meta-value">{pos.porQueEsteTerritorio}</div>
-          </div>
-        )}
-      </div>
-
-      {pos.logicaSimbolicaCompleta && (
-        <div className="pos-logic">
-          <div className="pos-logic-label">Lógica simbólica completa</div>
-          <div className="pos-logic-text">
-            {pos.logicaSimbolicaCompleta.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
-          </div>
-        </div>
-      )}
-
-      {pos.tradeoffs?.length > 0 && (
-        <>
-          <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.5)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Trade-offs formais</div>
-          {pos.tradeoffs.map((t, i) => (
-            <div key={i} className="tradeoff-row">
-              <div className="tradeoff-abandon">✗ {t.abandona}</div>
-              <div className="tradeoff-arrow">→</div>
-              <div className="tradeoff-gain">✓ {t.ganha}</div>
-            </div>
-          ))}
-        </>
-      )}
-    </div>
-  );
-}
-
-// ─── A NOVA MARCA ─────────────────────────────────────────────────────────────
-
-function ANovaMarca({ data }: { data: FinalReportJSON }) {
-  const pl = data.plataforma;
-  if (!pl) return null;
-  return (
-    <>
-      <div className="section">
-        <div className="section-label">05 · A Nova Marca</div>
-        <div className="section-title">Plataforma Completa</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '36px' }}>
-          <div>
-            {pl.proposito && <div className="platform-field"><div className="platform-label">Propósito</div><div className="platform-value">{pl.proposito}</div></div>}
-            {pl.essencia && <div className="platform-field"><div className="platform-label">Essência</div><div className="platform-value" style={{ color: '#C9A96E', fontWeight: 700, fontSize: '17px' }}>{pl.essencia}</div></div>}
-            {pl.posicionamento && <div className="platform-field"><div className="platform-label">Posicionamento</div><div className="platform-value">{pl.posicionamento}</div></div>}
-            {pl.promessa && <div className="platform-field"><div className="platform-label">Promessa</div><div className="platform-value">{pl.promessa}</div></div>}
-          </div>
-          <div>
-            {pl.valores?.length > 0 && (
-              <>
-                <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '16px' }}>Valores</div>
-                {pl.valores.map((v, i) => (
-                  <div key={i} className="valor-item">
-                    <div className="valor-dot" />
-                    <div>
-                      <div className="valor-nome">{v.valor}</div>
-                      <div className="valor-comp">{v.comportamento}</div>
-                    </div>
-                  </div>
-                ))}
-              </>
-            )}
-          </div>
-        </div>
-      </div>
-
-      <div className="section-alt">
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }}>
-          <div>
-            <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '18px' }}>Código Linguístico</div>
-            {pl.tomDeVoz && (
-              <div className="tom-grid">
-                <div>
-                  <div className="tom-col-label" style={{ color: '#50a868' }}>A marca É</div>
-                  {(pl.tomDeVoz.e || []).map((t, i) => <span key={i} className="tom-tag tom-e">{t}</span>)}
-                </div>
-                <div>
-                  <div className="tom-col-label" style={{ color: '#9990A0' }}>A marca NÃO É</div>
-                  {(pl.tomDeVoz.naoE || []).map((t, i) => <span key={i} className="tom-tag tom-nao">{t}</span>)}
-                </div>
-              </div>
-            )}
-          </div>
-          {pl.manifesto && (
+      {pd.retratoDaMarca && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px', marginBottom: '20px' }}>
             <div>
-              <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Manifesto</div>
-              <div className="manifesto-box">
-                <div className="manifesto-text">
-                  {pl.manifesto.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
-                </div>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>Como a marca se apresenta</div>
+              <div style={{ fontSize: '14px', color: '#3D4054', lineHeight: 1.85 }}>
+                {(pd.retratoDaMarca.comoSeApresenta || '').split('\n\n').map((p, i) => <p key={i} style={{ marginBottom: '14px' }}>{p}</p>)}
               </div>
+            </div>
+            <div>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '10px' }}>O que os dados mostram</div>
+              <div style={{ fontSize: '14px', color: '#3D4054', lineHeight: 1.85 }}>
+                {(pd.retratoDaMarca.oQueDadosMostram || '').split('\n\n').map((p, i) => <p key={i} style={{ marginBottom: '14px' }}>{p}</p>)}
+              </div>
+            </div>
+          </div>
+          {pd.retratoDaMarca.tensaoCentral && (
+            <div style={{ background: '#1C1F2A', borderRadius: '10px', padding: '22px 28px', borderLeft: '4px solid #C9A96E' }}>
+              <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>Tensão central</div>
+              <div style={{ fontSize: '15px', color: '#fff', lineHeight: 1.6, fontStyle: 'italic' }}>&ldquo;{pd.retratoDaMarca.tensaoCentral}&rdquo;</div>
             </div>
           )}
         </div>
+      )}
+
+      {pd.mapaIFazFala?.dimensoes && pd.mapaIFazFala.dimensoes.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Mapa É / Faz / Fala</div>
+          <div className="faz-fala-table">
+            <div className="faz-fala-head">
+              <div>Dimensão</div><div>É (declara)</div><div>Faz</div><div>Fala</div><div>Discrepância</div><div>Risco</div>
+            </div>
+            {pd.mapaIFazFala.dimensoes.map((d, i) => (
+              <div key={i} className="faz-fala-row">
+                <div style={{ fontWeight: 600 }}>{d.dimensao}</div>
+                <div>{d.eDeclara}</div>
+                <div>{d.eFaz}</div>
+                <div>{d.eFala}</div>
+                <div style={{ color: '#c06060' }}>{d.discrepancia}</div>
+                <div style={{ color: '#8a6020', fontWeight: 500 }}>{d.risco}</div>
+              </div>
+            ))}
+          </div>
+          {pd.mapaIFazFala.implicacoesEstrategicas && pd.mapaIFazFala.implicacoesEstrategicas.length > 0 && (
+            <div style={{ marginTop: '16px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Implicações estratégicas</div>
+              {pd.mapaIFazFala.implicacoesEstrategicas.map((imp, i) => (
+                <div key={i} style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.65, marginBottom: '8px', paddingLeft: '14px', position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 0, color: '#C9A96E' }}>→</span>{imp}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pd.diagnosticoTouchpoints?.touchpointsCriticos && pd.diagnosticoTouchpoints.touchpointsCriticos.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Touchpoints críticos</div>
+          {pd.diagnosticoTouchpoints.touchpointsCriticos.map((t, i) => (
+            <div key={i} className="touchpoint-row">
+              <div className="touchpoint-nome">{t.touchpoint}</div>
+              <div className="touchpoint-canal">{t.canal}</div>
+              <div className="touchpoint-scores">
+                <span className="score-pill" style={{ background: 'rgba(201,169,110,0.15)', color: '#8a6020' }}>peso {t.peso}</span>
+                <span className="score-pill" style={{ background: t.scoreCoerencia < 3 ? 'rgba(220,80,80,0.15)' : 'rgba(80,180,100,0.15)', color: t.scoreCoerencia < 3 ? '#c06060' : '#4a9060' }}>coerência {t.scoreCoerencia}</span>
+              </div>
+              <div className="touchpoint-obs">{t.observacao}</div>
+            </div>
+          ))}
+          {pd.diagnosticoTouchpoints.quickWins && pd.diagnosticoTouchpoints.quickWins.length > 0 && (
+            <div style={{ marginTop: '16px', background: '#faf8f4', borderRadius: '8px', padding: '16px 20px', borderLeft: '3px solid #C9A96E' }}>
+              <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Quick wins identificados</div>
+              {pd.diagnosticoTouchpoints.quickWins.map((q, i) => (
+                <div key={i} style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.6, marginBottom: '6px' }}>• {q}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {pd.tensoesEstruturais && pd.tensoesEstruturais.length > 0 && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Tensões estruturais</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
+            {pd.tensoesEstruturais.map((t, i) => (
+              <div key={i} style={{ background: 'rgba(220,80,80,0.05)', border: '1px solid rgba(220,80,80,0.18)', borderRadius: '8px', padding: '16px 18px' }}>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#1C1F2A', marginBottom: '6px' }}>{t.titulo}</div>
+                <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55 }}>{t.descricao}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {pd.perguntaFundadora && (
+        <div style={{ background: '#1C1F2A', borderRadius: '10px', padding: '24px 32px', borderLeft: '4px solid #C9A96E' }}>
+          <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase', marginBottom: '12px' }}>A pergunta fundadora</div>
+          <div style={{ fontSize: '16px', color: '#fff', lineHeight: 1.6, fontStyle: 'italic' }}>&ldquo;{pd.perguntaFundadora}&rdquo;</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── DECIFRAÇÃO (condensado Fase 2) ───────────────────────────────────────────
+
+function Decifracao({ data }: { data: FinalReportJSON }) {
+  const dc = data.decifracao;
+  if (!dc) return null;
+  return (
+    <div className="section-alt">
+      <div className="section-label">03 · Decifração</div>
+      <div className="section-title">Arquétipo, território e trade-offs</div>
+      <NotaDeLeitura text={dc.notaDeLeitura} />
+
+      {dc.afirmacaoCentral && (
+        <div className="pos-hero" style={{ borderRadius: '12px', marginBottom: '32px' }}>
+          <div className="pos-hero-label">Afirmação de posicionamento</div>
+          <div className="pos-hero-statement">&ldquo;{dc.afirmacaoCentral}&rdquo;</div>
+          <div className="pos-meta-grid">
+            {dc.arquetipo?.nome && (
+              <div className="pos-meta-card">
+                <div className="pos-meta-label">Arquétipo</div>
+                <div className="pos-meta-value" style={{ color: '#C9A96E', fontWeight: 700, fontSize: '15px' }}>{dc.arquetipo.nome}</div>
+              </div>
+            )}
+            {dc.territorios?.escolhido && (
+              <div className="pos-meta-card">
+                <div className="pos-meta-label">Território escolhido</div>
+                <div className="pos-meta-value">{dc.territorios.escolhido}</div>
+              </div>
+            )}
+          </div>
+          {dc.arquetipo?.signosQueConfirmaram && (
+            <div className="pos-logic">
+              <div className="pos-logic-label">Signos que confirmaram o arquétipo</div>
+              <div className="pos-logic-text">
+                {dc.arquetipo.signosQueConfirmaram.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
+              </div>
+            </div>
+          )}
+          {dc.territorios?.porQueEsteTerritorio && (
+            <div className="pos-logic">
+              <div className="pos-logic-label">Por que este território</div>
+              <div className="pos-logic-text">
+                {dc.territorios.porQueEsteTerritorio.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
+              </div>
+            </div>
+          )}
+          {dc.territorios?.avaliados && dc.territorios.avaliados.length > 0 && (
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.5)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>Territórios avaliados</div>
+              {dc.territorios.avaliados.map((t, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '14px', padding: '10px 0', borderBottom: '1px solid rgba(255,255,255,0.08)', fontSize: '13px', color: 'rgba(255,255,255,0.82)' }}>
+                  <div style={{ fontWeight: 600, color: '#fff' }}>{t.nome}</div>
+                  <div style={{ lineHeight: 1.5 }}>{t.viabilidade}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {dc.tradeoffs && dc.tradeoffs.length > 0 && (
+            <div style={{ marginTop: '24px' }}>
+              <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.5)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Trade-offs formais</div>
+              {dc.tradeoffs.map((t, i) => (
+                <div key={i} className="tradeoff-row">
+                  <div className="tradeoff-abandon">✗ {t.abandona}</div>
+                  <div className="tradeoff-arrow">→</div>
+                  <div className="tradeoff-gain">✓ {t.ganha}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {dc.arquiteturaDeMarca && (dc.arquiteturaDeMarca.portfolioMap || dc.arquiteturaDeMarca.nomenclaturaRegras || (dc.arquiteturaDeMarca.brandToOperating && dc.arquiteturaDeMarca.brandToOperating.length > 0)) && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Arquitetura de marca</div>
+          {dc.arquiteturaDeMarca.portfolioMap && (
+            <div style={{ background: '#faf8f4', borderRadius: '8px', padding: '16px 20px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>Mapa de portfólio</div>
+              <div style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.65 }}>{dc.arquiteturaDeMarca.portfolioMap}</div>
+            </div>
+          )}
+          {dc.arquiteturaDeMarca.nomenclaturaRegras && (
+            <div style={{ background: '#faf8f4', borderRadius: '8px', padding: '16px 20px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>Regras de nomenclatura</div>
+              <div style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.65 }}>{dc.arquiteturaDeMarca.nomenclaturaRegras}</div>
+            </div>
+          )}
+          {dc.arquiteturaDeMarca.brandToOperating && dc.arquiteturaDeMarca.brandToOperating.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Brand-to-Operating: implicações por função</div>
+              {dc.arquiteturaDeMarca.brandToOperating.map((b, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '180px 1fr 140px 80px', gap: '12px', padding: '12px 16px', background: '#fff', border: '1px solid #e8e4da', borderRadius: '8px', marginBottom: '8px', fontSize: '13px', alignItems: 'start' }}>
+                  <div style={{ fontWeight: 700, color: '#1C1F2A' }}>{b.funcao}</div>
+                  <div style={{ color: '#3D4054', lineHeight: 1.55 }}>{b.implicacao}</div>
+                  <div style={{ color: '#5A5A70', fontSize: '12px' }}>{b.responsavel}</div>
+                  <div>
+                    <span className="score-pill" style={{ background: b.prioridade === 'alta' ? 'rgba(220,80,80,0.15)' : b.prioridade === 'media' ? 'rgba(201,169,110,0.15)' : 'rgba(80,180,100,0.15)', color: b.prioridade === 'alta' ? '#c06060' : b.prioridade === 'media' ? '#8a6020' : '#4a9060' }}>{b.prioridade}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {dc.matrizODS?.items && dc.matrizODS.items.length > 0 && (
+        <div>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Matriz ODS</div>
+          {dc.matrizODS.items.map((item, i) => (
+            <div key={i} style={{ background: '#fff', border: '1px solid #e8e4da', borderRadius: '10px', padding: '18px 22px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: '#1C1F2A' }}>{item.ods}</div>
+                <div style={{ display: 'flex', gap: '6px' }}>
+                  {item.classificacao && <span className="score-pill" style={{ background: item.classificacao === 'operacional' ? 'rgba(80,180,100,0.15)' : 'rgba(201,169,110,0.15)', color: item.classificacao === 'operacional' ? '#4a9060' : '#8a6020' }}>{item.classificacao}</span>}
+                  {item.riscoGreenwashing && <span className="score-pill" style={{ background: item.riscoGreenwashing === 'alto' ? 'rgba(220,80,80,0.15)' : item.riscoGreenwashing === 'medio' ? 'rgba(201,169,110,0.15)' : 'rgba(80,180,100,0.15)', color: item.riscoGreenwashing === 'alto' ? '#c06060' : item.riscoGreenwashing === 'medio' ? '#8a6020' : '#4a9060' }}>risco {item.riscoGreenwashing}</span>}
+                </div>
+              </div>
+              {item.iniciativas?.map((ini, j) => (
+                <div key={j} style={{ display: 'grid', gridTemplateColumns: '1fr 160px 140px 120px', gap: '10px', padding: '8px 0', fontSize: '12px', color: '#3D4054', borderTop: j === 0 ? '1px solid #f0ede8' : 'none' }}>
+                  <div>{ini.descricao}</div>
+                  <div style={{ color: '#8a6020', fontWeight: 500 }}>{ini.indicador}</div>
+                  <div style={{ color: '#5A5A70' }}>{ini.owner}</div>
+                  <div style={{ color: '#5A5A70' }}>{ini.cadencia}</div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── NOVA MARCA (condensado Fase 3) ───────────────────────────────────────────
+
+function NovaMarca({ data }: { data: FinalReportJSON }) {
+  const nm = data.novaMarca;
+  if (!nm) return null;
+  return (
+    <>
+      <div className="section">
+        <div className="section-label">04 · Nova Marca</div>
+        <div className="section-title">Plataforma, linguagem e direção visual</div>
+        <NotaDeLeitura text={nm.notaDeLeitura} />
+
+        {nm.plataforma && (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '36px', marginBottom: '32px' }}>
+            <div>
+              {nm.plataforma.proposito && <div className="platform-field"><div className="platform-label">Propósito</div><div className="platform-value">{nm.plataforma.proposito}</div></div>}
+              {nm.plataforma.essencia && <div className="platform-field"><div className="platform-label">Essência</div><div className="platform-value" style={{ color: '#C9A96E', fontWeight: 700, fontSize: '17px' }}>{nm.plataforma.essencia}</div></div>}
+              {nm.plataforma.posicionamento && <div className="platform-field"><div className="platform-label">Posicionamento</div><div className="platform-value">{nm.plataforma.posicionamento}</div></div>}
+              {nm.plataforma.promessa && <div className="platform-field"><div className="platform-label">Promessa</div><div className="platform-value">{nm.plataforma.promessa}</div></div>}
+            </div>
+            <div>
+              {nm.plataforma.valores && nm.plataforma.valores.length > 0 && (
+                <>
+                  <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '16px' }}>Valores e comportamentos</div>
+                  {nm.plataforma.valores.map((v, i) => (
+                    <div key={i} className="valor-item">
+                      <div className="valor-dot" />
+                      <div style={{ flex: 1 }}>
+                        <div className="valor-nome">{v.valor}</div>
+                        {(v.comportamentos || []).map((c, j) => (
+                          <div key={j} className="valor-comp" style={{ marginBottom: '4px' }}>• {c}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        )}
       </div>
+
+      {nm.codigoLinguistico && (
+        <div className="section-alt">
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '18px' }}>Código linguístico</div>
+
+          {nm.codigoLinguistico.tomDeVoz && (
+            <div className="tom-grid" style={{ marginBottom: '24px' }}>
+              <div>
+                <div className="tom-col-label" style={{ color: '#50a868' }}>A marca É</div>
+                {(nm.codigoLinguistico.tomDeVoz.e || []).map((t, i) => <span key={i} className="tom-tag tom-e">{t}</span>)}
+              </div>
+              <div>
+                <div className="tom-col-label" style={{ color: '#9990A0' }}>A marca NÃO É</div>
+                {(nm.codigoLinguistico.tomDeVoz.naoE || []).map((t, i) => <span key={i} className="tom-tag tom-nao">{t}</span>)}
+              </div>
+            </div>
+          )}
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px', marginBottom: '20px' }}>
+            {nm.codigoLinguistico.vocabularioPreferencial && nm.codigoLinguistico.vocabularioPreferencial.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Vocabulário preferencial</div>
+                <div>{nm.codigoLinguistico.vocabularioPreferencial.map((v, i) => <span key={i} className="tom-tag tom-e">{v}</span>)}</div>
+              </div>
+            )}
+            {nm.codigoLinguistico.vocabularioProibido && nm.codigoLinguistico.vocabularioProibido.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Vocabulário proibido</div>
+                <div>{nm.codigoLinguistico.vocabularioProibido.map((v, i) => <span key={i} className="tom-tag tom-nao">{v}</span>)}</div>
+              </div>
+            )}
+          </div>
+
+          {nm.codigoLinguistico.padroesConstrutivos && nm.codigoLinguistico.padroesConstrutivos.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Padrões construtivos</div>
+              {nm.codigoLinguistico.padroesConstrutivos.map((p, i) => (
+                <div key={i} style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.6, marginBottom: '6px', paddingLeft: '14px', position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 0, color: '#C9A96E' }}>→</span>{p}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {nm.codigoLinguistico.exemplosAplicacao && nm.codigoLinguistico.exemplosAplicacao.length > 0 && (
+            <div style={{ marginBottom: '20px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Exemplos de aplicação</div>
+              {nm.codigoLinguistico.exemplosAplicacao.map((ex, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e8e4da', borderRadius: '8px', padding: '12px 16px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '11px', color: '#C9A96E', fontWeight: 700, marginBottom: '4px' }}>{ex.contexto}</div>
+                  <div style={{ fontSize: '13px', color: '#1C1F2A', lineHeight: 1.55, fontStyle: 'italic' }}>&ldquo;{ex.exemplo}&rdquo;</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {nm.codigoLinguistico.qaChecklist && nm.codigoLinguistico.qaChecklist.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Checklist de QA</div>
+              {nm.codigoLinguistico.qaChecklist.map((q, i) => (
+                <div key={i} style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.55, marginBottom: '6px' }}>☐ {q}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {nm.bibliotecaDeMensagens && nm.bibliotecaDeMensagens.length > 0 && (
+        <div className="section">
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '18px' }}>Biblioteca de mensagens</div>
+          {nm.bibliotecaDeMensagens.map((m, i) => (
+            <div key={i} style={{ background: '#faf8f4', border: '1px solid #e8e4da', borderRadius: '10px', padding: '18px 22px', marginBottom: '12px' }}>
+              <div style={{ fontSize: '11px', color: '#C9A96E', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '8px' }}>Para {m.publico}</div>
+              <div style={{ fontSize: '14px', color: '#1C1F2A', fontWeight: 600, lineHeight: 1.5, marginBottom: '12px', fontStyle: 'italic' }}>&ldquo;{m.afirmacaoCentral}&rdquo;</div>
+              {m.provas && m.provas.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>Provas</div>
+                  {m.provas.map((p, j) => (
+                    <div key={j} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55, marginBottom: '4px' }}>• {p}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {nm.manifesto && (
+        <div className="section-alt">
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Manifesto</div>
+          <div className="manifesto-box">
+            <div className="manifesto-text">
+              {nm.manifesto.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {nm.direcaoVisual && (
+        <div className="section">
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Direção de criação visual</div>
+
+          {nm.direcaoVisual.principiosSimbolicos && nm.direcaoVisual.principiosSimbolicos.length > 0 && (
+            <>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Princípios simbólicos</div>
+              {nm.direcaoVisual.principiosSimbolicos.map((p, i) => <div key={i} className="principio-item">{p}</div>)}
+            </>
+          )}
+
+          <div className="visual-cards">
+            {nm.direcaoVisual.paleta && (
+              <div className="visual-card">
+                <div className="visual-card-label">Paleta</div>
+                <div className="visual-card-text">{nm.direcaoVisual.paleta}</div>
+              </div>
+            )}
+            {nm.direcaoVisual.tipografia && (
+              <div className="visual-card">
+                <div className="visual-card-label">Tipografia</div>
+                <div className="visual-card-text">{nm.direcaoVisual.tipografia}</div>
+              </div>
+            )}
+          </div>
+
+          {nm.direcaoVisual.elementosGraficos && nm.direcaoVisual.elementosGraficos.length > 0 && (
+            <div style={{ marginTop: '20px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Elementos gráficos</div>
+              {nm.direcaoVisual.elementosGraficos.map((e, i) => (
+                <div key={i} style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.6, marginBottom: '6px', paddingLeft: '14px', position: 'relative' }}>
+                  <span style={{ position: 'absolute', left: 0, color: '#C9A96E' }}>→</span>{e}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {nm.direcaoVisual.diretrizes && (
+            <div style={{ marginTop: '20px', background: '#faf8f4', borderRadius: '8px', padding: '16px 20px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '8px' }}>Diretrizes</div>
+              <div style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.65 }}>{nm.direcaoVisual.diretrizes}</div>
+            </div>
+          )}
+
+          {nm.direcaoVisual.descricaoMoodboard && (
+            <div style={{ marginTop: '20px', background: '#1C1F2A', borderRadius: '10px', padding: '22px 28px', borderLeft: '4px solid #C9A96E' }}>
+              <div style={{ fontSize: '9px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>Atmosfera visual — descrição da direção de criação</div>
+              <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.75, fontStyle: 'italic' }}>{nm.direcaoVisual.descricaoMoodboard}</div>
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
 
-// ─── SISTEMA VISUAL ───────────────────────────────────────────────────────────
+// ─── TRAVESSIA (condensado Fase 4) ────────────────────────────────────────────
 
-function SistemaVisual({ project, data }: { project: Project; data: FinalReportJSON }) {
-  const sv = data.sistemaVisual;
-  const selectedImages = (project.visualDirection?.moodboardImages || []).filter(img => img.selecionada);
-  const [imgErrors, setImgErrors] = useState<Record<string, boolean>>({});
-
-  if (!sv) return null;
+function Travessia({ data }: { data: FinalReportJSON }) {
+  const tv = data.travessia;
+  if (!tv) return null;
+  const waveColors = ['#C9A96E', '#8BA0C9', '#6AB56A'];
   return (
-    <div className="section">
-      <div className="section-label">06 · Sistema Visual</div>
-      <div className="section-title">Direção de Identidade</div>
+    <div className="section-alt">
+      <div className="section-label">05 · Travessia</div>
+      <div className="section-title">Plano de ativação e capacitação</div>
+      <NotaDeLeitura text={tv.notaDeLeitura} />
 
-      {sv.principiosSimbolicos?.length > 0 && (
-        <>
-          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Princípios simbólicos</div>
-          {sv.principiosSimbolicos.map((p, i) => <div key={i} className="principio-item">{p}</div>)}
-        </>
+      {tv.ondas && tv.ondas.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Ondas de implementação</div>
+          {tv.ondas.map((w, i) => (
+            <div key={i} style={{ background: '#fff', border: `2px solid ${waveColors[i] || '#C9A96E'}`, borderRadius: '10px', padding: '18px 22px', marginBottom: '12px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+                <div style={{ fontSize: '14px', fontWeight: 700, color: waveColors[i] || '#C9A96E' }}>{w.onda}</div>
+                <div style={{ fontSize: '12px', color: '#9990A0', fontWeight: 600 }}>{w.timeline}</div>
+              </div>
+              {w.touchpoints && w.touchpoints.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>Touchpoints</div>
+                  <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55 }}>{w.touchpoints.join(' · ')}</div>
+                </div>
+              )}
+              {w.responsaveis && w.responsaveis.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>Responsáveis</div>
+                  <div style={{ fontSize: '12px', color: '#3D4054' }}>{w.responsaveis.join(' · ')}</div>
+                </div>
+              )}
+              {w.criteriosConclusao && w.criteriosConclusao.length > 0 && (
+                <div>
+                  <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>Critérios de conclusão</div>
+                  {w.criteriosConclusao.map((c, j) => (
+                    <div key={j} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.5, marginBottom: '3px' }}>✓ {c}</div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       )}
 
-      <div className="visual-cards">
-        {sv.direcaoPaleta && (
-          <div className="visual-card">
-            <div className="visual-card-label">Direção de paleta</div>
-            <div className="visual-card-text">{sv.direcaoPaleta}</div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+        {tv.kpis && tv.kpis.length > 0 && (
+          <div>
+            <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>KPIs</div>
+            {tv.kpis.filter(k => k.indicador || k.meta).map((k, i) => (
+              <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid #f0ede8' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#C9A96E', marginBottom: '4px' }}>{k.periodo}</div>
+                <div style={{ fontSize: '12px', color: '#1C1F2A', fontWeight: 600, marginBottom: '2px' }}>{k.indicador}</div>
+                <div style={{ fontSize: '12px', color: '#3D4054' }}>{k.meta}</div>
+              </div>
+            ))}
           </div>
         )}
-        {sv.direcaoTipografia && (
-          <div className="visual-card">
-            <div className="visual-card-label">Tipografia</div>
-            <div className="visual-card-text">{sv.direcaoTipografia}</div>
+        {tv.riscos && tv.riscos.length > 0 && (
+          <div>
+            <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Riscos e contingências</div>
+            {tv.riscos.map((r, i) => (
+              <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid #f0ede8' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                  <span className="score-pill" style={{ background: r.nivel === 'alto' ? 'rgba(220,80,80,0.15)' : r.nivel === 'medio' ? 'rgba(201,169,110,0.15)' : 'rgba(80,180,100,0.15)', color: r.nivel === 'alto' ? '#c06060' : r.nivel === 'medio' ? '#8a6020' : '#4a9060' }}>{r.nivel}</span>
+                  <div style={{ fontSize: '12px', color: '#1C1F2A', fontWeight: 600 }}>{r.risco}</div>
+                </div>
+                <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.5, paddingLeft: '4px' }}>{r.contingencia}</div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
-      {selectedImages.length > 0 && (
-        <>
-          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', margin: '28px 0 8px' }}>Moodboard aprovado</div>
-          {sv.descricaoMoodboard && <div className="moodboard-description">{sv.descricaoMoodboard}</div>}
-          <div className="moodboard-grid">
-            {selectedImages.map((img, i) => {
-              const displayUrl = img.storedUrl || img.url;
-              return (
-                <div key={img.id} className="moodboard-img">
-                  {imgErrors[img.id] ? (
-                    <div className="moodboard-expired">
-                      <div>⏱<br />Imagem {i + 1}<br /><span style={{ fontSize: '10px' }}>URL expirada</span></div>
-                    </div>
-                  ) : (
-                    <img
-                      src={displayUrl}
-                      alt={`Moodboard ${i + 1}`}
-                      onError={() => setImgErrors(prev => ({ ...prev, [img.id]: true }))}
-                    />
-                  )}
-                  <div className="moodboard-badge">✓ Selecionada</div>
+      {tv.enablementKit && ((tv.enablementKit.faqs && tv.enablementKit.faqs.length > 0) || (tv.enablementKit.templates && tv.enablementKit.templates.length > 0) || (tv.enablementKit.trilhaAdocao && tv.enablementKit.trilhaAdocao.length > 0) || (tv.enablementKit.checklistQA && tv.enablementKit.checklistQA.length > 0)) && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Enablement kit</div>
+          {tv.enablementKit.trilhaAdocao && tv.enablementKit.trilhaAdocao.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Trilha de adoção por área</div>
+              {tv.enablementKit.trilhaAdocao.map((t, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e8e4da', borderRadius: '8px', padding: '14px 18px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1C1F2A', marginBottom: '8px' }}>{t.area}</div>
+                  {t.passos?.map((p, j) => (
+                    <div key={j} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55, marginBottom: '3px' }}>{j + 1}. {p}</div>
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        </>
+              ))}
+            </div>
+          )}
+          {tv.enablementKit.templates && tv.enablementKit.templates.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Templates</div>
+              {tv.enablementKit.templates.map((t, i) => (
+                <div key={i} style={{ display: 'grid', gridTemplateColumns: '200px 1fr', gap: '12px', padding: '8px 0', borderBottom: '1px solid #f0ede8', fontSize: '13px' }}>
+                  <div style={{ fontWeight: 600, color: '#1C1F2A' }}>{t.nome}</div>
+                  <div style={{ color: '#3D4054', lineHeight: 1.5 }}>{t.descricao}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tv.enablementKit.faqs && tv.enablementKit.faqs.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>FAQs</div>
+              {tv.enablementKit.faqs.map((f, i) => (
+                <div key={i} style={{ background: '#faf8f4', borderRadius: '8px', padding: '12px 16px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1C1F2A', marginBottom: '6px' }}>{f.pergunta}</div>
+                  <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55 }}>{f.resposta}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {tv.enablementKit.checklistQA && tv.enablementKit.checklistQA.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Checklist de QA</div>
+              {tv.enablementKit.checklistQA.map((q, i) => (
+                <div key={i} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55, marginBottom: '4px' }}>☐ {q}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tv.trainingDesign && ((tv.trainingDesign.objetivosPorPublico && tv.trainingDesign.objetivosPorPublico.length > 0) || (tv.trainingDesign.agenda && tv.trainingDesign.agenda.length > 0)) && (
+        <div>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Training design</div>
+          {tv.trainingDesign.objetivosPorPublico && tv.trainingDesign.objetivosPorPublico.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Objetivos por público</div>
+              {tv.trainingDesign.objetivosPorPublico.map((o, i) => (
+                <div key={i} style={{ background: '#fff', border: '1px solid #e8e4da', borderRadius: '8px', padding: '12px 16px', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1C1F2A', marginBottom: '6px' }}>{o.publico}</div>
+                  {o.objetivos?.map((obj, j) => (
+                    <div key={j} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55, marginBottom: '3px' }}>→ {obj}</div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+          {tv.trainingDesign.agenda && tv.trainingDesign.agenda.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Agenda</div>
+              {tv.trainingDesign.agenda.map((b, i) => (
+                <div key={i} style={{ background: '#faf8f4', border: '1px solid #e8e4da', borderRadius: '8px', padding: '14px 18px', marginBottom: '8px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ fontSize: '13px', fontWeight: 700, color: '#1C1F2A' }}>{b.bloco}</div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <span className="score-pill" style={{ background: 'rgba(201,169,110,0.15)', color: '#8a6020' }}>{b.duracao}</span>
+                      <span className="score-pill" style={{ background: 'rgba(139,160,201,0.15)', color: '#6a7da8' }}>{b.formato}</span>
+                    </div>
+                  </div>
+                  {b.detalhamento && <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.6 }}>{b.detalhamento}</div>}
+                </div>
+              ))}
+            </div>
+          )}
+          {tv.trainingDesign.materiaisNecessarios && tv.trainingDesign.materiaisNecessarios.length > 0 && (
+            <div>
+              <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Materiais necessários</div>
+              <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.7 }}>{tv.trainingDesign.materiaisNecessarios.join(' · ')}</div>
+            </div>
+          )}
+        </div>
       )}
     </div>
   );
 }
 
-// ─── PLANO DE ATIVAÇÃO ────────────────────────────────────────────────────────
+// ─── REGENERAÇÃO (condensado Fase 5) ──────────────────────────────────────────
 
-function PlanoAtivacao({ data }: { data: FinalReportJSON }) {
-  const at = data.ativacao;
-  if (!at) return null;
-  const waveColors = ['#C9A96E', '#8BA0C9', '#6AB56A'];
+function Regeneracao({ data }: { data: FinalReportJSON }) {
+  const rg = data.regeneracao;
+  if (!rg) return null;
   return (
-    <div className="section-alt">
-      <div className="section-label">07 · Plano de Ativação</div>
-      <div className="section-title">Rollout e KPIs</div>
+    <div className="section">
+      <div className="section-label">06 · Regeneração</div>
+      <div className="section-title">Sistema de governança contínua</div>
+      <NotaDeLeitura text={rg.notaDeLeitura} />
 
-      <div className="wave-grid">
-        {(at.ondas || []).slice(0, 3).map((w, i) => (
-          <div key={i} className="wave-card" style={{ borderColor: waveColors[i], background: `${waveColors[i]}0d` }}>
-            <div className="wave-card-onda" style={{ color: waveColors[i] }}>{w.onda}</div>
-            <div className="wave-card-timeline" style={{ color: waveColors[i] }}>{w.timeline}</div>
-            <div className="wave-card-foco">{w.foco}</div>
+      {rg.scorecard && rg.scorecard.length > 0 && (
+        <div style={{ marginBottom: '32px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '14px' }}>Scorecard de coerência</div>
+          {rg.scorecard.map((s, i) => {
+            const pct = Math.max(0, Math.min(100, (s.score / Math.max(s.meta, 1)) * 100));
+            const trendColor = s.tendencia === 'subindo' ? '#50a868' : s.tendencia === 'caindo' ? '#dc5050' : '#9990A0';
+            const trendSymbol = s.tendencia === 'subindo' ? '↑' : s.tendencia === 'caindo' ? '↓' : '→';
+            return (
+              <div key={i} style={{ background: '#fff', border: '1px solid #e8e4da', borderRadius: '8px', padding: '14px 18px', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: '#1C1F2A' }}>{s.dimensao}</div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '12px' }}>
+                    <span style={{ color: '#9990A0' }}>meta {s.meta}</span>
+                    <span style={{ color: '#1C1F2A', fontWeight: 700 }}>{s.score}/10</span>
+                    <span style={{ color: trendColor, fontWeight: 700 }}>{trendSymbol} {s.tendencia}</span>
+                  </div>
+                </div>
+                <div style={{ height: '6px', background: '#f0ede8', borderRadius: '3px', overflow: 'hidden', marginBottom: s.acao ? '10px' : '0' }}>
+                  <div style={{ width: `${pct}%`, height: '100%', background: '#C9A96E' }} />
+                </div>
+                {s.acao && <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55 }}>→ {s.acao}</div>}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px', marginBottom: '32px' }}>
+        {rg.cadencia && rg.cadencia.length > 0 && (
+          <div>
+            <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Cadência</div>
+            {rg.cadencia.filter(c => c.atividade || c.responsavel).map((c, i) => (
+              <div key={i} style={{ padding: '10px 0', borderBottom: '1px solid #f0ede8' }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.08em', color: '#C9A96E', marginBottom: '4px' }}>{c.frequencia}</div>
+                <div style={{ fontSize: '12px', color: '#1C1F2A', marginBottom: '2px' }}>{c.atividade}</div>
+                <div style={{ fontSize: '11px', color: '#9990A0' }}>{c.responsavel}</div>
+              </div>
+            ))}
           </div>
-        ))}
+        )}
+        {rg.criteriosAlerta && rg.criteriosAlerta.length > 0 && (
+          <div>
+            <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Critérios de alerta</div>
+            {rg.criteriosAlerta.map((c, i) => (
+              <div key={i} style={{ padding: '8px 0', fontSize: '12px', color: '#3D4054', lineHeight: 1.55 }}>⚠ {c}</div>
+            ))}
+          </div>
+        )}
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '48px' }}>
-        <div>
-          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>KPIs por período</div>
-          {(at.kpis || []).map((k, i) => (
-            <div key={i} className="kpi-item">
-              <div className="kpi-periodo">{k.periodo}</div>
-              <div className="kpi-meta">{k.meta}</div>
-            </div>
-          ))}
+      {rg.gatilhosDeRevisao && (
+        <div style={{ marginBottom: '24px', background: '#faf8f4', borderRadius: '10px', padding: '22px 26px', borderLeft: '4px solid #C9A96E' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '10px' }}>Gatilhos de revisão estratégica</div>
+          <div style={{ fontSize: '13px', color: '#3D4054', lineHeight: 1.75 }}>
+            {rg.gatilhosDeRevisao.split('\n\n').map((p, i) => <p key={i} style={{ marginBottom: '10px' }}>{p}</p>)}
+          </div>
         </div>
-        <div>
-          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Critérios de sucesso</div>
-          {(at.criteriosSucesso || []).map((c, i) => (
-            <div key={i} className="criterio-item">
-              <div className="criterio-check">✓</div>
-              <div className="criterio-text">{c}</div>
-            </div>
-          ))}
+      )}
+
+      {rg.protocoloCompliance && (rg.protocoloCompliance.percentualConformidadeAlvo || (rg.protocoloCompliance.touchpointsAuditados && rg.protocoloCompliance.touchpointsAuditados.length > 0) || (rg.protocoloCompliance.backlogPrioritario && rg.protocoloCompliance.backlogPrioritario.length > 0)) && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Protocolo de compliance</div>
+          <div style={{ background: '#fff', border: '1px solid #e8e4da', borderRadius: '10px', padding: '18px 22px' }}>
+            {rg.protocoloCompliance.percentualConformidadeAlvo && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '4px' }}>Meta de conformidade</div>
+                <div style={{ fontSize: '14px', color: '#1C1F2A', fontWeight: 600 }}>{rg.protocoloCompliance.percentualConformidadeAlvo}</div>
+              </div>
+            )}
+            {rg.protocoloCompliance.touchpointsAuditados && rg.protocoloCompliance.touchpointsAuditados.length > 0 && (
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>Touchpoints auditados</div>
+                <div style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.6 }}>{rg.protocoloCompliance.touchpointsAuditados.join(' · ')}</div>
+              </div>
+            )}
+            {rg.protocoloCompliance.backlogPrioritario && rg.protocoloCompliance.backlogPrioritario.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '6px' }}>Backlog prioritário</div>
+                {rg.protocoloCompliance.backlogPrioritario.map((b, i) => (
+                  <div key={i} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55, marginBottom: '4px' }}>→ {b}</div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
-      </div>
+      )}
+
+      {rg.escopoRevisaoAnual && ((rg.escopoRevisaoAnual.kpisMarca && rg.escopoRevisaoAnual.kpisMarca.length > 0) || (rg.escopoRevisaoAnual.recomendacoes && rg.escopoRevisaoAnual.recomendacoes.length > 0)) && (
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ fontSize: '10px', color: '#C9A96E', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '12px' }}>Escopo da revisão anual</div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {rg.escopoRevisaoAnual.kpisMarca && rg.escopoRevisaoAnual.kpisMarca.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>KPIs de marca</div>
+                {rg.escopoRevisaoAnual.kpisMarca.map((k, i) => (
+                  <div key={i} style={{ padding: '8px 0', borderBottom: '1px solid #f0ede8' }}>
+                    <div style={{ fontSize: '12px', color: '#1C1F2A', fontWeight: 600 }}>{k.indicador}</div>
+                    <div style={{ fontSize: '12px', color: '#8a6020' }}>{k.meta}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+            {rg.escopoRevisaoAnual.recomendacoes && rg.escopoRevisaoAnual.recomendacoes.length > 0 && (
+              <div>
+                <div style={{ fontSize: '10px', color: '#9990A0', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: '10px' }}>Recomendações</div>
+                {rg.escopoRevisaoAnual.recomendacoes.map((r, i) => (
+                  <div key={i} style={{ fontSize: '12px', color: '#3D4054', lineHeight: 1.55, marginBottom: '6px' }}>→ {r}</div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {rg.referenciaManual?.url && (
+        <div style={{ background: '#1C1F2A', borderRadius: '8px', padding: '14px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontSize: '10px', color: 'rgba(201,169,110,0.6)', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: '4px' }}>Manual de marca</div>
+            <div style={{ fontSize: '13px', color: '#fff' }}>Versão {rg.referenciaManual.version || '—'}</div>
+          </div>
+          <a href={rg.referenciaManual.url} target="_blank" rel="noopener noreferrer" style={{ color: '#C9A96E', fontSize: '12px', fontWeight: 700, textDecoration: 'none', border: '1px solid #C9A96E', padding: '6px 14px', borderRadius: '6px' }}>
+            Abrir manual →
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -696,7 +1184,7 @@ function PlanoAtivacao({ data }: { data: FinalReportJSON }) {
 // ─── PRÓXIMOS PASSOS ──────────────────────────────────────────────────────────
 
 function ProximosPassos({ data }: { data: FinalReportJSON }) {
-  const steps = data.proximosPassos || data.proximosPasass || [];
+  const steps = data.proximosPassos || [];
   if (!steps.length) return null;
   return (
     <div className="section">
@@ -868,15 +1356,14 @@ export default function RelatorioFinalPage() {
         <div className="report-page">
           <Cover project={project} data={reportData} />
           <TableOfContents />
-          <PontoDepartida data={reportData} />
-          <PremissaMetodologica data={reportData} />
-          <AJornada data={reportData} />
-          <OPosicionamento data={reportData} />
-          <ANovaMarca data={reportData} />
-          <SistemaVisual project={project} data={reportData} />
-          <PlanoAtivacao data={reportData} />
-          <ProximosPassos data={reportData} />
+          <Abertura data={reportData} />
+          <PontoDePartida data={reportData} />
+          <Decifracao data={reportData} />
+          <NovaMarca data={reportData} />
+          <Travessia data={reportData} />
+          <Regeneracao data={reportData} />
           <NarrativaSimbolica data={reportData} />
+          <ProximosPassos data={reportData} />
           <ReportFooter project={project} />
         </div>
       </div>

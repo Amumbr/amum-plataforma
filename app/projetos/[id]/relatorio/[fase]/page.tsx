@@ -678,54 +678,6 @@ function PositioningHero({ project }: { project: Project }) {
 
 // ─── METODOLOGIA SECTION ─────────────────────────────────────────────────────
 
-const FASE_NOMES: Record<number, string> = {
-  1: 'Escuta', 2: 'Decifração', 3: 'Reconstrução', 4: 'Travessia', 5: 'Regeneração',
-};
-
-function MetodologiaSection({ project, fase }: { project: Project; fase: number }) {
-  const [narrative, setNarrative] = React.useState('');
-  const [loading, setLoading] = React.useState(true);
-  const [loaded, setLoaded] = React.useState(false);
-
-  async function loadNarrative() {
-    if (loaded) return;
-    setLoading(true);
-    try {
-      const { getProjectContext } = await import('@/lib/store');
-      const ctx = getProjectContext(project);
-      const res = await fetch('/api/research', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'phase_methodology_narrative', projectContext: ctx, fase }),
-      });
-      const data = await res.json() as { narrativa?: string };
-      if (data.narrativa) setNarrative(data.narrativa);
-    } catch { /* fail silently */ }
-    setLoading(false);
-    setLoaded(true);
-  }
-
-  React.useEffect(() => { loadNarrative(); }, []);
-
-  return (
-    <div className="symbolic-section">
-      <div className="symbolic-label">Nota Metodológica · Fase {fase}</div>
-      <div className="symbolic-title">Como a metodologia operou na {FASE_NOMES[fase] || `Fase ${fase}`}</div>
-      {loading ? (
-        <div className="symbolic-loading">
-          <div style={{ width: '28px', height: '28px', border: '2px solid rgba(201,169,110,0.3)', borderTopColor: '#C9A96E', borderRadius: '50%', animation: 'spin 1s linear infinite', margin: '0 auto' }} />
-          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-          <div className="symbolic-loading-text">Carregando nota metodológica…</div>
-        </div>
-      ) : narrative ? (
-        <div className="symbolic-body">
-          {narrative.split('\n\n').map((p, i) => <p key={i}>{p}</p>)}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 // ─── TEMPLATE FASE 1: ESCUTA ─────────────────────────────────────────────────
 
 function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
@@ -825,7 +777,6 @@ function ReportFase1({ project, data }: { project: Project; data: Fase1Data }) {
       )}
 
       <ReportFooter gateLabel="Gate 0 → Fase 1 concluída" />
-      <MetodologiaSection project={project} fase={1} />
     </div>
   );
 }
@@ -971,7 +922,6 @@ function ReportFase2({ project, data }: { project: Project; data: Fase2Data }) {
       )}
 
       <ReportFooter gateLabel="Gate 1 → Território aprovado pela liderança" />
-      <MetodologiaSection project={project} fase={2} />
     </div>
   );
 }
@@ -1083,7 +1033,6 @@ function ReportFase3({ project, data }: { project: Project; data: Fase3Data }) {
 
       <ReportFooter gateLabel="Gate 3 → Plataforma assinada como documento-mãe" />
       <MoodboardSection project={project} />
-      <MetodologiaSection project={project} fase={3} />
     </div>
   );
 }
@@ -1182,7 +1131,6 @@ function ReportFase4({ project, data }: { project: Project; data: Fase4Data }) {
           <div className="section-body" style={{ whiteSpace: 'pre-line' }}>{data.enablementRacional}</div>
         </div>
       )}
-      <MetodologiaSection project={project} fase={4} />
     </div>
   );
 }
@@ -1276,7 +1224,6 @@ function ReportFase5({ project, data }: { project: Project; data: Fase5Data }) {
 
       <ReportFooter gateLabel="Gate 5 → Sistema de governança ativo" />
       <MoodboardSection project={project} />
-      <MetodologiaSection project={project} fase={5} />
     </div>
   );
 }
