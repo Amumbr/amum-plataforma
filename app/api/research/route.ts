@@ -7,6 +7,7 @@ import {
   MODEL_SONNET,
   MODEL_HAIKU,
 } from '@/lib/prompts';
+import { mapLegacyToTriade } from '@/lib/final-report-v2-types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -1906,6 +1907,181 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
       } catch (e) {
         const raw = extractText(r.content);
         console.error('[final_report_data] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+          inputTokens: r.usage?.input_tokens,
+          outputTokens: r.usage?.output_tokens,
+        });
+        return NextResponse.json({
+          error: 'Parse error',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
+      }
+    }
+
+    if (action === 'final_report_data_v2') {
+      // ───────────────────────────────────────────────────────────────────────
+      // Rota nova (/relatorio/final/v2) — shape tríade.
+      //
+      // Fase 1-5 da migração: reusa o prompt da action legada `final_report_data`
+      // (duplicado inline abaixo por segurança — não modifica a action antiga)
+      // e aplica o mapper legado→tríade em `lib/final-report-v2-types.ts`.
+      //
+      // Na Fase 6, este bloco é substituído: o prompt é reescrito para gerar
+      // diretamente o shape tríade (abandonando os nomes "pontoDePartida",
+      // "decifracao", etc.) e o mapper é removido.
+      // ───────────────────────────────────────────────────────────────────────
+      const prompt = `${ctx}
+
+Voce e o estrategista principal da AMUM. Produza o JSON estruturado completo para o Relatorio Final da jornada AMUM com este cliente.
+
+Este e o documento-mestre do projeto: um unico relatorio que condensa tudo que foi levantado em cada fase, articulado como sistema coerente. Ele deve conter a sintese de cada fase em densidade suficiente para substituir os relatorios individuais de fase se necessario.
+
+EXTRAIA os dados reais registrados no contexto do projeto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe no projeto, deixe o bloco correspondente com array vazio ou string vazia; NAO preencha com conteudo generico.
+
+REGRA METODOLOGICA CRITICA:
+O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
+- NAO nomeie fases explicitamente no corpo ("na Fase 1", "na Escuta", "na Decifracao"). Os titulos de secao ja carregam essa informacao.
+- NAO descreva instrumentos metodologicos ("cruzamento de dados", "mapa E/Faz/Fala como dispositivo", "auditoria de canais combinada com...").
+- NAO explique a logica analitica aplicada ("aplicamos framework X", "a tecnica Y revelou").
+- SIM: integre nas "notaDeLeitura" de cada bloco uma frase-ponte didatica que nomeia O QUE AQUELA SECAO RESOLVE PARA O LEITOR, nao COMO foi construida.
+
+REGRAS DE DENSIDADE:
+- Textos longos (retrato da marca, manifesto, narrativa simbolica, abertura): paragrafos separados por \\n\\n.
+- Listas de items: extraia do projeto TUDO que existe, nao resuma para 3-5 items arbitrariamente.
+- Manifesto: INTEGRAL, nao recortado.
+- Codigo linguistico: inclua vocabulario preferencial, proibido, padroes, exemplos e checklist QA como foram registrados.
+- Training design: extraia a agenda completa com detalhamento pedagogico se presente.
+
+ABERTURA — regra especifica:
+"abertura" e o bloco de 150-200 palavras que registra o PRINCIPIO do processo (ouvir antes de propor; posicionar implica abrir mao; coerencia entre o que a marca declara, faz e comunica) sem descrever metodologia, fases ou instrumentos.
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois). Este shape segue a estrutura historica (pontoDePartida / decifracao / novaMarca / travessia / regeneracao) — o backend fara a transformacao para a estrutura triade antes de devolver ao cliente:
+{
+  "capa": { "tagline": "", "subtitulo": "" },
+  "abertura": "",
+  "pontoDePartida": {
+    "notaDeLeitura": "",
+    "retratoDaMarca": { "comoSeApresenta": "", "oQueDadosMostram": "", "tensaoCentral": "" },
+    "mapaIFazFala": {
+      "dimensoes": [{"dimensao": "", "eDeclara": "", "eFaz": "", "eFala": "", "discrepancia": "", "risco": ""}],
+      "implicacoesEstrategicas": []
+    },
+    "diagnosticoTouchpoints": {
+      "touchpointsCriticos": [{"touchpoint": "", "canal": "", "peso": 0, "scoreCoerencia": 0, "observacao": ""}],
+      "quickWins": []
+    },
+    "tensoesEstruturais": [{"titulo": "", "descricao": ""}],
+    "perguntaFundadora": ""
+  },
+  "decifracao": {
+    "notaDeLeitura": "",
+    "arquetipo": { "nome": "", "signosQueConfirmaram": "" },
+    "territorios": {
+      "avaliados": [{"nome": "", "viabilidade": ""}],
+      "escolhido": "",
+      "porQueEsteTerritorio": ""
+    },
+    "tradeoffs": [{"abandona": "", "ganha": ""}],
+    "afirmacaoCentral": "",
+    "arquiteturaDeMarca": {
+      "portfolioMap": "",
+      "nomenclaturaRegras": "",
+      "brandToOperating": [{"funcao": "", "implicacao": "", "responsavel": "", "prioridade": ""}]
+    },
+    "matrizODS": {
+      "items": [{"ods": "", "classificacao": "", "riscoGreenwashing": "", "iniciativas": [{"descricao": "", "indicador": "", "owner": "", "cadencia": ""}]}]
+    }
+  },
+  "novaMarca": {
+    "notaDeLeitura": "",
+    "plataforma": {
+      "proposito": "", "essencia": "", "posicionamento": "", "promessa": "",
+      "valores": [{"valor": "", "comportamentos": []}]
+    },
+    "codigoLinguistico": {
+      "tomDeVoz": {"e": [], "naoE": []},
+      "vocabularioPreferencial": [],
+      "vocabularioProibido": [],
+      "padroesConstrutivos": [],
+      "exemplosAplicacao": [{"contexto": "", "exemplo": ""}],
+      "qaChecklist": []
+    },
+    "bibliotecaDeMensagens": [{"publico": "", "afirmacaoCentral": "", "provas": []}],
+    "manifesto": "",
+    "direcaoVisual": {
+      "principiosSimbolicos": [],
+      "paleta": "",
+      "tipografia": "",
+      "elementosGraficos": [],
+      "diretrizes": "",
+      "descricaoMoodboard": ""
+    }
+  },
+  "travessia": {
+    "notaDeLeitura": "",
+    "ondas": [{"onda": "", "timeline": "", "touchpoints": [], "responsaveis": [], "criteriosConclusao": []}],
+    "kpis": [{"periodo": "", "indicador": "", "meta": ""}],
+    "riscos": [{"risco": "", "nivel": "", "contingencia": ""}],
+    "enablementKit": {
+      "faqs": [{"pergunta": "", "resposta": ""}],
+      "templates": [{"nome": "", "descricao": ""}],
+      "trilhaAdocao": [{"area": "", "passos": []}],
+      "checklistQA": []
+    },
+    "trainingDesign": {
+      "objetivosPorPublico": [{"publico": "", "objetivos": []}],
+      "agenda": [{"bloco": "", "duracao": "", "formato": ""}],
+      "materiaisNecessarios": []
+    }
+  },
+  "regeneracao": {
+    "notaDeLeitura": "",
+    "scorecard": [{"dimensao": "", "score": 0, "meta": 0, "tendencia": "", "acao": ""}],
+    "cadencia": [{"frequencia": "", "atividade": "", "responsavel": ""}],
+    "criteriosAlerta": [],
+    "gatilhosDeRevisao": "",
+    "protocoloCompliance": {
+      "percentualConformidadeAlvo": "",
+      "touchpointsAuditados": [],
+      "backlogPrioritario": []
+    },
+    "escopoRevisaoAnual": {
+      "kpisMarca": [{"indicador": "", "meta": ""}],
+      "recomendacoes": []
+    }
+  },
+  "narrativaSimbolica": "",
+  "proximosPassos": [{"prioridade": 1, "acao": "", "owner": "", "prazo": ""}]
+}`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 16000,
+        system: AMUM_SYSTEM,
+        messages: [{ role: 'user', content: prompt }],
+      });
+      try {
+        const legacyJson = robustParseJSON(extractText(r.content)) as Record<string, unknown>;
+        const triadeJson = mapLegacyToTriade(legacyJson);
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_report_data_v2] parse ok but stop_reason=max_tokens — content likely truncated', {
+            outputTokens: r.usage?.output_tokens,
+            inputTokens: r.usage?.input_tokens,
+          });
+        }
+        return NextResponse.json({
+          json: triadeJson,
+          createdAt: new Date().toISOString(),
+          stopReason: r.stop_reason,
+        });
+      } catch (e) {
+        const raw = extractText(r.content);
+        console.error('[final_report_data_v2] parse fail', {
           detail: String(e),
           rawLen: raw.length,
           rawEnd: raw.slice(-400),

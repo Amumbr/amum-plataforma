@@ -906,6 +906,9 @@ export interface Project {
   annualReview?: AnnualReview;
   manual?: BrandManual;
   finalReport?: { json: Record<string, unknown>; createdAt: string };
+  // Cache do relatório final no shape tríade (rota /relatorio/final/v2).
+  // Paralelo a finalReport até o cutover (Fase 7 da migração).
+  finalReportV2?: { json: Record<string, unknown>; createdAt: string };
   deliverables: Deliverable[];
   driveFiles: DriveFile[];
   intel: IntelItem[];
