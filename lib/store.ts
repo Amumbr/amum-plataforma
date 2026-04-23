@@ -907,8 +907,20 @@ export interface Project {
   manual?: BrandManual;
   finalReport?: { json: Record<string, unknown>; createdAt: string };
   // Cache do relatório final no shape tríade (rota /relatorio/final/v2).
-  // Paralelo a finalReport até o cutover (Fase 7 da migração).
-  finalReportV2?: { json: Record<string, unknown>; createdAt: string };
+  // A partir da Fase 1.1, o cache é particionado por parte — cada sub-JSON é
+  // gerado por uma action backend independente (final_ondeEstamos,
+  // final_paraOndeVamos, final_comoVamosChegarLa, final_meta) e persistido
+  // assim que retorna. Paralelo a finalReport até o cutover (Fase 7).
+  // Os consumidores fazem cast para os sub-types de `lib/final-report-v2-types`.
+  // Cache com shape anterior ({ json, createdAt }) é detectado pelo orquestrador
+  // (ausência dos campos abaixo) e regenerado automaticamente.
+  finalReportV2?: {
+    ondeEstamos?: Record<string, unknown>;
+    paraOndeVamos?: Record<string, unknown>;
+    comoVamosChegarLa?: Record<string, unknown>;
+    meta?: Record<string, unknown>;
+    createdAt?: string;
+  };
   deliverables: Deliverable[];
   driveFiles: DriveFile[];
   intel: IntelItem[];

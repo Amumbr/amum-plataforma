@@ -7,7 +7,6 @@ import {
   MODEL_SONNET,
   MODEL_HAIKU,
 } from '@/lib/prompts';
-import { mapLegacyToTriade } from '@/lib/final-report-v2-types';
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
@@ -1923,165 +1922,363 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
       }
     }
 
-    if (action === 'final_report_data_v2') {
-      // ───────────────────────────────────────────────────────────────────────
-      // Rota nova (/relatorio/final/v2) — shape tríade.
-      //
-      // Fase 1-5 da migração: reusa o prompt da action legada `final_report_data`
-      // (duplicado inline abaixo por segurança — não modifica a action antiga)
-      // e aplica o mapper legado→tríade em `lib/final-report-v2-types.ts`.
-      //
-      // Na Fase 6, este bloco é substituído: o prompt é reescrito para gerar
-      // diretamente o shape tríade (abandonando os nomes "pontoDePartida",
-      // "decifracao", etc.) e o mapper é removido.
-      // ───────────────────────────────────────────────────────────────────────
-      const prompt = `${ctx}
+    // ───────────────────────────────────────────────────────────────────────
+    // RELATORIO FINAL V2 — 4 actions paralelas (shape triade)
+    //
+    // Fase 1.1 da migracao: substitui a action monolitica `final_report_data_v2`
+    // por quatro actions independentes. Cada uma gera diretamente o sub-shape
+    // da sua parte — nao ha mais mapper legado→triade. A rota `/relatorio/final/v2`
+    // dispara as 4 em Promise.all via `cachedUserMessage(ctx, livePrompt)`:
+    // o contexto do projeto e cacheado (ephemeral, 5min) e as 3 chamadas
+    // subsequentes aproveitam cache hit no input.
+    //
+    // REGRAS METODOLOGICAS E DE DENSIDADE estao replicadas nos 4 prompts
+    // propositalmente — cada chamada e autonoma, nao existe garantia de ordem
+    // ou de compartilhamento de sistema entre elas. Custo em cache hit e zero.
+    // ───────────────────────────────────────────────────────────────────────
 
-Voce e o estrategista principal da AMUM. Produza o JSON estruturado completo para o Relatorio Final da jornada AMUM com este cliente.
+    if (action === 'final_ondeEstamos') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da PARTE 1 do Relatorio Final — "Onde estamos".
 
-Este e o documento-mestre do projeto: um unico relatorio que condensa tudo que foi levantado em cada fase, articulado como sistema coerente. Ele deve conter a sintese de cada fase em densidade suficiente para substituir os relatorios individuais de fase se necessario.
+Esta parte e o diagnostico: retrato da marca, plataforma Ser·Fazer·Comunicar, diagnostico de touchpoints, tensoes estruturais e pergunta fundadora. Tom: documentario-analitico. Nomeia o que os dados mostram sem ainda propor destino.
 
-EXTRAIA os dados reais registrados no contexto do projeto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe no projeto, deixe o bloco correspondente com array vazio ou string vazia; NAO preencha com conteudo generico.
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia; NAO preencha com conteudo generico.
 
 REGRA METODOLOGICA CRITICA:
 O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
-- NAO nomeie fases explicitamente no corpo ("na Fase 1", "na Escuta", "na Decifracao"). Os titulos de secao ja carregam essa informacao.
-- NAO descreva instrumentos metodologicos ("cruzamento de dados", "mapa E/Faz/Fala como dispositivo", "auditoria de canais combinada com...").
+- NAO nomeie fases explicitamente ("na Fase 1", "na Escuta"). Os titulos de secao ja carregam essa informacao.
+- NAO descreva instrumentos metodologicos ("cruzamento de dados", "mapa E/Faz/Fala como dispositivo", "auditoria combinada com...").
 - NAO explique a logica analitica aplicada ("aplicamos framework X", "a tecnica Y revelou").
-- SIM: integre nas "notaDeLeitura" de cada bloco uma frase-ponte didatica que nomeia O QUE AQUELA SECAO RESOLVE PARA O LEITOR, nao COMO foi construida.
+- SIM: a "notaDeLeitura" integra uma frase-ponte didatica que nomeia O QUE ESTA PARTE RESOLVE PARA O LEITOR, nao COMO foi construida.
 
 REGRAS DE DENSIDADE:
-- Textos longos (retrato da marca, manifesto, narrativa simbolica, abertura): paragrafos separados por \\n\\n.
-- Listas de items: extraia do projeto TUDO que existe, nao resuma para 3-5 items arbitrariamente.
-- Manifesto: INTEGRAL, nao recortado.
-- Codigo linguistico: inclua vocabulario preferencial, proibido, padroes, exemplos e checklist QA como foram registrados.
-- Training design: extraia a agenda completa com detalhamento pedagogico se presente.
+- "notaDeLeitura": 2-4 frases que situam o leitor na parte.
+- "retratoDaMarca": 3 campos em paragrafo denso, contrastando declaracao × dados × tensao.
+- "plataformaSFC.dimensoes": EXTRAIA TODAS as dimensoes registradas no mapa E/Faz/Fala — nao resuma para 3-5. Cada dimensao nomeia discrepancia e risco especifico.
+- "implicacoesEstrategicas": lista completa do que decorre das discrepancias.
+- "diagnosticoTouchpoints.touchpointsCriticos": extraia TODOS os touchpoints auditados; peso e scoreCoerencia sao numericos (0-10).
+- "tensoesEstruturais": liste todas as tensoes identificadas, nao apenas as mais visiveis.
+- "perguntaFundadora": uma frase interrogativa que ancora o destino proposto na Parte 2.
 
-ABERTURA — regra especifica:
-"abertura" e o bloco de 150-200 palavras que registra o PRINCIPIO do processo (ouvir antes de propor; posicionar implica abrir mao; coerencia entre o que a marca declara, faz e comunica) sem descrever metodologia, fases ou instrumentos.
-
-Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois). Este shape segue a estrutura historica (pontoDePartida / decifracao / novaMarca / travessia / regeneracao) — o backend fara a transformacao para a estrutura triade antes de devolver ao cliente:
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
 {
-  "capa": { "tagline": "", "subtitulo": "" },
-  "abertura": "",
-  "pontoDePartida": {
-    "notaDeLeitura": "",
-    "retratoDaMarca": { "comoSeApresenta": "", "oQueDadosMostram": "", "tensaoCentral": "" },
-    "mapaIFazFala": {
-      "dimensoes": [{"dimensao": "", "eDeclara": "", "eFaz": "", "eFala": "", "discrepancia": "", "risco": ""}],
-      "implicacoesEstrategicas": []
-    },
-    "diagnosticoTouchpoints": {
-      "touchpointsCriticos": [{"touchpoint": "", "canal": "", "peso": 0, "scoreCoerencia": 0, "observacao": ""}],
-      "quickWins": []
-    },
-    "tensoesEstruturais": [{"titulo": "", "descricao": ""}],
-    "perguntaFundadora": ""
+  "notaDeLeitura": "",
+  "retratoDaMarca": { "comoSeApresenta": "", "oQueDadosMostram": "", "tensaoCentral": "" },
+  "plataformaSFC": {
+    "dimensoes": [{"dimensao": "", "seDeclara": "", "comoAge": "", "comoComunica": "", "discrepancia": "", "risco": ""}],
+    "implicacoesEstrategicas": []
   },
-  "decifracao": {
-    "notaDeLeitura": "",
-    "arquetipo": { "nome": "", "signosQueConfirmaram": "" },
-    "territorios": {
-      "avaliados": [{"nome": "", "viabilidade": ""}],
-      "escolhido": "",
-      "porQueEsteTerritorio": ""
-    },
-    "tradeoffs": [{"abandona": "", "ganha": ""}],
-    "afirmacaoCentral": "",
-    "arquiteturaDeMarca": {
-      "portfolioMap": "",
-      "nomenclaturaRegras": "",
-      "brandToOperating": [{"funcao": "", "implicacao": "", "responsavel": "", "prioridade": ""}]
-    },
-    "matrizODS": {
-      "items": [{"ods": "", "classificacao": "", "riscoGreenwashing": "", "iniciativas": [{"descricao": "", "indicador": "", "owner": "", "cadencia": ""}]}]
-    }
+  "diagnosticoTouchpoints": {
+    "touchpointsCriticos": [{"touchpoint": "", "canal": "", "peso": 0, "scoreCoerencia": 0, "observacao": ""}],
+    "quickWins": []
   },
-  "novaMarca": {
-    "notaDeLeitura": "",
-    "plataforma": {
-      "proposito": "", "essencia": "", "posicionamento": "", "promessa": "",
-      "valores": [{"valor": "", "comportamentos": []}]
-    },
-    "codigoLinguistico": {
-      "tomDeVoz": {"e": [], "naoE": []},
-      "vocabularioPreferencial": [],
-      "vocabularioProibido": [],
-      "padroesConstrutivos": [],
-      "exemplosAplicacao": [{"contexto": "", "exemplo": ""}],
-      "qaChecklist": []
-    },
-    "bibliotecaDeMensagens": [{"publico": "", "afirmacaoCentral": "", "provas": []}],
-    "manifesto": "",
-    "direcaoVisual": {
-      "principiosSimbolicos": [],
-      "paleta": "",
-      "tipografia": "",
-      "elementosGraficos": [],
-      "diretrizes": "",
-      "descricaoMoodboard": ""
-    }
-  },
-  "travessia": {
-    "notaDeLeitura": "",
-    "ondas": [{"onda": "", "timeline": "", "touchpoints": [], "responsaveis": [], "criteriosConclusao": []}],
-    "kpis": [{"periodo": "", "indicador": "", "meta": ""}],
-    "riscos": [{"risco": "", "nivel": "", "contingencia": ""}],
-    "enablementKit": {
-      "faqs": [{"pergunta": "", "resposta": ""}],
-      "templates": [{"nome": "", "descricao": ""}],
-      "trilhaAdocao": [{"area": "", "passos": []}],
-      "checklistQA": []
-    },
-    "trainingDesign": {
-      "objetivosPorPublico": [{"publico": "", "objetivos": []}],
-      "agenda": [{"bloco": "", "duracao": "", "formato": ""}],
-      "materiaisNecessarios": []
-    }
-  },
-  "regeneracao": {
-    "notaDeLeitura": "",
-    "scorecard": [{"dimensao": "", "score": 0, "meta": 0, "tendencia": "", "acao": ""}],
-    "cadencia": [{"frequencia": "", "atividade": "", "responsavel": ""}],
-    "criteriosAlerta": [],
-    "gatilhosDeRevisao": "",
-    "protocoloCompliance": {
-      "percentualConformidadeAlvo": "",
-      "touchpointsAuditados": [],
-      "backlogPrioritario": []
-    },
-    "escopoRevisaoAnual": {
-      "kpisMarca": [{"indicador": "", "meta": ""}],
-      "recomendacoes": []
-    }
-  },
-  "narrativaSimbolica": "",
-  "proximosPassos": [{"prioridade": 1, "acao": "", "owner": "", "prazo": ""}]
+  "tensoesEstruturais": [{"titulo": "", "descricao": ""}],
+  "perguntaFundadora": ""
 }`;
 
       const r = await client.messages.create({
         model: MODEL_SONNET,
-        max_tokens: 16000,
+        max_tokens: 8000,
         system: AMUM_SYSTEM,
-        messages: [{ role: 'user', content: prompt }],
+        messages: [cachedUserMessage(ctx, livePrompt)],
       });
       try {
-        const legacyJson = robustParseJSON(extractText(r.content)) as Record<string, unknown>;
-        const triadeJson = mapLegacyToTriade(legacyJson);
+        const json = robustParseJSON(extractText(r.content));
         if (r.stop_reason === 'max_tokens') {
-          console.warn('[final_report_data_v2] parse ok but stop_reason=max_tokens — content likely truncated', {
+          console.warn('[final_ondeEstamos] parse ok but stop_reason=max_tokens — content likely truncated', {
             outputTokens: r.usage?.output_tokens,
             inputTokens: r.usage?.input_tokens,
           });
         }
         return NextResponse.json({
-          json: triadeJson,
+          json,
           createdAt: new Date().toISOString(),
           stopReason: r.stop_reason,
         });
       } catch (e) {
         const raw = extractText(r.content);
-        console.error('[final_report_data_v2] parse fail', {
+        console.error('[final_ondeEstamos] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+          inputTokens: r.usage?.input_tokens,
+          outputTokens: r.usage?.output_tokens,
+        });
+        return NextResponse.json({
+          error: 'Parse error',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
+      }
+    }
+
+    if (action === 'final_paraOndeVamos') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da PARTE 2 do Relatorio Final — "Para onde vamos".
+
+Esta parte e a afirmacao: arquetipo, territorio escolhido, plataforma de marca, codigo linguistico, biblioteca de mensagens, manifesto INTEGRAL, direcao visual, arquitetura de marca, matriz ODS e narrativa simbolica. Tom: formativo-normativo. Nomeia o destino e o que se ganha ao segui-lo.
+
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia; NAO preencha com conteudo generico.
+
+REGRA METODOLOGICA CRITICA:
+O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
+- NAO nomeie fases explicitamente ("na Decifracao", "na Reconstrucao"). Os titulos de secao ja carregam essa informacao.
+- NAO descreva instrumentos metodologicos ("avaliacao de territorios como dispositivo", "co-criacao de posicionamento com...").
+- NAO explique a logica analitica aplicada ("aplicamos o framework X de arquetipos").
+- SIM: a "notaDeLeitura" integra uma frase-ponte didatica que nomeia O QUE ESTA PARTE RESOLVE PARA O LEITOR.
+
+REGRAS DE DENSIDADE (esta parte e a mais densa do relatorio):
+- "afirmacaoDestaque": linhaA e linhaB sao frases curtas que formam o posicionamento em duas linhas visuais (ex: "Deciframos culturas." / "Criamos comunidades."). "glosa" e o paragrafo de apoio (2-4 frases) que ancora a afirmacao na tensao central.
+- "arquetipo.signosQueConfirmaram": paragrafo denso nomeando os signos que apareceram nos dados.
+- "territorios.avaliados": liste TODOS os territorios considerados (nao so o escolhido) com viabilidade nomeada.
+- "tradeoffs": completos — cada tradeoff nomeia o que se abandona e o que se ganha.
+- "plataforma.valores": cada valor com seus comportamentos especificos (nao adjetivos soltos).
+- "codigoLinguistico.vocabularioPreferencial" e "vocabularioProibido": EXTRAIA TODAS as palavras registradas, nao um subset.
+- "codigoLinguistico.exemplosAplicacao": minimo 4 exemplos de contexto × formulacao correta.
+- "codigoLinguistico.qaChecklist": lista completa de verificacao pre-publicacao.
+- "bibliotecaDeMensagens": um bloco por publico registrado, com provas especificas (nao generalidades).
+- "manifesto": INTEGRAL, nao recortado. Paragrafos separados por \\n\\n.
+- "direcaoVisual": principios simbolicos, paleta descritiva, tipografia, elementos graficos, diretrizes, descricao do moodboard.
+- "arquiteturaDeMarca.brandToOperating": liste TODAS as implicacoes operacionais mapeadas.
+- "matrizODS.items": cada ODS selecionada com classificacao, riscoGreenwashing e iniciativas completas (descricao + indicador + owner + cadencia).
+- "narrativaSimbolica": paragrafos separados por \\n\\n.
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
+{
+  "notaDeLeitura": "",
+  "afirmacaoDestaque": { "linhaA": "", "linhaB": "", "glosa": "" },
+  "arquetipo": { "nome": "", "signosQueConfirmaram": "" },
+  "territorios": {
+    "avaliados": [{"nome": "", "viabilidade": ""}],
+    "escolhido": "",
+    "porQueEsteTerritorio": ""
+  },
+  "tradeoffs": [{"abandona": "", "ganha": ""}],
+  "plataforma": {
+    "proposito": "", "essencia": "", "posicionamento": "", "promessa": "",
+    "valores": [{"valor": "", "comportamentos": []}]
+  },
+  "codigoLinguistico": {
+    "tomDeVoz": {"e": [], "naoE": []},
+    "vocabularioPreferencial": [],
+    "vocabularioProibido": [],
+    "padroesConstrutivos": [],
+    "exemplosAplicacao": [{"contexto": "", "exemplo": ""}],
+    "qaChecklist": []
+  },
+  "bibliotecaDeMensagens": [{"publico": "", "afirmacaoCentral": "", "provas": []}],
+  "manifesto": "",
+  "direcaoVisual": {
+    "principiosSimbolicos": [],
+    "paleta": "",
+    "tipografia": "",
+    "elementosGraficos": [],
+    "diretrizes": "",
+    "descricaoMoodboard": ""
+  },
+  "arquiteturaDeMarca": {
+    "portfolioMap": "",
+    "nomenclaturaRegras": "",
+    "brandToOperating": [{"funcao": "", "implicacao": "", "responsavel": "", "prioridade": ""}]
+  },
+  "matrizODS": {
+    "items": [{"ods": "", "classificacao": "", "riscoGreenwashing": "", "iniciativas": [{"descricao": "", "indicador": "", "owner": "", "cadencia": ""}]}]
+  },
+  "narrativaSimbolica": ""
+}`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 10000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      try {
+        const json = robustParseJSON(extractText(r.content));
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_paraOndeVamos] parse ok but stop_reason=max_tokens — content likely truncated', {
+            outputTokens: r.usage?.output_tokens,
+            inputTokens: r.usage?.input_tokens,
+          });
+        }
+        return NextResponse.json({
+          json,
+          createdAt: new Date().toISOString(),
+          stopReason: r.stop_reason,
+        });
+      } catch (e) {
+        const raw = extractText(r.content);
+        console.error('[final_paraOndeVamos] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+          inputTokens: r.usage?.input_tokens,
+          outputTokens: r.usage?.output_tokens,
+        });
+        return NextResponse.json({
+          error: 'Parse error',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
+      }
+    }
+
+    if (action === 'final_comoVamosChegarLa') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da PARTE 3 do Relatorio Final — "Como vamos chegar la".
+
+Esta parte e a execucao: ondas de implementacao, KPIs, riscos, enablement kit, desenho do treinamento e governanca continua (scorecard, cadencia, criterios de alerta, protocolo de compliance, escopo de revisao anual). Tom: operacional, sequenciado, com responsaveis e prazos.
+
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia; NAO preencha com conteudo generico.
+
+REGRA METODOLOGICA CRITICA:
+O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
+- NAO nomeie fases explicitamente ("na Travessia", "na Regeneracao"). Os titulos de secao ja carregam essa informacao.
+- NAO descreva instrumentos metodologicos ("scorecard como dispositivo", "trilha de adocao enquanto framework").
+- NAO explique a logica analitica aplicada.
+- SIM: a "notaDeLeitura" integra uma frase-ponte didatica que nomeia O QUE ESTA PARTE RESOLVE PARA O LEITOR.
+
+REGRAS DE DENSIDADE:
+- "ondas": cada onda com timeline, touchpoints afetados, responsaveis nomeados e criterios de conclusao verificaveis.
+- "kpis": um bloco por periodo (ex: 30/60/90, T1/T2/T3), com indicador e meta quantificada.
+- "riscos": todos os riscos mapeados, com nivel (alto/medio/baixo) e contingencia especifica.
+- "enablementKit": FAQs completas, templates com descricao, trilha de adocao por area com passos sequenciados, checklist de QA integral.
+- "trainingDesign": extraia a agenda COMPLETA com detalhamento pedagogico se presente — objetivos por publico, formatos, blocos, duracoes, materiais.
+- "scorecard": dimensoes avaliadas com score atual, meta, tendencia e acao recomendada.
+- "cadencia": rituais de governanca (frequencia × atividade × responsavel).
+- "criteriosAlerta": condicoes que disparam revisao fora do ciclo regular.
+- "gatilhosDeRevisao": paragrafo que nomeia quando e por que revisar a plataforma de marca.
+- "protocoloCompliance": meta de conformidade, touchpoints auditados, backlog priorizado.
+- "escopoRevisaoAnual": KPIs de marca + recomendacoes estruturantes para o ciclo seguinte.
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
+{
+  "notaDeLeitura": "",
+  "ondas": [{"onda": "", "timeline": "", "touchpoints": [], "responsaveis": [], "criteriosConclusao": []}],
+  "kpis": [{"periodo": "", "indicador": "", "meta": ""}],
+  "riscos": [{"risco": "", "nivel": "", "contingencia": ""}],
+  "enablementKit": {
+    "faqs": [{"pergunta": "", "resposta": ""}],
+    "templates": [{"nome": "", "descricao": ""}],
+    "trilhaAdocao": [{"area": "", "passos": []}],
+    "checklistQA": []
+  },
+  "trainingDesign": {
+    "objetivosPorPublico": [{"publico": "", "objetivos": []}],
+    "formatos": [],
+    "agenda": [{"bloco": "", "duracao": "", "formato": ""}],
+    "materiaisNecessarios": [],
+    "createdAt": ""
+  },
+  "scorecard": [{"dimensao": "", "score": 0, "meta": 0, "tendencia": "", "acao": ""}],
+  "cadencia": [{"frequencia": "", "atividade": "", "responsavel": ""}],
+  "criteriosAlerta": [],
+  "gatilhosDeRevisao": "",
+  "protocoloCompliance": {
+    "percentualConformidadeAlvo": "",
+    "touchpointsAuditados": [],
+    "backlogPrioritario": []
+  },
+  "escopoRevisaoAnual": {
+    "kpisMarca": [{"indicador": "", "meta": ""}],
+    "recomendacoes": []
+  }
+}`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 8000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      try {
+        const json = robustParseJSON(extractText(r.content));
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_comoVamosChegarLa] parse ok but stop_reason=max_tokens — content likely truncated', {
+            outputTokens: r.usage?.output_tokens,
+            inputTokens: r.usage?.input_tokens,
+          });
+        }
+        return NextResponse.json({
+          json,
+          createdAt: new Date().toISOString(),
+          stopReason: r.stop_reason,
+        });
+      } catch (e) {
+        const raw = extractText(r.content);
+        console.error('[final_comoVamosChegarLa] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+          inputTokens: r.usage?.input_tokens,
+          outputTokens: r.usage?.output_tokens,
+        });
+        return NextResponse.json({
+          error: 'Parse error',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
+      }
+    }
+
+    if (action === 'final_meta') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da META do Relatorio Final — capa, abertura e proximos passos.
+
+Esta action faz a sintese transversal: a capa (tagline + subtitulo que ancora o documento), a abertura (paragrafo de 150-200 palavras que registra o PRINCIPIO do processo) e os proximos passos (acoes priorizadas com owner e prazo). Tom: editorial, sintetico, orientado ao leitor.
+
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia.
+
+REGRA METODOLOGICA CRITICA:
+O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
+- NAO nomeie fases explicitamente na abertura.
+- NAO descreva instrumentos metodologicos.
+- NAO explique a logica analitica aplicada.
+
+ABERTURA — regra especifica:
+"abertura" e o bloco de 150-200 palavras que registra o PRINCIPIO do processo (ouvir antes de propor; posicionar implica abrir mao; coerencia entre o que a marca declara, faz e comunica) sem descrever metodologia, fases ou instrumentos. Paragrafos separados por \\n\\n quando necessario.
+
+CAPA:
+- "tagline": frase curta (3-8 palavras) que captura a tese do documento. Se o projeto tem afirmacao de posicionamento aprovada, use-a ou uma variante condensada.
+- "subtitulo": uma linha descritiva do escopo do documento (ex: "Um reposicionamento estrategico em tres tempos").
+
+PROXIMOS PASSOS:
+- Lista priorizada (prioridade 1, 2, 3…) de acoes concretas que saem deste documento.
+- Cada item: acao especifica, owner nomeado, prazo realista.
+- Minimo 5 itens, maximo 12.
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
+{
+  "capa": { "tagline": "", "subtitulo": "" },
+  "abertura": "",
+  "proximosPassos": [{"prioridade": 1, "acao": "", "owner": "", "prazo": ""}]
+}`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 2000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      try {
+        const json = robustParseJSON(extractText(r.content));
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_meta] parse ok but stop_reason=max_tokens — content likely truncated', {
+            outputTokens: r.usage?.output_tokens,
+            inputTokens: r.usage?.input_tokens,
+          });
+        }
+        return NextResponse.json({
+          json,
+          createdAt: new Date().toISOString(),
+          stopReason: r.stop_reason,
+        });
+      } catch (e) {
+        const raw = extractText(r.content);
+        console.error('[final_meta] parse fail', {
           detail: String(e),
           rawLen: raw.length,
           rawEnd: raw.slice(-400),
