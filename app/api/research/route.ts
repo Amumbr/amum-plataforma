@@ -1890,7 +1890,7 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
 }`;
 
       const r = await client.messages.create({
-        model: MODEL_SONNET, max_tokens: 12000, system: AMUM_SYSTEM,
+        model: MODEL_SONNET, max_tokens: 16000, system: AMUM_SYSTEM,
         messages: [{ role: 'user', content: prompt }],
       });
       try {
