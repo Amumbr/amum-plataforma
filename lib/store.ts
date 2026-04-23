@@ -907,17 +907,17 @@ export interface Project {
   manual?: BrandManual;
   finalReport?: { json: Record<string, unknown>; createdAt: string };
   // Cache do relatório final no shape tríade (rota /relatorio/final/v2).
-  // A partir da Fase 1.1, o cache é particionado por parte — cada sub-JSON é
-  // gerado por uma action backend independente (final_ondeEstamos,
-  // final_paraOndeVamos, final_comoVamosChegarLa, final_meta) e persistido
-  // assim que retorna. Paralelo a finalReport até o cutover (Fase 7).
-  // Os consumidores fazem cast para os sub-types de `lib/final-report-v2-types`.
-  // Cache com shape anterior ({ json, createdAt }) é detectado pelo orquestrador
-  // (ausência dos campos abaixo) e regenerado automaticamente.
+  // Fase 1.2: cache em duas camadas por parte — `txt` guarda o markdown
+  // denso gerado pela Camada 1 (action final_txt_*); `json` guarda a
+  // estrutura extraída pela Camada 2 (action final_json_*). `meta` é
+  // independente (action final_meta). Qualquer shape anterior é detectado
+  // pelo orquestrador via ausência dos campos internos e regenerado.
+  // Os consumidores fazem cast do Record<string, unknown> em `json` para
+  // os sub-types em `lib/final-report-v2-types`.
   finalReportV2?: {
-    ondeEstamos?: Record<string, unknown>;
-    paraOndeVamos?: Record<string, unknown>;
-    comoVamosChegarLa?: Record<string, unknown>;
+    ondeEstamos?: { txt: string; json: Record<string, unknown>; createdAt: string };
+    paraOndeVamos?: { txt: string; json: Record<string, unknown>; createdAt: string };
+    comoVamosChegarLa?: { txt: string; json: Record<string, unknown>; createdAt: string };
     meta?: Record<string, unknown>;
     createdAt?: string;
   };

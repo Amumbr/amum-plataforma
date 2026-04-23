@@ -1923,269 +1923,343 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
     }
 
     // ───────────────────────────────────────────────────────────────────────
-    // RELATORIO FINAL V2 — 4 actions paralelas (shape triade)
+    // RELATORIO FINAL V2 — Fase 1.2: duas camadas encadeadas por parte
     //
-    // Fase 1.1 da migracao: substitui a action monolitica `final_report_data_v2`
-    // por quatro actions independentes. Cada uma gera diretamente o sub-shape
-    // da sua parte — nao ha mais mapper legado→triade. A rota `/relatorio/final/v2`
-    // dispara as 4 em Promise.all via `cachedUserMessage(ctx, livePrompt)`:
-    // o contexto do projeto e cacheado (ephemeral, 5min) e as 3 chamadas
-    // subsequentes aproveitam cache hit no input.
+    // CAMADA 1 · geracao editorial (prosa markdown densa, Sonnet)
+    //   final_txt_ondeEstamos        · max_tokens 6000
+    //   final_txt_paraOndeVamos      · max_tokens 8000
+    //   final_txt_comoVamosChegarLa  · max_tokens 6000
     //
-    // REGRAS METODOLOGICAS E DE DENSIDADE estao replicadas nos 4 prompts
-    // propositalmente — cada chamada e autonoma, nao existe garantia de ordem
-    // ou de compartilhamento de sistema entre elas. Custo em cache hit e zero.
+    // CAMADA 2 · extracao estruturada (JSON a partir do TXT, Haiku)
+    //   final_json_ondeEstamos(txt)       · max_tokens 4000
+    //   final_json_paraOndeVamos(txt)     · max_tokens 6000
+    //   final_json_comoVamosChegarLa(txt) · max_tokens 4000
+    //
+    // Action `final_meta` (capa + abertura + proximosPassos) permanece
+    // independente e preservada abaixo.
+    //
+    // O frontend encadeia por parte: TXT -> JSON(txt) -> persiste. Tres
+    // partes em paralelo via Promise.all. Cache do ctx (ephemeral 5min)
+    // atravessa as 7 chamadas — primeira paga input cheio, seguintes
+    // pagam ~10% do ctx.
+    //
+    // Sub-JSONs espelham a estrutura de secoes do prototipo v4
+    // (dobrasil-relatorio-final-v4.html): Parte 1 com 4 secoes, Parte 2
+    // com 6 secoes, Parte 3 com 6 secoes. Cada secao tem title + ledes[]
+    // + campos especificos do conteudo daquela secao.
     // ───────────────────────────────────────────────────────────────────────
 
-    if (action === 'final_ondeEstamos') {
-      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da PARTE 1 do Relatorio Final — "Onde estamos".
+    // ─── CAMADA 1 · TXT editorial ─────────────────────────────────────────
 
-Esta parte e o diagnostico: retrato da marca, plataforma Ser·Fazer·Comunicar, diagnostico de touchpoints, tensoes estruturais e pergunta fundadora. Tom: documentario-analitico. Nomeia o que os dados mostram sem ainda propor destino.
+    if (action === 'final_txt_ondeEstamos') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o DOCUMENTO EDITORIAL COMPLETO da PARTE 1 do Relatorio Final — "Onde estamos".
 
-EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia; NAO preencha com conteudo generico.
+Esta e a camada editorial (prosa densa, markdown estruturado). Sera consumida em seguida por um extrator que transforma este texto em JSON estruturado — por isso a marcacao markdown abaixo deve ser seguida com rigor.
+
+TOM: documentario-analitico. Nomeia o que os dados mostram sem ainda propor destino.
 
 REGRA METODOLOGICA CRITICA:
 O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
 - NAO nomeie fases explicitamente ("na Fase 1", "na Escuta"). Os titulos de secao ja carregam essa informacao.
-- NAO descreva instrumentos metodologicos ("cruzamento de dados", "mapa E/Faz/Fala como dispositivo", "auditoria combinada com...").
-- NAO explique a logica analitica aplicada ("aplicamos framework X", "a tecnica Y revelou").
-- SIM: a "notaDeLeitura" integra uma frase-ponte didatica que nomeia O QUE ESTA PARTE RESOLVE PARA O LEITOR, nao COMO foi construida.
-
-REGRAS DE DENSIDADE:
-- "notaDeLeitura": 2-4 frases que situam o leitor na parte.
-- "retratoDaMarca": 3 campos em paragrafo denso, contrastando declaracao × dados × tensao.
-- "plataformaSFC.dimensoes": EXTRAIA TODAS as dimensoes registradas no mapa E/Faz/Fala — nao resuma para 3-5. Cada dimensao nomeia discrepancia e risco especifico.
-- "implicacoesEstrategicas": lista completa do que decorre das discrepancias.
-- "diagnosticoTouchpoints.touchpointsCriticos": extraia TODOS os touchpoints auditados; peso e scoreCoerencia sao numericos (0-10).
-- "tensoesEstruturais": liste todas as tensoes identificadas, nao apenas as mais visiveis.
-- "perguntaFundadora": uma frase interrogativa que ancora o destino proposto na Parte 2.
-
-Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
-{
-  "notaDeLeitura": "",
-  "retratoDaMarca": { "comoSeApresenta": "", "oQueDadosMostram": "", "tensaoCentral": "" },
-  "plataformaSFC": {
-    "dimensoes": [{"dimensao": "", "seDeclara": "", "comoAge": "", "comoComunica": "", "discrepancia": "", "risco": ""}],
-    "implicacoesEstrategicas": []
-  },
-  "diagnosticoTouchpoints": {
-    "touchpointsCriticos": [{"touchpoint": "", "canal": "", "peso": 0, "scoreCoerencia": 0, "observacao": ""}],
-    "quickWins": []
-  },
-  "tensoesEstruturais": [{"titulo": "", "descricao": ""}],
-  "perguntaFundadora": ""
-}`;
-
-      const r = await client.messages.create({
-        model: MODEL_SONNET,
-        max_tokens: 8000,
-        system: AMUM_SYSTEM,
-        messages: [cachedUserMessage(ctx, livePrompt)],
-      });
-      try {
-        const json = robustParseJSON(extractText(r.content));
-        if (r.stop_reason === 'max_tokens') {
-          console.warn('[final_ondeEstamos] parse ok but stop_reason=max_tokens — content likely truncated', {
-            outputTokens: r.usage?.output_tokens,
-            inputTokens: r.usage?.input_tokens,
-          });
-        }
-        return NextResponse.json({
-          json,
-          createdAt: new Date().toISOString(),
-          stopReason: r.stop_reason,
-        });
-      } catch (e) {
-        const raw = extractText(r.content);
-        console.error('[final_ondeEstamos] parse fail', {
-          detail: String(e),
-          rawLen: raw.length,
-          rawEnd: raw.slice(-400),
-          stopReason: r.stop_reason,
-          inputTokens: r.usage?.input_tokens,
-          outputTokens: r.usage?.output_tokens,
-        });
-        return NextResponse.json({
-          error: 'Parse error',
-          raw,
-          detail: String(e),
-          stopReason: r.stop_reason,
-        }, { status: 500 });
-      }
-    }
-
-    if (action === 'final_paraOndeVamos') {
-      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da PARTE 2 do Relatorio Final — "Para onde vamos".
-
-Esta parte e a afirmacao: arquetipo, territorio escolhido, plataforma de marca, codigo linguistico, biblioteca de mensagens, manifesto INTEGRAL, direcao visual, arquitetura de marca, matriz ODS e narrativa simbolica. Tom: formativo-normativo. Nomeia o destino e o que se ganha ao segui-lo.
-
-EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia; NAO preencha com conteudo generico.
-
-REGRA METODOLOGICA CRITICA:
-O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
-- NAO nomeie fases explicitamente ("na Decifracao", "na Reconstrucao"). Os titulos de secao ja carregam essa informacao.
-- NAO descreva instrumentos metodologicos ("avaliacao de territorios como dispositivo", "co-criacao de posicionamento com...").
-- NAO explique a logica analitica aplicada ("aplicamos o framework X de arquetipos").
-- SIM: a "notaDeLeitura" integra uma frase-ponte didatica que nomeia O QUE ESTA PARTE RESOLVE PARA O LEITOR.
-
-REGRAS DE DENSIDADE (esta parte e a mais densa do relatorio):
-- "afirmacaoDestaque": linhaA e linhaB sao frases curtas que formam o posicionamento em duas linhas visuais (ex: "Deciframos culturas." / "Criamos comunidades."). "glosa" e o paragrafo de apoio (2-4 frases) que ancora a afirmacao na tensao central.
-- "arquetipo.signosQueConfirmaram": paragrafo denso nomeando os signos que apareceram nos dados.
-- "territorios.avaliados": liste TODOS os territorios considerados (nao so o escolhido) com viabilidade nomeada.
-- "tradeoffs": completos — cada tradeoff nomeia o que se abandona e o que se ganha.
-- "plataforma.valores": cada valor com seus comportamentos especificos (nao adjetivos soltos).
-- "codigoLinguistico.vocabularioPreferencial" e "vocabularioProibido": EXTRAIA TODAS as palavras registradas, nao um subset.
-- "codigoLinguistico.exemplosAplicacao": minimo 4 exemplos de contexto × formulacao correta.
-- "codigoLinguistico.qaChecklist": lista completa de verificacao pre-publicacao.
-- "bibliotecaDeMensagens": um bloco por publico registrado, com provas especificas (nao generalidades).
-- "manifesto": INTEGRAL, nao recortado. Paragrafos separados por \\n\\n.
-- "direcaoVisual": principios simbolicos, paleta descritiva, tipografia, elementos graficos, diretrizes, descricao do moodboard.
-- "arquiteturaDeMarca.brandToOperating": liste TODAS as implicacoes operacionais mapeadas.
-- "matrizODS.items": cada ODS selecionada com classificacao, riscoGreenwashing e iniciativas completas (descricao + indicador + owner + cadencia).
-- "narrativaSimbolica": paragrafos separados por \\n\\n.
-
-Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
-{
-  "notaDeLeitura": "",
-  "afirmacaoDestaque": { "linhaA": "", "linhaB": "", "glosa": "" },
-  "arquetipo": { "nome": "", "signosQueConfirmaram": "" },
-  "territorios": {
-    "avaliados": [{"nome": "", "viabilidade": ""}],
-    "escolhido": "",
-    "porQueEsteTerritorio": ""
-  },
-  "tradeoffs": [{"abandona": "", "ganha": ""}],
-  "plataforma": {
-    "proposito": "", "essencia": "", "posicionamento": "", "promessa": "",
-    "valores": [{"valor": "", "comportamentos": []}]
-  },
-  "codigoLinguistico": {
-    "tomDeVoz": {"e": [], "naoE": []},
-    "vocabularioPreferencial": [],
-    "vocabularioProibido": [],
-    "padroesConstrutivos": [],
-    "exemplosAplicacao": [{"contexto": "", "exemplo": ""}],
-    "qaChecklist": []
-  },
-  "bibliotecaDeMensagens": [{"publico": "", "afirmacaoCentral": "", "provas": []}],
-  "manifesto": "",
-  "direcaoVisual": {
-    "principiosSimbolicos": [],
-    "paleta": "",
-    "tipografia": "",
-    "elementosGraficos": [],
-    "diretrizes": "",
-    "descricaoMoodboard": ""
-  },
-  "arquiteturaDeMarca": {
-    "portfolioMap": "",
-    "nomenclaturaRegras": "",
-    "brandToOperating": [{"funcao": "", "implicacao": "", "responsavel": "", "prioridade": ""}]
-  },
-  "matrizODS": {
-    "items": [{"ods": "", "classificacao": "", "riscoGreenwashing": "", "iniciativas": [{"descricao": "", "indicador": "", "owner": "", "cadencia": ""}]}]
-  },
-  "narrativaSimbolica": ""
-}`;
-
-      const r = await client.messages.create({
-        model: MODEL_SONNET,
-        max_tokens: 10000,
-        system: AMUM_SYSTEM,
-        messages: [cachedUserMessage(ctx, livePrompt)],
-      });
-      try {
-        const json = robustParseJSON(extractText(r.content));
-        if (r.stop_reason === 'max_tokens') {
-          console.warn('[final_paraOndeVamos] parse ok but stop_reason=max_tokens — content likely truncated', {
-            outputTokens: r.usage?.output_tokens,
-            inputTokens: r.usage?.input_tokens,
-          });
-        }
-        return NextResponse.json({
-          json,
-          createdAt: new Date().toISOString(),
-          stopReason: r.stop_reason,
-        });
-      } catch (e) {
-        const raw = extractText(r.content);
-        console.error('[final_paraOndeVamos] parse fail', {
-          detail: String(e),
-          rawLen: raw.length,
-          rawEnd: raw.slice(-400),
-          stopReason: r.stop_reason,
-          inputTokens: r.usage?.input_tokens,
-          outputTokens: r.usage?.output_tokens,
-        });
-        return NextResponse.json({
-          error: 'Parse error',
-          raw,
-          detail: String(e),
-          stopReason: r.stop_reason,
-        }, { status: 500 });
-      }
-    }
-
-    if (action === 'final_comoVamosChegarLa') {
-      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o JSON da PARTE 3 do Relatorio Final — "Como vamos chegar la".
-
-Esta parte e a execucao: ondas de implementacao, KPIs, riscos, enablement kit, desenho do treinamento e governanca continua (scorecard, cadencia, criterios de alerta, protocolo de compliance, escopo de revisao anual). Tom: operacional, sequenciado, com responsaveis e prazos.
-
-EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, deixe array vazio ou string vazia; NAO preencha com conteudo generico.
-
-REGRA METODOLOGICA CRITICA:
-O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
-- NAO nomeie fases explicitamente ("na Travessia", "na Regeneracao"). Os titulos de secao ja carregam essa informacao.
-- NAO descreva instrumentos metodologicos ("scorecard como dispositivo", "trilha de adocao enquanto framework").
+- NAO descreva instrumentos metodologicos ("cruzamento de dados", "mapa E/Faz/Fala como dispositivo").
 - NAO explique a logica analitica aplicada.
-- SIM: a "notaDeLeitura" integra uma frase-ponte didatica que nomeia O QUE ESTA PARTE RESOLVE PARA O LEITOR.
+- SIM: cada secao abre com 2-4 paragrafos "section-lede" que nomeiam O QUE A SECAO RESOLVE PARA O LEITOR, nao COMO foi construida.
+
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, indique a ausencia brevemente ou omita o bloco.
+
+ESTRUTURA OBRIGATORIA (markdown com headers exatos abaixo):
+
+# Parte 1 · Onde estamos
+
+<notaDeLeitura: 2-4 frases que situam o leitor na parte inteira>
+
+## 1.1 <Titulo curto que nomeia a distancia entre autorretrato e percepcao>
+
+<Lede 1: 2-3 frases que abrem a secao>
+
+<Lede 2: 2-3 frases, aprofundando a tese>
+
+<Se necessario, Lede 3 e/ou Lede 4 — no maximo 4 ledes totais por secao>
+
+### Retrato da marca
+
+**Como se apresenta:** <paragrafo denso 120-180 palavras: como a marca se apresenta nos documentos institucionais, o que o autorretrato sinaliza sobre autopercepcao, o que omite>
+
+**O que os dados mostram:** <2-3 frases sinteticas sobre o que os dados externos confirmam ou contradizem>
+
+**Tensao central:** <1 frase precisa — a contradicao estrutural central identificada>
+
+## 1.2 <Titulo curto sobre o desalinhamento entre Ser/Fazer/Comunicar>
+
+<2-4 ledes>
+
+### Plataforma Ser · Fazer · Comunicar
+
+<para CADA dimensao registrada no mapa E/Faz/Fala do projeto, produza um sub-bloco:>
+
+#### <Nome da dimensao>
+- **Se declara:** <texto>
+- **Como age:** <texto>
+- **Como comunica:** <texto>
+- **Discrepancia:** <frase que nomeia o gap>
+- **Risco:** <frase que nomeia o risco operacional>
+
+### Implicacoes estrategicas
+
+- <implicacao 1>
+- <implicacao 2>
+- <...tantas quantas existirem>
+
+## 1.3 <Titulo curto sobre onde o desalinhamento aparece na pratica — touchpoints>
+
+<2-4 ledes>
+
+### Touchpoints criticos
+
+<para CADA touchpoint registrado:>
+
+- **<Touchpoint>** (<canal>): peso <0-10>, coerencia <0-10>. <Observacao completa>
+
+### Quick wins
+
+- <quick win 1>
+- <quick win 2>
+- <...>
+
+## 1.4 <Titulo curto sobre as contradicoes que o reposicionamento precisa resolver>
+
+<2-4 ledes>
+
+### Tensoes estruturais
+
+<para CADA tensao identificada:>
+
+#### <Titulo da tensao>
+<Descricao 3-5 frases: nomeia a tensao, identifica causas rastreaveis, explica o que bloqueia e por que precisa ser resolvida>
+
+### Pergunta fundadora
+
+> <uma frase interrogativa que ancora o destino proposto na Parte 2>
 
 REGRAS DE DENSIDADE:
-- "ondas": cada onda com timeline, touchpoints afetados, responsaveis nomeados e criterios de conclusao verificaveis.
-- "kpis": um bloco por periodo (ex: 30/60/90, T1/T2/T3), com indicador e meta quantificada.
-- "riscos": todos os riscos mapeados, com nivel (alto/medio/baixo) e contingencia especifica.
-- "enablementKit": FAQs completas, templates com descricao, trilha de adocao por area com passos sequenciados, checklist de QA integral.
-- "trainingDesign": extraia a agenda COMPLETA com detalhamento pedagogico se presente — objetivos por publico, formatos, blocos, duracoes, materiais.
-- "scorecard": dimensoes avaliadas com score atual, meta, tendencia e acao recomendada.
-- "cadencia": rituais de governanca (frequencia × atividade × responsavel).
-- "criteriosAlerta": condicoes que disparam revisao fora do ciclo regular.
-- "gatilhosDeRevisao": paragrafo que nomeia quando e por que revisar a plataforma de marca.
-- "protocoloCompliance": meta de conformidade, touchpoints auditados, backlog priorizado.
-- "escopoRevisaoAnual": KPIs de marca + recomendacoes estruturantes para o ciclo seguinte.
+- Ledes: 2-4 paragrafos por secao, cada um com 2-3 frases substantivas.
+- Bloco SFC: EXTRAIA TODAS as dimensoes registradas, nao resuma.
+- Touchpoints: extraia TODOS os auditados, nao apenas os mais visiveis.
+- Tensoes: liste todas identificadas, nao apenas as de maior peso.
 
-Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
-{
-  "notaDeLeitura": "",
-  "ondas": [{"onda": "", "timeline": "", "touchpoints": [], "responsaveis": [], "criteriosConclusao": []}],
-  "kpis": [{"periodo": "", "indicador": "", "meta": ""}],
-  "riscos": [{"risco": "", "nivel": "", "contingencia": ""}],
-  "enablementKit": {
-    "faqs": [{"pergunta": "", "resposta": ""}],
-    "templates": [{"nome": "", "descricao": ""}],
-    "trilhaAdocao": [{"area": "", "passos": []}],
-    "checklistQA": []
-  },
-  "trainingDesign": {
-    "objetivosPorPublico": [{"publico": "", "objetivos": []}],
-    "formatos": [],
-    "agenda": [{"bloco": "", "duracao": "", "formato": ""}],
-    "materiaisNecessarios": [],
-    "createdAt": ""
-  },
-  "scorecard": [{"dimensao": "", "score": 0, "meta": 0, "tendencia": "", "acao": ""}],
-  "cadencia": [{"frequencia": "", "atividade": "", "responsavel": ""}],
-  "criteriosAlerta": [],
-  "gatilhosDeRevisao": "",
-  "protocoloCompliance": {
-    "percentualConformidadeAlvo": "",
-    "touchpointsAuditados": [],
-    "backlogPrioritario": []
-  },
-  "escopoRevisaoAnual": {
-    "kpisMarca": [{"indicador": "", "meta": ""}],
-    "recomendacoes": []
-  }
-}`;
+Retorne APENAS o markdown do documento, sem texto antes, sem texto depois, sem backticks.`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 6000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      const text = extractText(r.content);
+      if (r.stop_reason === 'max_tokens') {
+        console.warn('[final_txt_ondeEstamos] stop_reason=max_tokens — output may be truncated', {
+          outputTokens: r.usage?.output_tokens,
+          inputTokens: r.usage?.input_tokens,
+        });
+      }
+      return NextResponse.json({
+        text,
+        createdAt: new Date().toISOString(),
+        stopReason: r.stop_reason,
+      });
+    }
+
+    if (action === 'final_txt_paraOndeVamos') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o DOCUMENTO EDITORIAL COMPLETO da PARTE 2 do Relatorio Final — "Para onde vamos".
+
+Esta e a camada editorial (prosa densa, markdown estruturado). Sera consumida em seguida por um extrator que transforma este texto em JSON estruturado — siga a marcacao markdown abaixo com rigor.
+
+TOM: formativo-normativo. Nomeia o destino e o que se ganha ao segui-lo. Esta parte e a mais densa do relatorio — manifesto, codigo linguistico, direcao visual, matriz ODS.
+
+REGRA METODOLOGICA CRITICA:
+O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
+- NAO nomeie fases explicitamente ("na Decifracao", "na Reconstrucao").
+- NAO descreva instrumentos metodologicos ("avaliacao de territorios", "co-criacao").
+- NAO explique a logica analitica aplicada.
+- SIM: ledes nomeiam O QUE A SECAO RESOLVE PARA O LEITOR.
+
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, indique a ausencia brevemente ou omita o bloco.
+
+ESTRUTURA OBRIGATORIA:
+
+# Parte 2 · Para onde vamos
+
+<notaDeLeitura: 2-4 frases>
+
+## 2.1 <Titulo curto sobre a aposta central do reposicionamento>
+
+<2-4 ledes>
+
+### Afirmacao central
+
+> <linha A: frase curta 3-8 palavras>
+> <linha B: frase curta 3-8 palavras que completa ou contrasta com A>
+
+<Glosa: 2-4 frases que ancoram a afirmacao na tensao central>
+
+### Arquetipo dominante
+
+**Nome:** <arquetipo>
+
+**Signos que confirmaram:** <paragrafo denso que nomeia os signos concretos nos dados>
+
+## 2.2 <Titulo curto sobre o territorio escolhido e o que precisou descartar>
+
+<2-4 ledes>
+
+### Territorios avaliados
+
+<para CADA territorio considerado:>
+- **<Nome>**: <viabilidade nomeada em 1-2 frases>
+
+### Territorio escolhido
+
+**<Nome do territorio>**
+
+<Por que este territorio: paragrafo denso com raciocinio de eliminacao>
+
+### Tradeoffs
+
+<para CADA tradeoff:>
+- **Abandona:** <o que> · **Ganha:** <o que>
+
+## 2.3 <Titulo curto sobre os pilares que sustentam a nova narrativa>
+
+<2-4 ledes>
+
+### Plataforma de marca
+
+- **Proposito:** <frase densa>
+- **Essencia:** <frase densa>
+- **Posicionamento:** <frase densa>
+- **Promessa:** <frase densa>
+
+### Valores e comportamentos
+
+<para CADA valor registrado:>
+
+#### <Nome do valor>
+- <comportamento concreto 1>
+- <comportamento concreto 2>
+- <...>
+
+## 2.4 <Titulo curto sobre arquitetura de marca e matriz ODS>
+
+<2-4 ledes>
+
+### Arquitetura
+
+**Mapa de portfolio:** <paragrafo denso>
+
+**Regras de nomenclatura:** <paragrafo denso>
+
+### Brand to operating
+
+<para CADA implicacao operacional mapeada:>
+- **<Funcao>**: <implicacao> | responsavel: <responsavel> | prioridade: <prioridade>
+
+### Matriz ODS
+
+<para CADA ODS selecionada:>
+
+#### ODS <numero e nome>
+- **Classificacao:** <nivel de relevancia>
+- **Risco de greenwashing:** <nivel + breve justificativa>
+- **Iniciativas:**
+  - <descricao> | indicador: <ind> | owner: <owner> | cadencia: <cadencia>
+  - <...tantas iniciativas quantas existirem>
+
+## 2.5 <Titulo curto sobre como a marca fala a partir de agora>
+
+<2-4 ledes>
+
+### Tom de voz
+
+**E:** <palavra1>, <palavra2>, <palavra3>, ...
+**Nao e:** <palavra1>, <palavra2>, ...
+
+### Vocabulario
+
+**Preferencial:** <TODAS as palavras registradas, separadas por virgula>
+
+**Proibido:** <TODAS as palavras registradas, separadas por virgula>
+
+### Padroes construtivos
+
+- <padrao 1>
+- <padrao 2>
+- <...>
+
+### Exemplos de aplicacao (minimo 4)
+
+<para CADA exemplo:>
+- **<Contexto>**: "<exemplo textual>"
+
+### Checklist QA
+
+- <item 1>
+- <item 2>
+- <...>
+
+### Biblioteca de mensagens
+
+<para CADA publico registrado:>
+
+#### Para <publico>
+- **Afirmacao central:** <frase>
+- **Provas:** <provas separadas por ponto e virgula>
+
+### Manifesto
+
+<MANIFESTO INTEGRAL — paragrafos separados por linha em branco, sem corte>
+
+### Narrativa simbolica
+
+<paragrafos separados por linha em branco>
+
+## 2.6 <Titulo curto sobre como a marca se mostra — direcao visual>
+
+<2-4 ledes>
+
+### Principios simbolicos
+
+- <principio 1>
+- <principio 2>
+- <...>
+
+### Paleta
+
+<paragrafo descritivo>
+
+### Tipografia
+
+<paragrafo descritivo>
+
+### Elementos graficos
+
+- <elemento 1>
+- <...>
+
+### Diretrizes
+
+<paragrafo>
+
+### Descricao do moodboard
+
+<paragrafo denso>
+
+REGRAS DE DENSIDADE:
+- Manifesto: INTEGRAL, nao recortado.
+- Vocabulario pref/proibido: TODAS as palavras registradas.
+- ExemplosAplicacao: minimo 4.
+- ODS: cada selecionada com iniciativas completas.
+
+Retorne APENAS o markdown do documento, sem texto antes, sem texto depois, sem backticks.`;
 
       const r = await client.messages.create({
         model: MODEL_SONNET,
@@ -2193,12 +2267,270 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
         system: AMUM_SYSTEM,
         messages: [cachedUserMessage(ctx, livePrompt)],
       });
+      const text = extractText(r.content);
+      if (r.stop_reason === 'max_tokens') {
+        console.warn('[final_txt_paraOndeVamos] stop_reason=max_tokens — output may be truncated', {
+          outputTokens: r.usage?.output_tokens,
+          inputTokens: r.usage?.input_tokens,
+        });
+      }
+      return NextResponse.json({
+        text,
+        createdAt: new Date().toISOString(),
+        stopReason: r.stop_reason,
+      });
+    }
+
+    if (action === 'final_txt_comoVamosChegarLa') {
+      const livePrompt = `Voce e o estrategista principal da AMUM. Produza o DOCUMENTO EDITORIAL COMPLETO da PARTE 3 do Relatorio Final — "Como vamos chegar la".
+
+Esta e a camada editorial (prosa densa, markdown estruturado). Sera consumida em seguida por um extrator que transforma este texto em JSON estruturado — siga a marcacao markdown abaixo com rigor.
+
+TOM: operacional, sequenciado, com responsaveis e prazos. Nomeia como a migracao acontece no tempo.
+
+REGRA METODOLOGICA CRITICA:
+O relatorio NAO deve revelar o mecanismo interno da metodologia AMUM.
+- NAO nomeie fases explicitamente ("na Travessia", "na Regeneracao").
+- NAO descreva instrumentos metodologicos ("scorecard como dispositivo").
+- NAO explique a logica analitica aplicada.
+- SIM: ledes nomeiam O QUE A SECAO RESOLVE PARA O LEITOR.
+
+EXTRAIA os dados reais registrados no contexto — campos aprovados, itens cadastrados, textos escritos. NAO invente. Se um campo nao existe, indique a ausencia brevemente ou omita o bloco.
+
+ESTRUTURA OBRIGATORIA:
+
+# Parte 3 · Como vamos chegar la
+
+<notaDeLeitura: 2-4 frases>
+
+## 3.1 <Titulo curto sobre as ondas da implementacao>
+
+<2-4 ledes>
+
+### Ondas
+
+<para CADA onda registrada:>
+
+#### <Nome da onda>
+- **Timeline:** <periodo>
+- **Touchpoints afetados:** <lista>
+- **Responsaveis:** <lista>
+- **Criterios de conclusao:** <lista verificavel>
+
+## 3.2 <Titulo curto sobre o que medir em cada janela de tempo>
+
+<2-4 ledes>
+
+### KPIs
+
+<para CADA periodo (ex: 30/60/90, T1/T2/T3):>
+- **<Periodo>**: <indicador> — meta: <meta quantificada>
+
+## 3.3 <Titulo curto sobre o que pode travar a travessia>
+
+<2-4 ledes>
+
+### Riscos
+
+<para CADA risco mapeado:>
+- **<Risco>** (nivel: <alto/medio/baixo>): <contingencia especifica>
+
+## 3.4 <Titulo curto sobre o que o time precisa para sustentar a marca>
+
+<2-4 ledes>
+
+### FAQs
+
+<para CADA pergunta-resposta:>
+- **P:** <pergunta>
+  **R:** <resposta>
+
+### Templates
+
+<para CADA template:>
+- **<Nome>**: <descricao>
+
+### Trilha de adocao
+
+<para CADA area:>
+
+#### <Area>
+- <passo 1>
+- <passo 2>
+- <...>
+
+### Checklist QA
+
+- <item 1>
+- <...>
+
+## 3.5 <Titulo curto sobre como o time adquire o dominio — bloco a bloco>
+
+<2-4 ledes>
+
+### Objetivos por publico
+
+<para CADA publico:>
+
+#### <Publico>
+- <objetivo 1>
+- <objetivo 2>
+- <...>
+
+### Formatos
+
+- <formato 1>
+- <...>
+
+### Agenda (bloco a bloco)
+
+<para CADA bloco:>
+- **<Bloco>** (<duracao>, <formato>)
+
+### Materiais necessarios
+
+- <material 1>
+- <...>
+
+## 3.6 <Titulo curto sobre como a marca permanece viva no tempo>
+
+<2-4 ledes>
+
+### Scorecard
+
+<para CADA dimensao avaliada:>
+- **<Dimensao>**: score atual <0-10> / meta <0-10> — tendencia: <alta/estavel/baixa>. Acao: <acao recomendada>
+
+### Cadencia
+
+<para CADA ritual:>
+- **<Frequencia>**: <atividade> — responsavel: <responsavel>
+
+### Criterios de alerta
+
+- <criterio 1 que dispara revisao fora do ciclo>
+- <...>
+
+### Gatilhos de revisao
+
+<paragrafo que nomeia quando e por que revisar a plataforma>
+
+### Protocolo de compliance
+
+- **Meta de conformidade:** <percentual>
+- **Touchpoints auditados:** <lista>
+- **Backlog priorizado:** <lista>
+
+### Escopo da revisao anual
+
+**KPIs de marca:**
+- <indicador 1> — meta: <meta>
+- <...>
+
+**Recomendacoes:**
+- <recomendacao 1>
+- <...>
+
+REGRAS DE DENSIDADE:
+- Ondas: todas as registradas, com criterios verificaveis.
+- Agenda: detalhamento pedagogico se presente.
+- FAQs: completas.
+
+Retorne APENAS o markdown do documento, sem texto antes, sem texto depois, sem backticks.`;
+
+      const r = await client.messages.create({
+        model: MODEL_SONNET,
+        max_tokens: 6000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      const text = extractText(r.content);
+      if (r.stop_reason === 'max_tokens') {
+        console.warn('[final_txt_comoVamosChegarLa] stop_reason=max_tokens — output may be truncated', {
+          outputTokens: r.usage?.output_tokens,
+          inputTokens: r.usage?.input_tokens,
+        });
+      }
+      return NextResponse.json({
+        text,
+        createdAt: new Date().toISOString(),
+        stopReason: r.stop_reason,
+      });
+    }
+
+    // ─── CAMADA 2 · extracao JSON a partir do TXT ────────────────────────
+
+    if (action === 'final_json_ondeEstamos') {
+      const sourceTxt = (body.sourceTxt || '') as string;
+      if (!sourceTxt) {
+        return NextResponse.json({ error: 'sourceTxt ausente' }, { status: 400 });
+      }
+
+      const livePrompt = `Voce e um extrator estruturado. Dado o documento editorial markdown da Parte 1 do Relatorio Final abaixo, organize seu conteudo no JSON exato especificado. NAO interprete, NAO resuma, NAO reescreva — apenas extraia e mapeie. Preserve a prosa dos ledes integralmente.
+
+DOCUMENTO FONTE:
+---
+${sourceTxt}
+---
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
+{
+  "notaDeLeitura": "<nota curta logo apos o H1 da parte>",
+  "secao_1_1": {
+    "title": "<titulo da secao 1.1, sem o prefixo '1.1'>",
+    "ledes": ["<paragrafo lede 1>", "<paragrafo lede 2>", "..."],
+    "retratoDaMarca": {
+      "comoSeApresenta": "<paragrafo>",
+      "oQueDadosMostram": "<texto>",
+      "tensaoCentral": "<frase>"
+    }
+  },
+  "secao_1_2": {
+    "title": "<titulo da secao 1.2>",
+    "ledes": ["..."],
+    "plataformaSFC": {
+      "dimensoes": [
+        {"dimensao": "<nome>", "seDeclara": "<texto>", "comoAge": "<texto>", "comoComunica": "<texto>", "discrepancia": "<frase>", "risco": "<frase>"}
+      ],
+      "implicacoesEstrategicas": ["<implicacao 1>", "..."]
+    }
+  },
+  "secao_1_3": {
+    "title": "<titulo da secao 1.3>",
+    "ledes": ["..."],
+    "diagnosticoTouchpoints": {
+      "touchpointsCriticos": [
+        {"touchpoint": "<nome>", "canal": "<canal>", "peso": 0, "scoreCoerencia": 0, "observacao": "<texto>"}
+      ],
+      "quickWins": ["<quick win 1>", "..."]
+    }
+  },
+  "secao_1_4": {
+    "title": "<titulo da secao 1.4>",
+    "ledes": ["..."],
+    "tensoesEstruturais": [
+      {"titulo": "<titulo>", "descricao": "<descricao>"}
+    ],
+    "perguntaFundadora": "<frase interrogativa>"
+  }
+}
+
+REGRAS:
+- "ledes" sao os paragrafos que aparecem ENTRE o titulo da secao e o primeiro sub-header "###". Mantenha a ordem e a prosa original.
+- "peso" e "scoreCoerencia" devem ser numericos (0-10) conforme o documento.
+- Se algum campo nao aparecer no documento, use string vazia ou array vazio. NAO invente.`;
+
+      const r = await client.messages.create({
+        model: MODEL_HAIKU,
+        max_tokens: 4000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
       try {
         const json = robustParseJSON(extractText(r.content));
         if (r.stop_reason === 'max_tokens') {
-          console.warn('[final_comoVamosChegarLa] parse ok but stop_reason=max_tokens — content likely truncated', {
+          console.warn('[final_json_ondeEstamos] stop_reason=max_tokens', {
             outputTokens: r.usage?.output_tokens,
-            inputTokens: r.usage?.input_tokens,
           });
         }
         return NextResponse.json({
@@ -2208,16 +2540,252 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
         });
       } catch (e) {
         const raw = extractText(r.content);
-        console.error('[final_comoVamosChegarLa] parse fail', {
+        console.error('[final_json_ondeEstamos] parse fail', {
           detail: String(e),
           rawLen: raw.length,
           rawEnd: raw.slice(-400),
           stopReason: r.stop_reason,
-          inputTokens: r.usage?.input_tokens,
-          outputTokens: r.usage?.output_tokens,
         });
         return NextResponse.json({
-          error: 'Parse error',
+          error: 'Parse error na extracao JSON',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
+      }
+    }
+
+    if (action === 'final_json_paraOndeVamos') {
+      const sourceTxt = (body.sourceTxt || '') as string;
+      if (!sourceTxt) {
+        return NextResponse.json({ error: 'sourceTxt ausente' }, { status: 400 });
+      }
+
+      const livePrompt = `Voce e um extrator estruturado. Dado o documento editorial markdown da Parte 2 do Relatorio Final abaixo, organize seu conteudo no JSON exato especificado. NAO interprete, NAO resuma, NAO reescreva — apenas extraia e mapeie. Preserve a prosa dos ledes e do manifesto integralmente.
+
+DOCUMENTO FONTE:
+---
+${sourceTxt}
+---
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
+{
+  "notaDeLeitura": "<nota curta logo apos o H1>",
+  "secao_2_1": {
+    "title": "<titulo 2.1>",
+    "ledes": ["..."],
+    "afirmacaoDestaque": {"linhaA": "<linha A>", "linhaB": "<linha B>", "glosa": "<paragrafo>"},
+    "arquetipo": {"nome": "<nome>", "signosQueConfirmaram": "<paragrafo>"}
+  },
+  "secao_2_2": {
+    "title": "<titulo 2.2>",
+    "ledes": ["..."],
+    "territorios": {
+      "avaliados": [{"nome": "<nome>", "viabilidade": "<texto>"}],
+      "escolhido": "<nome do escolhido>",
+      "porQueEsteTerritorio": "<paragrafo>"
+    },
+    "tradeoffs": [{"abandona": "<texto>", "ganha": "<texto>"}]
+  },
+  "secao_2_3": {
+    "title": "<titulo 2.3>",
+    "ledes": ["..."],
+    "plataforma": {
+      "proposito": "<frase>",
+      "essencia": "<frase>",
+      "posicionamento": "<frase>",
+      "promessa": "<frase>",
+      "valores": [{"valor": "<nome>", "comportamentos": ["<comp1>", "..."]}]
+    }
+  },
+  "secao_2_4": {
+    "title": "<titulo 2.4>",
+    "ledes": ["..."],
+    "arquiteturaDeMarca": {
+      "portfolioMap": "<paragrafo>",
+      "nomenclaturaRegras": "<paragrafo>",
+      "brandToOperating": [{"funcao": "<nome>", "implicacao": "<texto>", "responsavel": "<nome>", "prioridade": "<alta/media/baixa>"}]
+    },
+    "matrizODS": {
+      "items": [{"ods": "<numero+nome>", "classificacao": "<nivel>", "riscoGreenwashing": "<nivel+justificativa>", "iniciativas": [{"descricao": "<texto>", "indicador": "<ind>", "owner": "<owner>", "cadencia": "<cadencia>"}]}]
+    }
+  },
+  "secao_2_5": {
+    "title": "<titulo 2.5>",
+    "ledes": ["..."],
+    "codigoLinguistico": {
+      "tomDeVoz": {"e": ["<palavra>", "..."], "naoE": ["<palavra>", "..."]},
+      "vocabularioPreferencial": ["<palavra>", "..."],
+      "vocabularioProibido": ["<palavra>", "..."],
+      "padroesConstrutivos": ["<padrao>", "..."],
+      "exemplosAplicacao": [{"contexto": "<ctx>", "exemplo": "<texto>"}],
+      "qaChecklist": ["<item>", "..."]
+    },
+    "bibliotecaDeMensagens": [{"publico": "<nome>", "afirmacaoCentral": "<frase>", "provas": ["<prova>", "..."]}],
+    "manifesto": "<MANIFESTO INTEGRAL, paragrafos separados por \\n\\n>",
+    "narrativaSimbolica": "<paragrafos separados por \\n\\n>"
+  },
+  "secao_2_6": {
+    "title": "<titulo 2.6>",
+    "ledes": ["..."],
+    "direcaoVisual": {
+      "principiosSimbolicos": ["<principio>", "..."],
+      "paleta": "<paragrafo>",
+      "tipografia": "<paragrafo>",
+      "elementosGraficos": ["<elemento>", "..."],
+      "diretrizes": "<paragrafo>",
+      "descricaoMoodboard": "<paragrafo>"
+    }
+  }
+}
+
+REGRAS:
+- "ledes" sao os paragrafos que aparecem ENTRE o titulo da secao e o primeiro sub-header "###".
+- "manifesto" deve vir INTEGRAL, sem corte, com paragrafos separados por "\\n\\n".
+- Vocabulario: TODAS as palavras listadas no documento, em ordem.
+- Se algum campo nao aparecer, use string vazia ou array vazio. NAO invente.`;
+
+      const r = await client.messages.create({
+        model: MODEL_HAIKU,
+        max_tokens: 6000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      try {
+        const json = robustParseJSON(extractText(r.content));
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_json_paraOndeVamos] stop_reason=max_tokens', {
+            outputTokens: r.usage?.output_tokens,
+          });
+        }
+        return NextResponse.json({
+          json,
+          createdAt: new Date().toISOString(),
+          stopReason: r.stop_reason,
+        });
+      } catch (e) {
+        const raw = extractText(r.content);
+        console.error('[final_json_paraOndeVamos] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+        });
+        return NextResponse.json({
+          error: 'Parse error na extracao JSON',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
+      }
+    }
+
+    if (action === 'final_json_comoVamosChegarLa') {
+      const sourceTxt = (body.sourceTxt || '') as string;
+      if (!sourceTxt) {
+        return NextResponse.json({ error: 'sourceTxt ausente' }, { status: 400 });
+      }
+
+      const livePrompt = `Voce e um extrator estruturado. Dado o documento editorial markdown da Parte 3 do Relatorio Final abaixo, organize seu conteudo no JSON exato especificado. NAO interprete, NAO resuma, NAO reescreva — apenas extraia e mapeie. Preserve a prosa dos ledes integralmente.
+
+DOCUMENTO FONTE:
+---
+${sourceTxt}
+---
+
+Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
+{
+  "notaDeLeitura": "<nota curta logo apos o H1>",
+  "secao_3_1": {
+    "title": "<titulo 3.1>",
+    "ledes": ["..."],
+    "ondas": [
+      {"onda": "<nome>", "timeline": "<periodo>", "touchpoints": ["<tp>", "..."], "responsaveis": ["<resp>", "..."], "criteriosConclusao": ["<criterio>", "..."]}
+    ]
+  },
+  "secao_3_2": {
+    "title": "<titulo 3.2>",
+    "ledes": ["..."],
+    "kpis": [{"periodo": "<periodo>", "indicador": "<texto>", "meta": "<meta>"}]
+  },
+  "secao_3_3": {
+    "title": "<titulo 3.3>",
+    "ledes": ["..."],
+    "riscos": [{"risco": "<texto>", "nivel": "<alto/medio/baixo>", "contingencia": "<texto>"}]
+  },
+  "secao_3_4": {
+    "title": "<titulo 3.4>",
+    "ledes": ["..."],
+    "enablementKit": {
+      "faqs": [{"pergunta": "<texto>", "resposta": "<texto>"}],
+      "templates": [{"nome": "<texto>", "descricao": "<texto>"}],
+      "trilhaAdocao": [{"area": "<nome>", "passos": ["<passo>", "..."]}],
+      "checklistQA": ["<item>", "..."]
+    }
+  },
+  "secao_3_5": {
+    "title": "<titulo 3.5>",
+    "ledes": ["..."],
+    "trainingDesign": {
+      "objetivosPorPublico": [{"publico": "<nome>", "objetivos": ["<obj>", "..."]}],
+      "formatos": ["<formato>", "..."],
+      "agenda": [{"bloco": "<nome>", "duracao": "<duracao>", "formato": "<formato>"}],
+      "materiaisNecessarios": ["<material>", "..."],
+      "createdAt": ""
+    }
+  },
+  "secao_3_6": {
+    "title": "<titulo 3.6>",
+    "ledes": ["..."],
+    "scorecard": [{"dimensao": "<nome>", "score": 0, "meta": 0, "tendencia": "<alta/estavel/baixa>", "acao": "<texto>"}],
+    "cadencia": [{"frequencia": "<frequencia>", "atividade": "<texto>", "responsavel": "<nome>"}],
+    "criteriosAlerta": ["<criterio>", "..."],
+    "gatilhosDeRevisao": "<paragrafo>",
+    "protocoloCompliance": {
+      "percentualConformidadeAlvo": "<percentual>",
+      "touchpointsAuditados": ["<tp>", "..."],
+      "backlogPrioritario": ["<item>", "..."]
+    },
+    "escopoRevisaoAnual": {
+      "kpisMarca": [{"indicador": "<texto>", "meta": "<meta>"}],
+      "recomendacoes": ["<texto>", "..."]
+    }
+  }
+}
+
+REGRAS:
+- "ledes" sao os paragrafos que aparecem ENTRE o titulo da secao e o primeiro sub-header "###".
+- "score" e "meta" em scorecard sao numericos (0-10).
+- Se algum campo nao aparecer, use string vazia, array vazio ou numero 0. NAO invente.`;
+
+      const r = await client.messages.create({
+        model: MODEL_HAIKU,
+        max_tokens: 4000,
+        system: AMUM_SYSTEM,
+        messages: [cachedUserMessage(ctx, livePrompt)],
+      });
+      try {
+        const json = robustParseJSON(extractText(r.content));
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_json_comoVamosChegarLa] stop_reason=max_tokens', {
+            outputTokens: r.usage?.output_tokens,
+          });
+        }
+        return NextResponse.json({
+          json,
+          createdAt: new Date().toISOString(),
+          stopReason: r.stop_reason,
+        });
+      } catch (e) {
+        const raw = extractText(r.content);
+        console.error('[final_json_comoVamosChegarLa] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+        });
+        return NextResponse.json({
+          error: 'Parse error na extracao JSON',
           raw,
           detail: String(e),
           stopReason: r.stop_reason,
