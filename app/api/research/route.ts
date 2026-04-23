@@ -1894,9 +1894,31 @@ Retorne APENAS este JSON valido (sem markdown, sem texto antes ou depois):
       });
       try {
         const json = robustParseJSON(extractText(r.content)) as Record<string, unknown>;
-        return NextResponse.json({ json, createdAt: new Date().toISOString() });
+        // Even on successful parse: if stop_reason is max_tokens, the JSON structurally parsed
+        // but content was likely truncated. Surface this as a warning for observability.
+        if (r.stop_reason === 'max_tokens') {
+          console.warn('[final_report_data] parse ok but stop_reason=max_tokens — content likely truncated', {
+            outputTokens: r.usage?.output_tokens,
+            inputTokens: r.usage?.input_tokens,
+          });
+        }
+        return NextResponse.json({ json, createdAt: new Date().toISOString(), stopReason: r.stop_reason });
       } catch (e) {
-        return NextResponse.json({ error: 'Parse error', raw: extractText(r.content), detail: String(e) }, { status: 500 });
+        const raw = extractText(r.content);
+        console.error('[final_report_data] parse fail', {
+          detail: String(e),
+          rawLen: raw.length,
+          rawEnd: raw.slice(-400),
+          stopReason: r.stop_reason,
+          inputTokens: r.usage?.input_tokens,
+          outputTokens: r.usage?.output_tokens,
+        });
+        return NextResponse.json({
+          error: 'Parse error',
+          raw,
+          detail: String(e),
+          stopReason: r.stop_reason,
+        }, { status: 500 });
       }
     }
 
